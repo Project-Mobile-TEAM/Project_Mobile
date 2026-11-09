@@ -1,0 +1,7 @@
+{
+  "project_name": "UTEChat",
+  "response_language": "vi",
+  "granularity": "standard",
+  "phase_id_convention": "sequential",
+  "commit_docs": true
+}

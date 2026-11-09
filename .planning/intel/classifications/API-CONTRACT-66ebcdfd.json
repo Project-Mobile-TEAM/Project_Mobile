@@ -1,0 +1,24 @@
+{
+  "source_path": "C:/Users/Admin/Desktop/Project-Mobile/docs/API_CONTRACT.md",
+  "type": "SPEC",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "UTEChat — Hợp đồng API (REST và WebSocket)",
+  "summary": "Hợp đồng chung chi tiết giữa ứng dụng Android và server cho REST endpoints và WebSocket events.",
+  "scope": [
+    "REST API",
+    "WebSocket",
+    "auth",
+    "conversations",
+    "messages",
+    "webrtc",
+    "rate limit",
+    "error format"
+  ],
+  "cross_refs": [
+    "docs/ARCHITECTURE_DECISIONS.md"
+  ],
+  "locked": false,
+  "precedence": null,
+  "notes": ""
+}

@@ -1,0 +1,22 @@
+{
+  "source_path": "C:/Users/Admin/Desktop/Project-Mobile/docs/README.md",
+  "type": "DOC",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "UTEChat — Tài liệu thiết kế (chốt trước khi code)",
+  "summary": "Tài liệu tổng quan dự án UTEChat, mô tả các tài liệu, phạm vi đồ án, quyết định chốt và việc cần làm tiếp theo.",
+  "scope": [
+    "Tổng quan UTEChat",
+    "Phạm vi rubric",
+    "Phạm vi mở rộng",
+    "Sơ đồ use-case",
+    "Quyết định đã chốt",
+    "Quyết định chờ duyệt"
+  ],
+  "cross_refs": [
+    "docs/ARCHITECTURE_DECISIONS.md"
+  ],
+  "locked": false,
+  "precedence": null,
+  "notes": ""
+}

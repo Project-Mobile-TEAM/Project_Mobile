@@ -1,0 +1,24 @@
+{
+  "source_path": "C:/Users/Admin/Desktop/Project-Mobile/docs/COURSE_ALIGNMENT.md",
+  "type": "DOC",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "UTEChat — Đối chiếu thiết kế với tài liệu giảng dạy",
+  "summary": "Đối chiếu đối sánh kiến trúc kỹ thuật Android với 7 slide môn học và rubric chấm điểm.",
+  "scope": [
+    "Rubric chấm điểm",
+    "Slide Session 1 đến 7",
+    "Java Android",
+    "MVVM",
+    "LiveData",
+    "Room",
+    "Retrofit",
+    "WorkManager"
+  ],
+  "cross_refs": [
+    "docs/ARCHITECTURE_DECISIONS.md"
+  ],
+  "locked": false,
+  "precedence": null,
+  "notes": ""
+}

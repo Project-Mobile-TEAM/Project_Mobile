@@ -1,0 +1,22 @@
+{
+  "source_path": "C:/Users/Admin/Desktop/Project-Mobile/docs/ARCHITECTURE_DECISIONS.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "UTEChat — Quyết định kiến trúc (ADR)",
+  "summary": "Tài liệu kiến trúc tổng thể và 28 quyết định kiến trúc kỹ thuật (ADR-001 đến ADR-028) cho dự án UTEChat.",
+  "scope": [
+    "Android Client MVVM",
+    "Backend Server",
+    "PostgreSQL",
+    "Supabase",
+    "WebRTC Voice Call",
+    "TOTP 2FA",
+    "API Contract",
+    "WebSocket"
+  ],
+  "cross_refs": [],
+  "locked": true,
+  "precedence": null,
+  "notes": ""
+}

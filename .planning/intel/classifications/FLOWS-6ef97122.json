@@ -1,0 +1,27 @@
+{
+  "source_path": "C:/Users/Admin/Desktop/Project-Mobile/docs/FLOWS.md",
+  "type": "SPEC",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "UTEChat — Các luồng hoạt động",
+  "summary": "30 luồng hoạt động chi tiết (F-01 đến F-30) cùng máy trạng thái, trình tự và các quy tắc nghiệp vụ.",
+  "scope": [
+    "F-01 đến F-30",
+    "đăng ký OTP",
+    "đăng nhập",
+    "chat 1-1",
+    "chat nhóm",
+    "đa thiết bị",
+    "offline-first queue",
+    "WebRTC voice call",
+    "chặn và bảo mật"
+  ],
+  "cross_refs": [
+    "docs/ARCHITECTURE_DECISIONS.md",
+    "docs/ERD.md",
+    "docs/API_CONTRACT.md"
+  ],
+  "locked": false,
+  "precedence": null,
+  "notes": ""
+}
