@@ -39,12 +39,12 @@ Progress: [░░░░░░░░░░] 0%
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 1. Foundation & Walking Skeleton | 0 | 0 min | - |
-| 2. Authentication & Account Security | 0 | 0 min | - |
+| 2. Authentication & Account Management | 0 | 0 min | - |
 | 3. Contacts & Friendships | 0 | 0 min | - |
 | 4. Realtime & Offline-First Core Messaging | 0 | 0 min | - |
 | 5. Media Attachments & Notifications | 0 | 0 min | - |
-| 6. Advanced Extensions | 0 | 0 min | - |
-| 7. Testing, Hardening & Release | 0 | 0 min | - |
+| 6. Creative Extensions (Voice Call & ML Kit) | 0 | 0 min | - |
+| 7. Testing, Quality & Release Packaging | 0 | 0 min | - |
 
 **Recent Trend:**
 - Last 5 plans: None
