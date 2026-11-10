@@ -84,7 +84,7 @@ Hành trình xây dựng ứng dụng chat di động UTEChat cho nhóm 5 ngư�
 **Requirements**: REQ-messaging-realtime, REQ-messaging-offline-first, REQ-messaging-delivery-read-status, REQ-messaging-group-chat, REQ-messaging-search
 **Phụ trách**: Thành viên 4 (độc lập trong `feature/chat`)
 **Success Criteria** (what must be TRUE):
-  1. Gửi tin nhắn qua REST (`POST /api/conversations/{id}/messages`) và nhận tin nhắn thời gian thực qua kênh WebSocket thuần JSON (`/ws`) trong hội thoại 1-1 và chat nhóm (không dùng STOMP theo ADR-008).
+  1. Gửi tin nhắn qua REST (`POST /api/conversations/{id}/messages`) và nhận tin nhắn thời gian thực qua kênh WebSocket thuần JSON (`/ws`) trong hội thoại 1-1 và chat nhóm theo ADR-008.
   2. Khi mất kết nối mạng, tin nhắn được lưu trạng thái SENDING trong Room và chuỗi WorkManager `send-messages` tự động gửi tuần tự lên server khi có mạng lại.
   3. Vòng đời trạng thái tin nhắn (SENDING -> SENT -> DELIVERED -> READ) và chỉ báo đang gõ (typing) hiển thị mượt mà theo thời gian thực (đảm bảo invariant `last_delivered >= last_read`).
   4. Quản trị viên nhóm có thể tạo nhóm, thêm/xóa thành viên; người mới không xem được tin nhắn trước thời điểm gia nhập.

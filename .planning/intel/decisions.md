@@ -1,5 +1,8 @@
 # Synthesized Decisions (ADR)
 
+> [!NOTE]
+> **Historical Snapshot:** File này là snapshot trích xuất tự động tại thời điểm Ingest Docs ban đầu (2026-11-10). Nguồn chân lý hiện hành cho các quyết định kiến trúc là [docs/ARCHITECTURE_DECISIONS.md](file:///C:/Users/Admin/Desktop/Project-Mobile/docs/ARCHITECTURE_DECISIONS.md) và [.planning/PROJECT.md](file:///C:/Users/Admin/Desktop/Project-Mobile/.planning/PROJECT.md).
+
 ## ADR-001: Định danh chỉ bằng số điện thoại
 - source: docs/ARCHITECTURE_DECISIONS.md
 - status: locked
@@ -27,7 +30,7 @@
 ## ADR-005: Bước nhận diện bạn bè trên thiết bị lạ
 - source: docs/ARCHITECTURE_DECISIONS.md
 - status: locked
-- decision: Nếu tài khoản có từ 3 bạn bè trong danh bạ trở lên, khi đăng nhập trên thiết bị lạ phải chọn đúng 3 bạn trong danh sách 15 người (3 bạn thật + 12 mồi ngẫu nhiên). Cho phép tối đa 3 lần thử, mỗi lần sai tạo bộ mới có hiệu lực 2 phút.
+- decision: [v2] Nếu tài khoản có từ 3 bạn bè trong danh bạ trở lên, khi đăng nhập trên thiết bị lạ phải chọn đúng 3 bạn trong danh sách 15 người (3 bạn thật + 12 mồi ngẫu nhiên). Cho phép tối đa 3 lần thử trong cửa sổ 15 phút, mỗi lần sai xáo trộn thứ tự cùng bộ chứ không tạo bộ mới (chống tấn công giao thoa). Hết hạn 15 phút mới tạo bộ mới. (Friend challenge hoãn sang v2).
 - scope: authentication-challenge, untrusted-device, security
 
 ## ADR-006: Server là Spring Boot

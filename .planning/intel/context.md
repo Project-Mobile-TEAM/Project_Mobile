@@ -1,5 +1,8 @@
 # Synthesized Context
 
+> [!NOTE]
+> **Historical Snapshot:** File này là snapshot trích xuất ngữ cảnh tại thời điểm Ingest Docs ban đầu (2026-11-10). Nguồn chân lý hiện hành là [.planning/PROJECT.md](file:///C:/Users/Admin/Desktop/Project-Mobile/.planning/PROJECT.md) và [.planning/ROADMAP.md](file:///C:/Users/Admin/Desktop/Project-Mobile/.planning/ROADMAP.md).
+
 ## Background & Project Goals
 - source: docs/README.md
 Dự án "UTEChat" là đồ án môn học Lập trình di động Android (Android Mobile Development) xây dựng hệ thống ứng dụng nhắn tin và gọi thoại thời gian thực hoàn chỉnh bao gồm ứng dụng di động Android (client) và hệ thống dịch vụ backend trên đám mây. Dự án đặt mục tiêu đạt điểm tối đa (100 điểm) theo rubric môn học, đồng thời mở rộng nhiều tính năng nâng cao hiện đại.

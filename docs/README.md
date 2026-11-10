@@ -35,14 +35,14 @@ Mọi sơ đồ dùng **Mermaid**, xem trực tiếp trên GitHub hoặc trong V
 ```mermaid
 flowchart LR
     U(["Người dùng"])
-    Bot(["UTE AI (bot)"])
+    Bot(["[v2] UTE AI (bot)"])
     Adm(["Quản trị viên nhóm"])
 
     subgraph TK["Tài khoản"]
         UC1["Đăng ký bằng OTP"]
         UC2["Đăng nhập (mật khẩu hoặc OTP)"]
         UC3["Quản lý hồ sơ, mật khẩu, thiết bị"]
-        UC4["Bật hoặc tắt 2FA"]
+        UC4["[v2] Bật hoặc tắt 2FA"]
     end
     subgraph CH["Chat"]
         UC5["Thêm bạn bằng số điện thoại"]

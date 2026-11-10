@@ -45,7 +45,7 @@
 | *[v2]* `POST /auth/login/second-factor` | `authSessionId`, `code` (TOTP hoặc mã dự phòng) | `state` (`COMPLETE`) | `CODE_INVALID`, `LOCKED` |
 | *[v2]* `POST /auth/login/second-factor/resend` | `authSessionId` | 204 (chỉ khi bước hiện tại là OTP) | `OTP_RATE_LIMIT` |
 | *[v2]* `GET /auth/login/friend-challenge?authSessionId=` | — | `challengeId`, `candidates[{userId, displayName}]` (15), `attemptsLeft`, `expiresInSeconds` | `LOCKED`, `SESSION_EXPIRED` |
-| *[v2]* `POST /auth/login/friend-challenge` | `authSessionId`, `challengeId`, `selectedUserIds[3]` | `COMPLETE` + token, hoặc `400 FRIEND_WRONG` kèm `attemptsLeft` và bộ mới | `LOCKED` 423 sau lần sai thứ 3 |
+| *[v2]* `POST /auth/login/friend-challenge` | `authSessionId`, `challengeId`, `selectedUserIds[3]` | `COMPLETE` + token, hoặc `400 FRIEND_WRONG` kèm `attemptsLeft` và trả lại cùng bộ sau khi xáo trộn | `LOCKED` 423 sau lần sai thứ 3 |
 | `POST /auth/password-reset/otp` | `phone`, `deviceId` | `challengeId` (luôn 200) | `OTP_RATE_LIMIT` |
 | `POST /auth/password-reset/verify` | `challengeId`, `code` | `resetToken` | `OTP_INVALID` |
 | `POST /auth/password-reset/complete` | `resetToken`, `newPassword`, `deviceName` | `state` (`COMPLETE`), token | `WEAK_PASSWORD` |

@@ -12,7 +12,7 @@
 |---|---|---|---|
 | Ngôn ngữ | Java (Kotlin chỉ là tuỳ chọn) | Java (package `com.utechat`) | Khớp |
 | Giao diện | Views + XML, **View Binding**, không `findViewById` | Views + XML, View Binding | Khớp |
-| Mức SDK | `minSdk 26`, `compileSdk 36`, `targetSdk 36` | Dự án dùng SDK 35 ổn định hiện hành, sẵn sàng nâng 36 (ADR-023) | Khớp |
+| Mức SDK | `minSdk 26`, `compileSdk 36`, `targetSdk 36` | Dự án chốt `minSdk 26`, `compileSdk 35`, `targetSdk 35` (ADR-023) | Điều chỉnh: dự án chốt SDK 35 để ổn định và phù hợp môi trường hiện tại |
 | Build | Gradle **Kotlin DSL** + `gradle/libs.versions.toml` | Ghi vào ADR-023 | Điều chỉnh |
 | Bố cục | `ConstraintLayout` gốc, giữ phẳng, `0dp` với ràng buộc | Dùng ConstraintLayout | Khớp |
 | Theme | `Theme.Material3.DayNight.NoActionBar`, màu qua thuộc tính theme, `values-night` | ADR-021 | Khớp |

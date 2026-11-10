@@ -1,5 +1,8 @@
 # Synthesized Requirements
 
+> [!NOTE]
+> **Historical Snapshot:** File này là snapshot trích xuất 18 yêu cầu thô tại thời điểm Ingest Docs ban đầu (2026-11-10). Nguồn chân lý hiện hành là danh mục 15 yêu cầu v1 bám Rubric tại [.planning/REQUIREMENTS.md](file:///C:/Users/Admin/Desktop/Project-Mobile/.planning/REQUIREMENTS.md).
+
 ## REQ-auth-registration
 - source: docs/FLOWS.md
 - description: Đăng ký tài khoản người dùng bằng số điện thoại chuẩn hoá E.164 và xác thực OTP demo.

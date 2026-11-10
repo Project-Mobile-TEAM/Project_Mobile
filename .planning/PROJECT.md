@@ -12,8 +12,8 @@ Trải nghiệm nhắn tin và gọi thoại ổn định, tin cậy với kiế
 
 - **Customer**: Giảng viên chấm điểm đồ án và sinh viên sử dụng ứng dụng trò chuyện
 - **Revenue model**: Dự án học thuật / mã nguồn mở môn học
-- **Success metric**: Đạt điểm tuyệt đối (100/100) theo rubric môn học; unit test vượt qua 100%
-- **Strategy notes**: Bám sát 7 slide bài giảng và rubric môn học (xem [COURSE_ALIGNMENT.md](file:///C:/Users/Admin/Desktop/Project-Mobile/docs/COURSE_ALIGNMENT.md)). Tinh gọn các tính năng rườm rà (2FA TOTP, Thử thách bạn bè, Bot AI bên ngoài) để tập trung làm thật mượt 15 tính năng cốt lõi. Triển khai 2 tính năng sáng tạo song song: Gọi thoại WebRTC (chính) và Dịch tin nhắn ML Kit on-device (dự phòng an toàn khi demo).
+- **Success metric**: Đạt điểm tuyệt đối (100/100) theo rubric môn học; 100% test pass
+- **Strategy notes**: Bám sát 7 slide bài giảng và rubric môn học (xem [COURSE_ALIGNMENT.md](file:///C:/Users/Admin/Desktop/Project-Mobile/docs/COURSE_ALIGNMENT.md)). Tinh gọn các tính năng rườm rà (2FA TOTP, Thử thách bạn bè, Bot AI bên ngoài) để tập trung làm thật mượt 15 tính năng cốt lõi. Triển khai cả 2 tính năng sáng tạo trong v1: Gọi thoại 1-1 WebRTC qua WebSocket signaling và coturn (sáng tạo chính) và Dịch tin nhắn Anh–Việt bằng Google ML Kit Translation (sáng tạo dự phòng an toàn).
 
 ## Requirements
 
@@ -28,15 +28,15 @@ Trải nghiệm nhắn tin và gọi thoại ổn định, tin cậy với kiế
 - [ ] **REQ-auth-login**: Đăng nhập bằng số điện thoại kèm mật khẩu hoặc OTP demo; cấp JWT an toàn (30 ngày) lưu trữ trong SharedPreferences mã hóa / Keystore.
 - [ ] **REQ-auth-account**: Quản lý thông tin hồ sơ (cập nhật họ tên, ảnh đại diện avatar), đổi mật khẩu, đăng xuất và soft delete tài khoản (xóa sạch danh bạ hai chiều).
 - [ ] **REQ-contacts-management**: Quản lý danh bạ bạn bè, tìm kiếm người dùng bằng số điện thoại chính xác, gửi/chấp nhận/từ chối lời mời kết bạn và chặn người dùng.
-- [ ] **REQ-messaging-realtime**: Nhắn tin văn bản trực tiếp 1-1 theo thời gian thực qua kết nối WebSocket STOMP.
+- [ ] **REQ-messaging-realtime**: Nhắn tin văn bản trực tiếp 1-1 theo thời gian thực: gửi qua REST, nhận qua WebSocket thuần JSON.
 - [ ] **REQ-messaging-offline-first**: Hàng đợi gửi tin nhắn ngoại tuyến bền vững với Room SQLite, tự động thử lại và đồng bộ ngầm bằng WorkManager khi có kết nối mạng.
 - [ ] **REQ-messaging-delivery-read-status**: Quản lý vòng đời trạng thái tin nhắn (SENDING -> SENT -> DELIVERED -> READ) và hiển thị chỉ báo đang gõ (typing indicator).
 - [ ] **REQ-messaging-group-chat**: Tạo nhóm chat, thêm/xóa thành viên nhóm, phân quyền quản trị viên và cô lập lịch sử tin nhắn trước thời điểm gia nhập.
 - [ ] **REQ-messaging-search**: Tìm kiếm nội dung tin nhắn cục bộ tốc độ cao trong Room SQLite FTS4 hỗ trợ tiếng Việt không dấu (chuẩn hóa `normalized_text`).
 - [ ] **REQ-messaging-media-attachments**: Gửi và nhận tệp đa phương tiện: ảnh nén, ghi âm giọng nói (voice note), video và tệp tài liệu với xác thực quyền truy cập an toàn.
-- [ ] **REQ-notifications-sync**: Phát thông báo tin nhắn mới nội bộ qua NotificationChannel và tự động đồng bộ bù dữ liệu qua API `/api/v1/sync` khi ứng dụng mở lại.
-- [ ] **REQ-voice-call-webrtc**: *[Sáng tạo 1 - Ưu tiên]* Cuộc gọi thoại 1-1 thời gian thực bằng WebRTC qua WebSocket signaling và coturn STUN/TURN, kèm theo dõi cuộc gọi nhỡ.
-- [ ] **REQ-message-translation**: *[Sáng tạo 2 - Dự phòng]* Dịch tin nhắn văn bản hai chiều Anh - Việt trực tiếp on-device bằng Google ML Kit Translation (chạy 100% offline, không phụ thuộc mạng).
+- [ ] **REQ-notifications-sync**: Phát thông báo tin nhắn mới nội bộ qua NotificationChannel và tự động đồng bộ bù dữ liệu qua API `/api/sync` khi ứng dụng mở lại.
+- [ ] **REQ-voice-call-webrtc**: *[Chức năng sáng tạo v1 - Ưu tiên chính]* Cuộc gọi thoại 1-1 thời gian thực bằng WebRTC qua WebSocket signaling và coturn STUN/TURN, kèm theo dõi cuộc gọi nhỡ.
+- [ ] **REQ-message-translation**: *[Chức năng sáng tạo v1 - Dự phòng]* Dịch tin nhắn văn bản hai chiều Anh - Việt bằng Google ML Kit Translation (chạy on-device sau khi gói ngôn ngữ được tải lần đầu).
 - [ ] **REQ-testing-quality**: Bộ Unit Test toàn diện cho Room DAO, Repository, ViewModel, Crypto, Mappers sử dụng JUnit4 & Mockito đạt tỷ lệ pass 100% trên JVM.
 
 ### Out of Scope
@@ -51,7 +51,8 @@ Trải nghiệm nhắn tin và gọi thoại ổn định, tin cậy với kiế
 ## Context
 
 - **Client Stack**: Android Java, Views + XML, View Binding, Single Activity Navigation Component, MVVM + LiveData, AppExecutors, Room SQLite, Retrofit + OkHttp + Gson.
-- **Backend Stack**: Spring Boot 3 (Java 21), Spring Security JWT, Spring WebSocket thuần, Flyway migration, PostgreSQL trên Supabase (mô hình M2).
+- **Android SDK**: `minSdk 26`, `compileSdk 35`, `targetSdk 35`.
+- **Backend Stack**: Spring Boot 3 (Java 21), Spring Security JWT, Spring WebSocket thuần JSON, Flyway migration, PostgreSQL trên Supabase (mô hình M2).
 - **Hạ tầng**: 1 máy chủ AWS EC2 Ubuntu 24.04 (Nginx, Spring Boot systemd, coturn STUN/TURN, lưu trữ media).
 - **Quy tắc phát triển**: Phân chia công việc nhóm 5 người theo mô hình Kiến trúc chống xung đột (Anti-Conflict Architecture): Nhóm trưởng làm Phase 1 Database Supabase; Phase 2 hoàn thiện Base skeleton và khóa 6 điểm nóng; 4 thành viên độc lập phụ trách 4 module (Phase 3 đến Phase 6) theo tiến độ bậc thang an toàn.
 
@@ -77,7 +78,7 @@ Trải nghiệm nhắn tin và gọi thoại ổn định, tin cậy với kiế
 | ADR-019: Một server chung AWS EC2 | Triển khai tập trung Nginx, Backend, Media, coturn | ✓ Good |
 | ADR-020: Room Migration Policy nghiêm ngặt | Chỉ dùng destructive migration trong môi trường debug; bảo toàn tin gửi offline | ✓ Good |
 | ADR-021: UI i18n & DayNight | Đạt điểm tối đa tiêu chí giao diện và tiếp cận rubric | ✓ Good |
-| ADR-023: Android tech stack bám slide, package `com.utechat` | Tuân thủ 100% mẫu kiến trúc giảng dạy của môn học và khớp package codebase | ✓ Good |
+| ADR-023: Android tech stack bám slide, SDK 35, package `com.utechat` | Tuân thủ 100% mẫu kiến trúc giảng dạy của môn học, chốt SDK 35 ổn định và khớp package codebase | ✓ Good |
 | ADR-024: Kiểm thử kim tự tháp bám slide | Đạt điều kiện 'unit test chạy đạt toàn bộ' của rubric (15 điểm) | ✓ Good |
 | ADR-025: Kiến trúc chống xung đột cho nhóm 5 người | Khóa 6 điểm nóng (Single Activity, split strings, nested nav, modular API, pre-wired Room entities) và tiến độ bậc thang | ✓ Good |
 

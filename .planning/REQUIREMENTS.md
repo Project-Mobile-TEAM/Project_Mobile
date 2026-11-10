@@ -19,7 +19,7 @@ Mỗi yêu cầu ánh xạ trực tiếp đến các tiêu chí đánh giá tron
 - [ ] **REQ-contacts-management**: Quản lý danh bạ bạn bè, tìm kiếm người dùng bằng số điện thoại chính xác, gửi/chấp nhận/từ chối lời mời kết bạn và chặn người dùng.
 
 ### Core Messaging & Offline-first (Tiêu chí 2: Chat trực tiếp, Chat nhóm, Tìm kiếm)
-- [ ] **REQ-messaging-realtime**: Nhắn tin văn bản trực tiếp 1-1 theo thời gian thực: gửi qua REST (`POST /api/conversations/{id}/messages`), nhận qua WebSocket thuần (OkHttp JSON events qua `/ws`), không dùng STOMP theo đúng ADR-008.
+- [ ] **REQ-messaging-realtime**: Nhắn tin văn bản trực tiếp 1-1 theo thời gian thực: gửi qua REST (`POST /api/conversations/{id}/messages`), nhận qua WebSocket thuần JSON (OkHttp events qua `/ws`) theo đúng ADR-008.
 - [ ] **REQ-messaging-offline-first**: Hàng đợi gửi tin nhắn ngoại tuyến bền vững với Room SQLite, tự động thử lại và đồng bộ ngầm bằng WorkManager khi có kết nối mạng.
 - [ ] **REQ-messaging-delivery-read-status**: Quản lý vòng đời trạng thái tin nhắn (SENDING -> SENT -> DELIVERED -> READ) và hiển thị chỉ báo đang gõ (typing indicator).
 - [ ] **REQ-messaging-group-chat**: Tạo nhóm chat, thêm/xóa thành viên nhóm, phân quyền quản trị viên và cô lập lịch sử tin nhắn trước thời điểm gia nhập.

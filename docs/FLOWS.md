@@ -131,7 +131,7 @@ stateDiagram-v2
 ```
 
 **Cách sinh bộ 15 người:** chọn ngẫu nhiên 3 bạn thật (ưu tiên người đã nhắn tin), thêm 12 mồi (người dùng khác: không phải bạn, không bị chặn, không phải bot, `discoverable = true`, không phải tài khoản đã xoá), trộn ngẫu nhiên, chỉ trả `id` và tên hiển thị. Đáp án lưu bản băm. **Chống tấn công giao thoa (intersection attack):** Toàn bộ 15 ứng viên (3 bạn thật + 12 mồi) và 3 đáp án được tái sử dụng và giữ cố định trong suốt cửa sổ hiệu lực (15 phút) của tài khoản/cửa sổ chống dò (đồng bộ với ERD.md). Mỗi lần sai chỉ xáo trộn lại thứ tự hiển thị và tăng `attempts_used` (tối đa 3 lần). Thông báo sai không nói đúng bao nhiêu người.
-**Lỗi và biên:** hết hạn bộ thì yêu cầu bộ mới (không tính là lần thử). Phiên `auth_sessions` hết hạn sau 10 phút thì đăng nhập lại từ đầu.
+**Lỗi và biên:** Toàn bộ bộ 15 ứng viên và 3 đáp án được giữ nguyên trong suốt cửa sổ hiệu lực 15 phút, mỗi lần sai chỉ xáo trộn lại thứ tự hiển thị chứ không sinh bộ mới; chỉ khi hết hạn 15 phút mới tạo bộ mới (không tính là lần thử). Nếu phiên `auth_sessions` hết hạn (10 phút) trong khi cửa sổ challenge (15 phút) của tài khoản vẫn còn hiệu lực, phiên đăng nhập mới sẽ tái sử dụng challenge đang còn hiệu lực này. Friend challenge là thiết kế mở rộng v2, chưa triển khai trong v1.
 
 ### [v2] F-05 Bật 2FA (ADR-004 - Tùy chọn mở rộng v2)
 
@@ -375,7 +375,7 @@ Mất mạng giữa chừng: tin ở trạng thái `SENDING` và `attachment_tra
 3. ML Kit dịch trên máy sang ngôn ngữ app hiện tại. Bản dịch hiện **dưới tin gốc**, lưu `message_translation`. Có nút "Ẩn bản dịch".
 4. Lỗi: gói chưa tải được, ngôn ngữ nguồn không nhận ra, tin quá dài (cắt hoặc báo).
 
-### F-24 Trợ lý AI (ADR-015)
+### [v2] F-24 Trợ lý AI (ADR-015 - Tùy chọn mở rộng v2)
 
 ```mermaid
 sequenceDiagram

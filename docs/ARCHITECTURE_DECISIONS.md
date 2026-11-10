@@ -74,8 +74,8 @@ flowchart LR
 
 ### ADR-005 — Bước nhận diện bạn bè trên thiết bị lạ
 **Status:** DEFERRED_TO_V2 (Thiết kế kiến trúc giữ nguyên, hoãn triển khai sang v2)
-**Quyết định:** Sau khi qua OTP hoặc 2FA trên thiết bị lạ, nếu tài khoản có **từ 3 bạn** (3 bản ghi trong `contacts`) thì hiện 15 người (3 bạn thật + 12 mồi, trộn ngẫu nhiên, chỉ hiện tên hiển thị) và người dùng chọn đúng 3 bạn. Tài khoản mới hoặc dưới 3 bạn bỏ qua bước này. Chỉ **3 lần thử**, mỗi lần sai sinh bộ 15 người mới, mỗi bộ hiệu lực 2 phút. Sai 3 lần thì khoá bước này 15 phút và báo vào các thiết bị tin cậy.
-**Hệ quả:** Đáp án lưu bản băm trên server. Mồi lấy từ người dùng không phải bạn, không bị chặn, không phải bot, và cho phép hiện hồ sơ. Nếu hệ thống có ít hơn 12 mồi hợp lệ thì **bỏ qua bước** (và ghi nhận trong log). Môi trường demo phải nạp đủ tài khoản mồi. Đây là xác thực dựa trên hiểu biết, yếu và làm lộ tên bạn bè cho người đã nhập đúng mật khẩu hoặc OTP: nêu rõ trong báo cáo.
+**Quyết định:** Sau khi qua OTP hoặc 2FA trên thiết bị lạ, nếu tài khoản có **từ 3 bạn** (3 bản ghi trong `contacts`) thì hiện 15 người (3 bạn thật + 12 mồi, trộn ngẫu nhiên, chỉ hiện tên hiển thị) và người dùng chọn đúng 3 bạn. Tài khoản mới hoặc dưới 3 bạn bỏ qua bước này. Chỉ **3 lần thử** trong cửa sổ hiệu lực 15 phút của tài khoản; toàn bộ 15 ứng viên (3 bạn thật + 12 mồi) và 3 đáp án được giữ nguyên, mỗi lần sai chỉ xáo trộn lại thứ tự hiển thị chứ không sinh bộ mới (chống tấn công giao thoa). Hết hạn 15 phút mới tạo bộ mới. Nếu `auth_sessions` hết hạn (10 phút) trong khi cửa sổ challenge còn hiệu lực, phiên mới sẽ tái sử dụng challenge còn hiệu lực này. Sai 3 lần thì khoá bước này 15 phút và báo vào các thiết bị tin cậy.
+**Hệ quả:** Đáp án lưu bản băm trên server. Mồi lấy từ người dùng không phải bạn, không bị chặn, không phải bot, và cho phép hiện hồ sơ. Nếu hệ thống có ít hơn 12 mồi hợp lệ thì **bỏ qua bước** (và ghi nhận trong log). Môi trường demo phải nạp đủ tài khoản mồi. Đây là xác thực dựa trên hiểu biết, yếu và làm lộ tên bạn bè cho người đã nhập đúng mật khẩu hoặc OTP: nêu rõ trong báo cáo. Friend challenge là thiết kế mở rộng v2, chưa triển khai trong v1.
 
 ### ADR-006 — Server là Spring Boot
 **Status:** PROPOSED
@@ -135,7 +135,7 @@ flowchart LR
 **Hệ quả:** Không tốn tiền, không cần khóa API. Chất lượng ở mức khá. Cần xử lý trạng thái "đang tải gói ngôn ngữ".
 
 ### ADR-015 — Trợ lý AI là một người dùng bot phía server
-**Status:** PROPOSED
+**Status:** DEFERRED_TO_V2 (Thiết kế kiến trúc giữ nguyên, hoãn triển khai sang v2)
 **Quyết định:** Có một tài khoản bot cố định ("UTE AI", `users.is_bot = true`). Người dùng nhắn cho bot như chat thường. Khi server nhận tin gửi tới hội thoại bot, nó đưa việc vào hàng chờ, gọi `LlmClient` (interface, nhà cung cấp cấu hình được), rồi gửi câu trả lời như một tin của bot. Khóa API **chỉ ở biến môi trường server**.
 **Giới hạn bắt buộc:** 30 yêu cầu mỗi người mỗi ngày (cấu hình được, bảng `ai_usage`), đầu vào tối đa 2000 ký tự, ngữ cảnh 10 tin gần nhất, trần chi tiêu đặt ở phía nhà cung cấp, có thông báo lỗi lịch sự khi hết hạn mức hoặc dịch vụ lỗi.
 **Hệ quả:** Tin gửi cho bot đi ra bên thứ ba: phải nói rõ trong báo cáo và trong giao diện. Bot không đọc các hội thoại khác của người dùng. Ai giữ tài khoản và khoá API chưa chốt.
@@ -179,7 +179,7 @@ flowchart LR
 ### ADR-023 — Kiến trúc và công nghệ của app Android bám slide
 **Status:** ACCEPTED (theo yêu cầu bám tài liệu giảng dạy). Chi tiết đối chiếu ở `COURSE_ALIGNMENT.md`.
 **Quyết định:**
-- **Ngôn ngữ và build:** Java, Views + XML, **View Binding**, `minSdk 26`, `compileSdk 35` (chuẩn ổn định hiện hành, sẵn sàng nâng 36), `targetSdk 35`, Gradle Kotlin DSL với `gradle/libs.versions.toml`. Package chính thức đã chốt: `com.utechat`.
+- **Ngôn ngữ và build:** Java, Views + XML, **View Binding**, `minSdk 26`, `compileSdk 35`, `targetSdk 35` (baseline đã chốt của dự án), Gradle Kotlin DSL với `gradle/libs.versions.toml`. Package chính thức đã chốt: `com.utechat`.
 - **Màn hình:** **một Activity** chứa `NavHostFragment`, điều hướng bằng Navigation component và **Safe Args chỉ truyền id** (ví dụ `conversationId`), thanh dưới `BottomNavigationView` (Hội thoại, Danh bạ, Cài đặt). Fragment gán binding trong `onViewCreated`, gán `null` trong `onDestroyView`, quan sát bằng `getViewLifecycleOwner()`.
 - **Danh sách:** `RecyclerView` + `ListAdapter` + `DiffUtil` (`areItemsTheSame` so id, `areContentsTheSame` so `equals`), `submitList`.
 - **Tầng:** UI (Fragment, ViewModel) và dữ liệu (Repository). Mũi tên chỉ xuống, **không có tầng domain**. Fragment/Activity không bao giờ gọi DAO hay database trực tiếp.
