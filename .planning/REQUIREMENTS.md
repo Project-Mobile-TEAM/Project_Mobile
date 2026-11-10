@@ -19,7 +19,7 @@ Mỗi yêu cầu ánh xạ trực tiếp đến các tiêu chí đánh giá tron
 - [ ] **REQ-contacts-management**: Quản lý danh bạ bạn bè, tìm kiếm người dùng bằng số điện thoại chính xác, gửi/chấp nhận/từ chối lời mời kết bạn và chặn người dùng.
 
 ### Core Messaging & Offline-first (Tiêu chí 2: Chat trực tiếp, Chat nhóm, Tìm kiếm)
-- [ ] **REQ-messaging-realtime**: Nhắn tin văn bản trực tiếp 1-1 theo thời gian thực qua kết nối WebSocket STOMP.
+- [ ] **REQ-messaging-realtime**: Nhắn tin văn bản trực tiếp 1-1 theo thời gian thực: gửi qua REST (`POST /api/conversations/{id}/messages`), nhận qua WebSocket thuần (OkHttp JSON events qua `/ws`), không dùng STOMP theo đúng ADR-008.
 - [ ] **REQ-messaging-offline-first**: Hàng đợi gửi tin nhắn ngoại tuyến bền vững với Room SQLite, tự động thử lại và đồng bộ ngầm bằng WorkManager khi có kết nối mạng.
 - [ ] **REQ-messaging-delivery-read-status**: Quản lý vòng đời trạng thái tin nhắn (SENDING -> SENT -> DELIVERED -> READ) và hiển thị chỉ báo đang gõ (typing indicator).
 - [ ] **REQ-messaging-group-chat**: Tạo nhóm chat, thêm/xóa thành viên nhóm, phân quyền quản trị viên và cô lập lịch sử tin nhắn trước thời điểm gia nhập.
@@ -27,11 +27,11 @@ Mỗi yêu cầu ánh xạ trực tiếp đến các tiêu chí đánh giá tron
 
 ### Multimedia Attachments & Sync (Tiêu chí 3: Tin nhắn multimedia và file)
 - [ ] **REQ-messaging-media-attachments**: Gửi và nhận tệp đa phương tiện: ảnh nén, ghi âm giọng nói (voice note), video và tệp tài liệu với xác thực quyền truy cập an toàn.
-- [ ] **REQ-notifications-sync**: Phát thông báo tin nhắn mới nội bộ qua NotificationChannel và tự động đồng bộ bù dữ liệu qua API `/api/v1/sync` khi ứng dụng mở lại.
+- [ ] **REQ-notifications-sync**: Phát thông báo tin nhắn mới nội bộ qua NotificationChannel và tự động đồng bộ bù dữ liệu qua API `/api/sync` khi ứng dụng mở lại.
 
 ### Creative Extensions (Tiêu chí 4: Chức năng sáng tạo - 5đ)
-- [ ] **REQ-voice-call-webrtc**: *[Chức năng sáng tạo 1 - Ưu tiên chính]* Cuộc gọi thoại 1-1 thời gian thực bằng WebRTC qua WebSocket signaling và máy chủ trung chuyển STUN/TURN coturn (hỗ trợ cả TCP/TLS 443), kèm theo dõi cuộc gọi nhỡ.
-- [ ] **REQ-message-translation**: *[Chức năng sáng tạo 2 - Dự phòng an toàn]* Dịch tin nhắn văn bản hai chiều Anh - Việt trực tiếp trên thiết bị bằng Google ML Kit Translation (chạy 100% offline, không phụ thuộc mạng, đảm bảo chắc chắn có điểm sáng tạo).
+- [ ] **REQ-voice-call-webrtc**: *[Chức năng sáng tạo 1 - Ưu tiên chính]* Cuộc gọi thoại 1-1 thời gian thực bằng WebRTC qua WebSocket signaling thuần và máy chủ trung chuyển STUN/TURN coturn (hỗ trợ cả TCP/TLS 443), kèm theo dõi cuộc gọi nhỡ.
+- [ ] **REQ-message-translation**: *[Chức năng sáng tạo 2 - Dự phòng an toàn]* Dịch tin nhắn văn bản hai chiều Anh - Việt trực tiếp on-device bằng Google ML Kit Translation (chạy offline trên thiết bị sau khi tải gói ngôn ngữ ban đầu).
 
 ### Testing & Quality Assurance (Tiêu chí 5: Unit test chạy đạt toàn bộ - 15đ)
 - [ ] **REQ-testing-quality**: Bộ Unit Test toàn diện cho Room DAO, Repository, ViewModel, Crypto, Mappers sử dụng JUnit4 & Mockito đạt tỷ lệ pass 100% trên JVM mà không cần thiết bị thật.

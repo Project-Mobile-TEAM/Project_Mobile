@@ -24,7 +24,9 @@ Mọi sơ đồ dùng **Mermaid**, xem trực tiếp trên GitHub hoặc trong V
 
 **Bắt buộc theo rubric (100 điểm):** chat 1-1, chat nhóm, tìm kiếm, thêm bạn bằng số điện thoại, quản lý tài khoản, đa ngôn ngữ (en, vi), tin nhắn đa phương tiện và file (ảnh, voice, video, file, vị trí), xoay màn hình, chức năng sáng tạo, giao diện rõ ràng, unit test đạt toàn bộ, nộp bài đúng cấu trúc, thuyết trình và demo.
 
-**Nhóm đã chọn thêm:** đăng ký OTP demo, đăng nhập hai cách, thiết bị tin cậy, 2FA, bước nhận diện bạn bè, offline-first và hàng đợi gửi, đang nhập và đã gửi/nhận/đọc, thông báo tin mới, chế độ tối, dịch tin nhắn, trợ lý AI, gọi thoại trong app.
+**Nhóm đã chọn cho v1 (bám sát Rubric 100đ):** đăng ký OTP demo, đăng nhập hai cách (mật khẩu và OTP), quản lý tài khoản & thiết bị, offline-first và hàng đợi gửi tin Room/WorkManager, chỉ báo đang nhập và mốc đã nhận/đã đọc (watermarks), thông báo tin mới, chế độ tối DayNight, cùng 2 tính năng sáng tạo song song (Gọi thoại 1-1 WebRTC ưu tiên chính, và Dịch tin nhắn on-device bằng Google ML Kit dự phòng an toàn).
+
+**Tùy chọn mở rộng v2:** 2FA TOTP, bước nhận diện bạn bè trên thiết bị lạ, trợ lý ảo bot AI, cuộc gọi video (xem `ARCHITECTURE_DECISIONS.md`).
 
 **Ngoài phạm vi:** xem `ARCHITECTURE_DECISIONS.md` mục 3.
 

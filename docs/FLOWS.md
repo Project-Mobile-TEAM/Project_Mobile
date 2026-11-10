@@ -111,9 +111,9 @@ sequenceDiagram
     end
 ```
 
-OTP đăng nhập là **đủ** ở cả thiết bị lạ, kể cả khi tài khoản bật 2FA (đã chốt). Riêng bước bạn bè (F-04) áp dụng cho thiết bị lạ.
+OTP đăng nhập là **đủ** ở cả thiết bị lạ (trong phạm vi v1). Riêng bước bạn bè (F-04) và 2FA (F-05, F-06) thuộc phạm vi mở rộng v2.
 
-### F-04 Bước nhận diện bạn bè (ADR-005)
+### [v2] F-04 Bước nhận diện bạn bè (ADR-005 - Tùy chọn mở rộng v2)
 
 Áp dụng sau khi qua OTP hoặc 2FA trên **thiết bị lạ**.
 
@@ -133,7 +133,7 @@ stateDiagram-v2
 **Cách sinh bộ 15 người:** chọn ngẫu nhiên 3 bạn thật (ưu tiên người đã nhắn tin), thêm 12 mồi (người dùng khác: không phải bạn, không bị chặn, không phải bot, `discoverable = true`, không phải tài khoản đã xoá), trộn ngẫu nhiên, chỉ trả `id` và tên hiển thị. Đáp án lưu bản băm. **Chống tấn công giao thoa (intersection attack):** Toàn bộ 15 ứng viên (3 bạn thật + 12 mồi) và 3 đáp án được tái sử dụng và giữ cố định trong suốt cửa sổ hiệu lực (15 phút) của tài khoản/cửa sổ chống dò (đồng bộ với ERD.md). Mỗi lần sai chỉ xáo trộn lại thứ tự hiển thị và tăng `attempts_used` (tối đa 3 lần). Thông báo sai không nói đúng bao nhiêu người.
 **Lỗi và biên:** hết hạn bộ thì yêu cầu bộ mới (không tính là lần thử). Phiên `auth_sessions` hết hạn sau 10 phút thì đăng nhập lại từ đầu.
 
-### F-05 Bật 2FA (ADR-004)
+### [v2] F-05 Bật 2FA (ADR-004 - Tùy chọn mở rộng v2)
 
 1. Người dùng vào Cài đặt, Bảo mật, **Bật xác thực hai lớp**. Server yêu cầu nhập lại **mật khẩu**.
 2. `POST /account/2fa/setup` tạo khoá bí mật, lưu `totp_credentials` (chưa xác nhận), trả đường dẫn `otpauth://totp/UTEChat:+84…?secret=…&issuer=UTEChat`.
@@ -141,7 +141,7 @@ stateDiagram-v2
 4. Người dùng nhập thử một mã. `POST /account/2fa/enable` kiểm tra (cho lệch ±1 nhịp, chống dùng lại bằng `last_used_step`).
 5. Đúng thì `confirmed_at` được đặt, `users.two_factor_enabled = true`, server trả **8 mã dự phòng** (chỉ hiện một lần). Người dùng phải bấm xác nhận đã lưu.
 
-### F-06 Tắt 2FA
+### [v2] F-06 Tắt 2FA (Tùy chọn mở rộng v2)
 
 Người dùng nhập **mật khẩu** và **một mã 2FA hợp lệ** (hoặc một mã dự phòng) rồi `POST /account/2fa/disable`. Xoá `totp_credentials` và `backup_codes`, đặt `two_factor_enabled = false`.
 

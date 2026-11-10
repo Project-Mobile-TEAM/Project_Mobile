@@ -25,6 +25,13 @@
 
 ## 2. REST
 
+### 2.0 Hệ thống (Health & Readiness)
+
+| Method và đường dẫn | Body chính | Trả về | Mô tả |
+|---|---|---|---|
+| `GET /health` | — | `{"status": "UP"}` | Liveness probe kiểm tra server đang hoạt động (gọi qua `/api/health`) |
+| `GET /health/ready` | — | `{"status": "UP", "database": "CONNECTED"}` | Readiness probe kiểm tra kết nối Supabase CSDL (gọi qua `/api/health/ready`) |
+
 ### 2.1 Xác thực
 
 | Method và đường dẫn | Body chính | Trả về | Lỗi đặc trưng |
@@ -32,31 +39,31 @@
 | `POST /auth/register/otp` | `phone`, `deviceId` | `challengeId`, `expiresInSeconds` | `PHONE_TAKEN` 409, `OTP_RATE_LIMIT` 429 |
 | `POST /auth/register/verify` | `challengeId`, `code` | `registrationToken` | `OTP_INVALID`, `OTP_EXPIRED`, `OTP_ATTEMPTS` |
 | `POST /auth/register/complete` | `registrationToken`, `displayName`, `password`, `deviceName` | `token`, `user` (201) | `WEAK_PASSWORD`, `VALIDATION` |
-| `POST /auth/login/password` | `phone`, `password`, `deviceId`, `deviceName` | `state` (`COMPLETE`, `NEED_OTP`, `NEED_2FA`), token hoặc `authSessionId` | `BAD_CREDENTIALS` 401, `LOCKED` 423 |
+| `POST /auth/login/password` | `phone`, `password`, `deviceId`, `deviceName` | `state` (`COMPLETE`; `NEED_2FA` [v2]), token | `BAD_CREDENTIALS` 401, `LOCKED` 423 |
 | `POST /auth/login/otp/request` | `phone`, `deviceId` | `challengeId` (luôn 200) | `OTP_RATE_LIMIT` |
-| `POST /auth/login/otp/verify` | `challengeId`, `code`, `deviceName` | `state` (`COMPLETE`, `NEED_FRIEND`), token hoặc `authSessionId` | `OTP_INVALID`, `OTP_EXPIRED` |
-| `POST /auth/login/second-factor` | `authSessionId`, `code` (OTP, TOTP hoặc mã dự phòng) | `state` (`COMPLETE`, `NEED_FRIEND`) | `CODE_INVALID`, `LOCKED` |
-| `POST /auth/login/second-factor/resend` | `authSessionId` | 204 (chỉ khi bước hiện tại là OTP) | `OTP_RATE_LIMIT` |
-| `GET /auth/login/friend-challenge?authSessionId=` | — | `challengeId`, `candidates[{userId, displayName}]` (15), `attemptsLeft`, `expiresInSeconds` | `LOCKED`, `SESSION_EXPIRED` |
-| `POST /auth/login/friend-challenge` | `authSessionId`, `challengeId`, `selectedUserIds[3]` | `COMPLETE` + token, hoặc `400 FRIEND_WRONG` kèm `attemptsLeft` và bộ mới | `LOCKED` 423 sau lần sai thứ 3 |
+| `POST /auth/login/otp/verify` | `challengeId`, `code`, `deviceName` | `state` (`COMPLETE`), token | `OTP_INVALID`, `OTP_EXPIRED` |
+| *[v2]* `POST /auth/login/second-factor` | `authSessionId`, `code` (TOTP hoặc mã dự phòng) | `state` (`COMPLETE`) | `CODE_INVALID`, `LOCKED` |
+| *[v2]* `POST /auth/login/second-factor/resend` | `authSessionId` | 204 (chỉ khi bước hiện tại là OTP) | `OTP_RATE_LIMIT` |
+| *[v2]* `GET /auth/login/friend-challenge?authSessionId=` | — | `challengeId`, `candidates[{userId, displayName}]` (15), `attemptsLeft`, `expiresInSeconds` | `LOCKED`, `SESSION_EXPIRED` |
+| *[v2]* `POST /auth/login/friend-challenge` | `authSessionId`, `challengeId`, `selectedUserIds[3]` | `COMPLETE` + token, hoặc `400 FRIEND_WRONG` kèm `attemptsLeft` và bộ mới | `LOCKED` 423 sau lần sai thứ 3 |
 | `POST /auth/password-reset/otp` | `phone`, `deviceId` | `challengeId` (luôn 200) | `OTP_RATE_LIMIT` |
 | `POST /auth/password-reset/verify` | `challengeId`, `code` | `resetToken` | `OTP_INVALID` |
-| `POST /auth/password-reset/complete` | `resetToken`, `newPassword`, `deviceName` | `state` (`COMPLETE`, `NEED_FRIEND`), token hoặc `authSessionId` (thiết bị lạ vẫn qua bước bạn bè) | `WEAK_PASSWORD` |
+| `POST /auth/password-reset/complete` | `resetToken`, `newPassword`, `deviceName` | `state` (`COMPLETE`), token | `WEAK_PASSWORD` |
 | `POST /auth/logout` | — | 204 | — |
 
 ### 2.2 Tài khoản
 
 | Method và đường dẫn | Body chính | Trả về |
 |---|---|---|
-| `GET /me` | — | `user` (id, phone, displayName, avatarUrl, twoFactorEnabled) |
+| `GET /me` | — | `user` (id, phone, displayName, avatarUrl) |
 | `PATCH /me` | `displayName`, `avatarMediaUrl` (lấy từ `POST /media`), `discoverable` | `user` |
 | `POST /me/password` | `oldPassword`, `newPassword` | 204 (thu hồi thiết bị khác) |
 | `DELETE /me` | `password` | 204 (xoá mềm) |
 | `GET /account/devices` | — | `[{id, name, platform, lastSeenAt, current}]` |
 | `DELETE /account/devices/{id}` | — | 204 |
-| `POST /account/2fa/setup` | `password` | `otpauthUri`, `secret` |
-| `POST /account/2fa/enable` | `code` | `backupCodes[8]` |
-| `POST /account/2fa/disable` | `password`, `code` | 204 |
+| *[v2]* `POST /account/2fa/setup` | `password` | `otpauthUri`, `secret` |
+| *[v2]* `POST /account/2fa/enable` | `code` | `backupCodes[8]` |
+| *[v2]* `POST /account/2fa/disable` | `password`, `code` | 204 |
 
 ### 2.3 Danh bạ
 

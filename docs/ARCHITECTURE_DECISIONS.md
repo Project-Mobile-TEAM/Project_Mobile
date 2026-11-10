@@ -68,12 +68,12 @@ flowchart LR
 **Hệ quả:** Gỡ cài đặt rồi cài lại sẽ thành thiết bị lạ. Sau khi vào thành công, thiết bị tự được ghi nhận tin cậy, người dùng xoá trong danh sách thiết bị. Đặt lại mật khẩu thu hồi mọi thiết bị khác.
 
 ### ADR-004 — 2FA bằng TOTP kèm mã dự phòng
-**Status:** PROPOSED
+**Status:** DEFERRED_TO_V2 (Thiết kế kiến trúc giữ nguyên, hoãn triển khai sang v2)
 **Quyết định:** 2FA là tuỳ chọn, bật trong cài đặt. Dùng TOTP chuẩn RFC 6238 (SHA-1, 6 số, 30 giây, cho lệch ±1 nhịp). Phát 8 mã dự phòng dùng một lần lúc bật. Khoá TOTP mã hoá AES-GCM trước khi lưu, khoá mã hoá lấy từ biến môi trường. Mã dự phòng chỉ lưu bản băm.
 **Hệ quả:** 2FA chỉ áp dụng cho đường đăng nhập bằng mật khẩu trên thiết bị lạ. Đăng nhập bằng OTP không cần 2FA (đã chốt). Phải nói rõ đánh đổi này trong báo cáo.
 
 ### ADR-005 — Bước nhận diện bạn bè trên thiết bị lạ
-**Status:** ACCEPTED
+**Status:** DEFERRED_TO_V2 (Thiết kế kiến trúc giữ nguyên, hoãn triển khai sang v2)
 **Quyết định:** Sau khi qua OTP hoặc 2FA trên thiết bị lạ, nếu tài khoản có **từ 3 bạn** (3 bản ghi trong `contacts`) thì hiện 15 người (3 bạn thật + 12 mồi, trộn ngẫu nhiên, chỉ hiện tên hiển thị) và người dùng chọn đúng 3 bạn. Tài khoản mới hoặc dưới 3 bạn bỏ qua bước này. Chỉ **3 lần thử**, mỗi lần sai sinh bộ 15 người mới, mỗi bộ hiệu lực 2 phút. Sai 3 lần thì khoá bước này 15 phút và báo vào các thiết bị tin cậy.
 **Hệ quả:** Đáp án lưu bản băm trên server. Mồi lấy từ người dùng không phải bạn, không bị chặn, không phải bot, và cho phép hiện hồ sơ. Nếu hệ thống có ít hơn 12 mồi hợp lệ thì **bỏ qua bước** (và ghi nhận trong log). Môi trường demo phải nạp đủ tài khoản mồi. Đây là xác thực dựa trên hiểu biết, yếu và làm lộ tên bạn bè cho người đã nhập đúng mật khẩu hoặc OTP: nêu rõ trong báo cáo.
 

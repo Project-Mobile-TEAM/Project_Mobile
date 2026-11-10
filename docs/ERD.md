@@ -1,6 +1,11 @@
 # UTEChat — ERD và lược đồ dữ liệu
 
 > **Trạng thái:** ĐÃ CHỐT 2026-11-09 (đổi qua pull request). Chuẩn schema phía server là PostgreSQL do Supabase quản lý (ADR-007). Mermaid ERD chỉ rút gọn cột để dễ đọc; **bảng mô tả cột bên dưới là nguồn chính xác theo cột**. Mọi bảng bật Row Level Security không có policy, chỉ server truy cập.
+>
+> [!NOTE]
+> **Phân loại bảng theo phạm vi triển khai:**
+> - **Cốt lõi v1 (10 bảng server):** `USERS`, `USER_DEVICES`, `OTP_CHALLENGES`, `AUTH_SESSIONS`, `CONTACTS`, `CONVERSATIONS`, `CONVERSATION_MEMBERS`, `MESSAGES`, `ATTACHMENTS`, `CALLS`.
+> - **Mở rộng v2 / Tùy chọn (4 bảng):** `FRIEND_CHALLENGES`, `TOTP_CREDENTIALS`, `BACKUP_CODES`, `AI_USAGE` (đã được thiết kế sẵn trong kiến trúc kiến trúc tổng thể, hoãn triển khai sang v2 để tập trung vào 15 yêu cầu cốt lõi theo Rubric).
 
 ## 1. Sơ đồ quan hệ phía server
 
@@ -178,9 +183,9 @@ Bảng chỉ dành cho môi trường `demo` (không có trong `prod`): `demo_sm
 | `user_devices` | UNIQUE (`user_id`, `device_id_hash`). `device_id_hash` là SHA-256 của `deviceId` do app tạo. `token_valid_after` là mốc: server **từ chối mọi JWT có `iat` sớm hơn mốc này** (đăng xuất, thu hồi hoặc đổi mật khẩu đặt mốc = bây giờ). `revoked_at` khác NULL là thiết bị đã bị thu hồi. Không có refresh token (ADR-018). |
 | `otp_challenges` | Mỗi lần gửi OTP là một dòng. `purpose` ∈ `REGISTER`, `LOGIN`, `PASSWORD_RESET`. Giới hạn gửi lại tính bằng số dòng trong 60 giây và 1 giờ qua theo `phone_e164`. `consumed_at` khác NULL là đã dùng. Chỉ lưu `code_hash`. |
 | `auth_sessions` | Giao dịch đăng nhập nhiều bước. `method` ∈ `PASSWORD`, `OTP`, `RESET` (sau khi đặt lại mật khẩu). `state` ∈ `NEED_OTP`, `NEED_2FA`, `NEED_FRIEND`, `COMPLETE`, `FAILED`, `LOCKED`. Hết hạn sau 10 phút. Token chỉ được cấp khi `state = COMPLETE`. |
-| `friend_challenges` | `candidate_user_ids` là danh sách 15 id đã trộn (JSON). `answer_hash` là băm của 3 id đúng đã sắp xếp. Để chống tấn công giao thoa (intersection attack), **toàn bộ 15 ứng viên và 3 đáp án được tái sử dụng và giữ cố định trong suốt cửa sổ hiệu lực (15 phút) của tài khoản**, chỉ xáo trộn thứ tự hiển thị mỗi lần yêu cầu lại. `attempts_used` tối đa 3, **đếm dồn theo tài khoản trong 15 phút** chứ không reset khi mở phiên mới. Sai lần thứ 3 thì đặt `users.friend_step_locked_until = now + 15 phút`. |
-| `totp_credentials` | `secret_encrypted` AES-GCM. `confirmed_at` NULL nghĩa là đang thiết lập, chưa bật. `last_used_step` để chống dùng lại cùng một mã. |
-| `backup_codes` | 8 dòng mỗi lần bật. Dùng rồi đặt `used_at`. |
+| *[v2]* `friend_challenges` | `candidate_user_ids` là danh sách 15 id đã trộn (JSON). `answer_hash` là băm của 3 id đúng đã sắp xếp. Để chống tấn công giao thoa (intersection attack), **toàn bộ 15 ứng viên và 3 đáp án được tái sử dụng và giữ cố định trong suốt cửa sổ hiệu lực (15 phút) của tài khoản**, chỉ xáo trộn thứ tự hiển thị mỗi lần yêu cầu lại. `attempts_used` tối đa 3, **đếm dồn theo tài khoản trong 15 phút** chứ không reset khi mở phiên mới. Sai lần thứ 3 thì đặt `users.friend_step_locked_until = now + 15 phút`. |
+| *[v2]* `totp_credentials` | `secret_encrypted` AES-GCM. `confirmed_at` NULL nghĩa là đang thiết lập, chưa bật. `last_used_step` để chống dùng lại cùng một mã. |
+| *[v2]* `backup_codes` | 8 dòng mỗi lần bật. Dùng rồi đặt `used_at`. |
 
 ### 2.2 Danh bạ và hội thoại
 
@@ -212,7 +217,7 @@ CHECK: đúng một trong các nhóm dữ liệu khớp `type` (ví dụ `TEXT` 
 |---|---|
 | `attachments` | `kind` ∈ `IMAGE`, `AUDIO`, `VIDEO`, `FILE`. `storage_path` là đường dẫn tương đối trong thư mục upload, **không bao giờ** dùng tên người dùng đặt làm đường dẫn. `mime` lấy từ kiểm tra server. API không lộ `attachments.id` mà lộ `mediaUrl` = `/api/media/{id}` (có bảo vệ bằng token), đúng mẫu slide Session 5. |
 | `calls` | `media` ∈ `VOICE`, `VIDEO`. `state` ∈ `RINGING`, `ACTIVE`, `ENDED`, `MISSED`, `REJECTED`, `BUSY`, `FAILED`. `end_reason` ∈ `HANGUP`, `TIMEOUT`, `REJECT`, `BUSY`, `OFFLINE`, `ERROR`. |
-| `ai_usage` | PK (`user_id`, `day`). Tăng khi bot trả lời. Quá hạn mức thì từ chối. |
+| *[v2]* `ai_usage` | PK (`user_id`, `day`). Tăng khi bot trả lời. Quá hạn mức thì từ chối. |
 
 ## 3. Quy tắc nhất quán dữ liệu
 
