@@ -3,5 +3,8 @@
   "response_language": "vi",
   "granularity": "standard",
   "phase_id_convention": "sequential",
-  "commit_docs": true
+  "commit_docs": true,
+  "workflow": {
+    "_auto_chain_active": false
+  }
 }
