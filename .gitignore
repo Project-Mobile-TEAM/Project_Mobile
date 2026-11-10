@@ -8,3 +8,10 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Local environment and secrets
+.env
+.env.local
+.env.*
+*.env
+!.env.example
