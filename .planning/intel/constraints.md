@@ -1,7 +1,7 @@
 # Synthesized Constraints
 
 > [!NOTE]
-> **Historical Snapshot:** File này là snapshot trích xuất ràng buộc tại thời điểm Ingest Docs ban đầu (2026-11-10). Nguồn chân lý hiện hành là các ràng buộc đã cập nhật tại [docs/API_CONTRACT.md](file:///C:/Users/Admin/Desktop/Project-Mobile/docs/API_CONTRACT.md), [docs/ARCHITECTURE_DECISIONS.md](file:///C:/Users/Admin/Desktop/Project-Mobile/docs/ARCHITECTURE_DECISIONS.md) và [.planning/PROJECT.md](file:///C:/Users/Admin/Desktop/Project-Mobile/.planning/PROJECT.md).
+> **Historical Snapshot:** File này là snapshot trích xuất ràng buộc tại thời điểm Ingest Docs ban đầu (2026-11-10). Nguồn chân lý hiện hành là các ràng buộc đã cập nhật tại [docs/API_CONTRACT.md](../../docs/API_CONTRACT.md), [docs/ARCHITECTURE_DECISIONS.md](../../docs/ARCHITECTURE_DECISIONS.md) và [.planning/PROJECT.md](../PROJECT.md).
 
 ## API Contract Architecture & Security
 - source: docs/API_CONTRACT.md

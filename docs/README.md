@@ -76,49 +76,47 @@ flowchart LR
 
 Cùng với các ADR `ACCEPTED`, luồng F-01 đến F-30 và quy tắc ở FLOWS mục 11, đây là phần kiến trúc đã chốt.
 
-## 4b. Quyết định công nghệ đang chờ (để sau)
+## 4b. Ma trận quyết định công nghệ v1 và định hướng v2
 
-Những mục này mình đề xuất nhưng bạn và nhóm **chưa xác nhận**. Mỗi mục có phương án thay thế đã nêu trong ADR.
+Toàn bộ các quyết định công nghệ cho v1 đã được chốt (`ACCEPTED`). Các tính năng nâng cao không bắt buộc trong Rubric đã được hoãn sang v2 (`DEFERRED_TO_V2`).
 
-| Mã | Quyết định | Đề xuất | Thay thế | Ảnh hưởng nếu đổi |
-|---|---|---|---|---|
-| D-01 | Back end | Java (Spring Boot) hoặc Node.js, **nhóm chọn** (ADR-006) | Ngôn ngữ khác | Cách đóng gói, CI/CD, thư viện |
-| D-02 | CSDL server | ✅ **Đã chốt M2:** server riêng + Supabase PostgreSQL chỉ làm CSDL (ADR-007) | — | — |
-| D-03 | Thông báo khi app đã tắt | Không dùng FCM (ADR-012) | Thêm FCM | Thêm Firebase, mảng việc lớn |
-| D-04 | Gọi trong app | Thoại 1-1 bằng WebRTC, tự dựng coturn (ADR-013) | SDK có sẵn, thêm video | Công sức, chi phí, phụ thuộc bên ngoài |
-| D-05 | 2FA | TOTP kèm mã dự phòng (ADR-004) | Mật khẩu thứ hai | Giao diện, bảng dữ liệu |
-| D-06 | Dịch tin nhắn | ML Kit trên máy (ADR-014) | API dịch của server | Chi phí, khoá API |
-| D-07 | Trợ lý AI | Bot phía server, nhà cung cấp cắm được (ADR-015) | Bỏ | Công sức, chi phí |
-| D-08 | Lưu file | Ổ đĩa EC2 (ADR-011) | S3 | Chi phí, tải xuống |
-| D-09 | Tìm kiếm tin nhắn | Chỉ trên máy (ADR-016) | Có cả server | Công sức server |
-| D-10 | Mã hoá đầu cuối | Không (ADR-017) | Có | Rất lớn, nên không |
+| Mã | Quyết định | Trạng thái v1 | Chi tiết kỹ thuật |
+|---|---|---|---|
+| D-01 | Back end | ✅ **ĐÃ CHỐT** (ADR-006) | Java (Spring Boot 3, Java 21), Spring Web, Spring Security (JWT), Spring Data JPA, Spring WebSocket thuần JSON (không STOMP) |
+| D-02 | CSDL server | ✅ **ĐÃ CHỐT** (ADR-007) | Supabase PostgreSQL chỉ làm CSDL (mô hình M2), kết nối bằng JDBC/Flyway qua Transaction Pooler port 6543 |
+| D-03 | Thông báo khi app đã tắt | ✅ **ĐÃ CHỐT** (ADR-012) | Không dùng FCM. Dùng `NotificationChannel` (`messages`) khi online, `WorkManager` định kỳ gọi `/api/sync` khi app ở nền |
+| D-04 | Gọi trong app | ✅ **ĐÃ CHỐT v1** (ADR-013) | Thoại 1-1 bằng WebRTC qua WebSocket signaling, coturn trên EC2 có secondary IP để chiếm TCP 443 và UDP 3478/443 |
+| D-05 | 2FA | ⏸️ **Hoãn v2** (ADR-004) | TOTP kèm mã dự phòng (thiết kế kiến trúc giữ nguyên, không triển khai ở v1) |
+| D-06 | Dịch tin nhắn | ✅ **ĐÃ CHỐT v1** (ADR-014) | Dịch tin nhắn Anh–Việt bằng Google ML Kit Translation (chạy on-device sau khi tải gói ngôn ngữ lần đầu, lưu Room `message_translation`) |
+| D-07 | Trợ lý AI | ⏸️ **Hoãn v2** (ADR-015) | Bot UTE AI phía server (thiết kế kiến trúc giữ nguyên, không triển khai ở v1) |
+| D-08 | Lưu file | ✅ **ĐÃ CHỐT** (ADR-011) | Ổ đĩa EC2 qua Nginx bảo vệ Bearer token, tải về máy và mở ứng dụng ngoài bằng `FileProvider` (không dùng query ticket) |
+| D-09 | Tìm kiếm tin nhắn | ✅ **ĐÃ CHỐT** (ADR-016) | Tìm kiếm tin nhắn cục bộ trên Room (bảng FTS4), tìm người dùng mới theo SĐT chính xác qua server |
+| D-10 | Mã hoá đầu cuối | ✅ **ĐÃ CHỐT** (ADR-017) | Không dùng E2EE. Tin mã hoá khi truyền (HTTPS/WSS) và lưu bản rõ trên server như mô hình cloud chat |
 
-**Thông tin còn thiếu, chưa có trong tài liệu:**
+**Thông tin vận hành và chuẩn bị triển khai:**
 
-| Mục | Vì sao cần |
-|---|---|
-| **Hạn nộp và ngày Session 8** (xem LMS) | Để gắn mốc ngày cho kế hoạch |
-| **Phân công 5 người** | Để chia lát cắt dọc và người giữ hợp đồng chung |
-| **Nhà cung cấp AI và ai giữ tài khoản, hạn mức chi** | Cho ADR-015 |
-| **Tên miền** cho HTTPS | Bắt buộc cho WSS và cuộc gọi trên thiết bị thật |
-| **Ai giữ tài khoản AWS** | Cho ADR-019 |
-| **Mô tả đồ án nhóm trên LMS** và có hay không **reference server hoặc đặc tả API** của giảng viên | Slide nhắc hai thứ này, mình chưa thấy (xem `COURSE_ALIGNMENT.md` mục 3) |
+| Mục | Tình trạng | Giải pháp |
+|---|---|---|
+| **Hạn nộp và ngày Session 8** | Chờ lịch chính thức của trường | Kế hoạch 7 Phase tuần tự (Phase 1 → Phase 7) sẵn sàng thực thi linh hoạt |
+| **Phân công 5 người** | Đã chốt mô hình phối hợp | Trưởng nhóm phụ trách Phase 1 (Database/Supabase) kiêm điều phối; các thành viên làm theo từng phase/mảng dựa trên hợp đồng chung |
+| **Tên miền & AWS** | EC2 Ubuntu 24.04 chung | Cần cấu hình SSL/TLS (Let's Encrypt), secondary IP cho coturn (`turn.utechat.live`) |
+| **Hợp đồng API & Schema** | ✅ Đã khóa cứng | `API_CONTRACT.md` (prefix `/api`) và `ERD.md` (10 bảng v1) là chuẩn duy nhất |
 
 ## 5. Kế hoạch bước tiếp theo
 
-1. Nhóm đọc, góp ý, và chốt các mục `PROPOSED` ở mục 4.
-2. Người giữ hợp đồng chung khoá bản đầu của `ERD.md` và `API_CONTRACT.md` (đóng băng, đổi qua pull request).
-3. Chia việc: người phụ trách làm toàn bộ server và một mảng Android, bốn người còn lại chia các mảng Android (ADR-022).
-4. Dựng khung chạy được: project Android rỗng, server rỗng, CSDL Supabase và migration, CI/CD, `/health/ready`, một tin nhắn đi từ app lên server và về lại ("walking skeleton").
-5. Làm các mảng song song, rà soát chéo theo vòng.
-6. Viết báo cáo (use-case, class diagram, ERD đã có sẵn ở đây), ảnh chụp, APK, diễn tập demo.
+1. Toàn bộ các mục kiến trúc và công nghệ đã được chốt (`ACCEPTED`), các mục mở rộng (2FA, AI, Challenge) đã hoãn sang v2 (`DEFERRED_TO_V2`).
+2. Người giữ hợp đồng chung khóa bản đầu của `ERD.md` (10 bảng v1 + 4 bảng v2) và `API_CONTRACT.md` (prefix `/api`).
+3. Lập PLAN và thực thi **Phase 1: Hạ tầng Cơ sở Dữ liệu & Supabase** theo chuẩn GSD.
+4. Lập PLAN và thực thi **Phase 2: Nền tảng Ứng dụng & Kiến trúc Chống Xung đột** (khung Retrofit, Room, fake repositories, walking skeleton).
+5. Phân công các thành viên thực hiện các Phase chức năng tiếp theo (Phase 3: Auth & Profile, Phase 4: Contacts & Friends, Phase 5: Messaging & Realtime, Phase 6: Media, Calls & Creative, Phase 7: Testing & Release).
+6. Viết báo cáo (use-case, class diagram, ERD đã có sẵn ở đây), ảnh chụp, xuất APK và diễn tập demo.
 
 Class diagram sẽ vẽ **sau khi có khung code** (để bám sát lớp thật) và đưa vào báo cáo cùng ERD ở đây.
 
 ## 6. Giới hạn của bộ tài liệu này
 
-- Là **bản nháp thiết kế**, chưa có dòng code nào chạy. Chưa kiểm thử bất kỳ luồng nào.
-- Các sơ đồ Mermaid **chưa được kiểm tra hiển thị**. Nếu có sơ đồ nào hỏng, kiểm tra cú pháp Mermaid.
-- Các giới hạn (dung lượng file, số lần thử, thời gian hết hạn, hạn mức AI) là **giá trị đề xuất**, điều chỉnh được.
-- ML Kit, WebRTC, thư viện TOTP, nhà cung cấp AI và giá dịch vụ AWS **chưa được kiểm tra** phiên bản hiện hành.
-- Rubric chỉ ghi tên chức năng, không có thang chi tiết, nên cách chia nhỏ yêu cầu là cách hiểu của mình.
+- Là **bản thiết kế kiến trúc chuẩn**, làm căn cứ triển khai cho các Phase kế tiếp.
+- Các sơ đồ Mermaid được kiểm tra cú pháp và hiển thị thống nhất.
+- Các giới hạn (dung lượng file, số lần thử, thời gian hết hạn) đã được chuẩn hóa trong `API_CONTRACT.md`.
+- Hai tính năng sáng tạo v1 (WebRTC và ML Kit Translation) sẽ được tích hợp và kiểm thử trong **Phase 6** với các thư viện: WebRTC (`io.getstream:stream-webrtc-android:1.1.4` hoặc `org.webrtc:google-webrtc:1.0.32006`) và ML Kit (`com.google.mlkit:translate:17.0.3`). Các thư viện TOTP và AI được chuyển sang v2.
+- 15 yêu cầu v1 bám sát 100% chuẩn Rubric 10.0 của môn học (xem `COURSE_ALIGNMENT.md` và `.planning/REQUIREMENTS.md`).

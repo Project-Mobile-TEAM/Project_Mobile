@@ -2,7 +2,7 @@
 
 > [!NOTE]
 > **Snapshot lịch sử:** Thư mục `.planning/intel/` này ghi lại kết quả phân tích tự động tại thời điểm chạy lệnh `/gsd-ingest-docs` ban đầu (2026-11-10, khi hệ thống trích xuất 18 yêu cầu thô từ tài liệu gốc).
-> **Nguồn chân lý hiện hành (Current Source of Truth):** Dự án hiện đã hoàn tất quy trình tinh gọn và giải quyết toàn bộ 9 điểm lệch, khóa cứng **15 yêu cầu cốt lõi chuẩn Rubric 100đ** tại [`.planning/REQUIREMENTS.md`](file:///C:/Users/Admin/Desktop/Project-Mobile/.planning/REQUIREMENTS.md), [`.planning/ROADMAP.md`](file:///C:/Users/Admin/Desktop/Project-Mobile/.planning/ROADMAP.md) và toàn bộ các tệp trong `docs/`.
+> **Nguồn chân lý hiện hành (Current Source of Truth):** Dự án hiện đã hoàn tất quy trình tinh gọn và giải quyết toàn bộ 9 điểm lệch, khóa cứng **15 yêu cầu cốt lõi chuẩn Rubric 100đ** tại [`.planning/REQUIREMENTS.md`](../REQUIREMENTS.md), [`.planning/ROADMAP.md`](../ROADMAP.md) và toàn bộ các tệp trong `docs/`.
 
 ## Overview
 - **Total Documents Ingested**: 6

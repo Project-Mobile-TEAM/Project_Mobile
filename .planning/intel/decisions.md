@@ -1,7 +1,7 @@
 # Synthesized Decisions (ADR)
 
 > [!NOTE]
-> **Historical Snapshot:** File này là snapshot trích xuất tự động tại thời điểm Ingest Docs ban đầu (2026-11-10). Nguồn chân lý hiện hành cho các quyết định kiến trúc là [docs/ARCHITECTURE_DECISIONS.md](file:///C:/Users/Admin/Desktop/Project-Mobile/docs/ARCHITECTURE_DECISIONS.md) và [.planning/PROJECT.md](file:///C:/Users/Admin/Desktop/Project-Mobile/.planning/PROJECT.md).
+> **Historical Snapshot:** File này là snapshot trích xuất tự động tại thời điểm Ingest Docs ban đầu (2026-11-10). Nguồn chân lý hiện hành cho các quyết định kiến trúc là [docs/ARCHITECTURE_DECISIONS.md](../../docs/ARCHITECTURE_DECISIONS.md) và [.planning/PROJECT.md](../PROJECT.md).
 
 ## ADR-001: Định danh chỉ bằng số điện thoại
 - source: docs/ARCHITECTURE_DECISIONS.md

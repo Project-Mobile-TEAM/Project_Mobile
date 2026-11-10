@@ -346,7 +346,7 @@ sequenceDiagram
 |---|---|---|
 | Ảnh | Photo picker hoặc camera | Nén về cạnh dài ≤ 1600 px, ≤ 10 MB |
 | Voice | `MediaRecorder` (xin quyền `RECORD_AUDIO` khi bấm ghi) | ≤ 5 phút, ≤ 10 MB. Chạm nhanh quá thì bỏ ("quá ngắn"). Luôn `release()` |
-| Video | Photo picker | ≤ 50 MB. Phát bằng trình phát trong app (`Media3 ExoPlayer`). Khi chọn mở bằng ứng dụng ngoài: app tải file về bộ nhớ tạm rồi chia sẻ `content://` qua `FileProvider` kèm quyền đọc tạm thời, hoặc xin `ticket` tạm thời từ server (xem API_CONTRACT.md), tuyệt đối không đưa JWT vào URL |
+| Video | Photo picker | ≤ 50 MB. Phát bằng trình phát trong app (`Media3 ExoPlayer`). Khi chọn mở bằng ứng dụng ngoài: app tải file về bộ nhớ tạm bằng token rồi chia sẻ `content://` qua `FileProvider` kèm cờ `FLAG_GRANT_READ_URI_PERMISSION` (xem ADR-011, tuyệt đối không đưa JWT vào URL) |
 | File | Trình chọn file hệ thống | ≤ 25 MB, MIME nằm trong danh sách cho phép |
 | Vị trí | `FusedLocationProviderClient.getCurrentLocation` một lần, ưu tiên `BALANCED_POWER_ACCURACY`, **kiểm tra `null`**, huỷ ở `onDestroyView`. Xin quyền bằng `PermissionRequester` khi bấm chia sẻ (đồng ý quyền xấp xỉ là đủ) | Bấm vào tin vị trí mở **màn hình bản đồ** (`SupportMapFragment`, marker, Safe Args truyền toạ độ) kèm nút "Mở trong bản đồ" bằng `geo:`. Khoá Maps API trong `local.properties`, không commit |
 

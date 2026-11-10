@@ -1,7 +1,7 @@
 # Synthesized Context
 
 > [!NOTE]
-> **Historical Snapshot:** File này là snapshot trích xuất ngữ cảnh tại thời điểm Ingest Docs ban đầu (2026-11-10). Nguồn chân lý hiện hành là [.planning/PROJECT.md](file:///C:/Users/Admin/Desktop/Project-Mobile/.planning/PROJECT.md) và [.planning/ROADMAP.md](file:///C:/Users/Admin/Desktop/Project-Mobile/.planning/ROADMAP.md).
+> **Historical Snapshot:** File này là snapshot trích xuất ngữ cảnh tại thời điểm Ingest Docs ban đầu (2026-11-10). Nguồn chân lý hiện hành là [.planning/PROJECT.md](../PROJECT.md) và [.planning/ROADMAP.md](../ROADMAP.md).
 
 ## Background & Project Goals
 - source: docs/README.md

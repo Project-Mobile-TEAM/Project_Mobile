@@ -116,9 +116,9 @@
 | Method và đường dẫn | Body chính | Trả về | Lỗi |
 |---|---|---|---|
 | `POST /media` | multipart: `kind`, `file` | `mediaUrl`, `mime`, `sizeBytes`, `width`, `height`, `durationMs` (201) | `FILE_TOO_LARGE` 413, `UNSUPPORTED_TYPE` 415 |
-| `GET /media/{id}` | — (URL có bảo vệ: Header `Authorization`, hoặc `?ticket=` tạm thời ngắn hạn khi stream qua app ngoài) | luồng byte, hỗ trợ `Range` (phát video, tải lại) | 403 nếu không phải thành viên |
+| `GET /media/{id}` | — (URL có bảo vệ: Header `Authorization` Bearer token) | luồng byte, hỗ trợ `Range` (phát video, tải lại) | 403 nếu không phải thành viên |
 
-> **Phát media qua app ngoài:** App ưu tiên tải file về máy bằng token rồi chia sẻ `content://` qua `FileProvider` với quyền đọc tạm thời. Trường hợp stream trực tiếp ra app ngoài (không thể đính header `Authorization` vào Intent `ACTION_VIEW`), client xin một `ticket` ngắn hạn (gắn với user/file/thời gian) để truyền qua query parameter `?ticket=...` (hỗ trợ các request `Range` tiếp theo; tuyệt đối không đưa JWT vào URL).
+> **Phát media qua app ngoài:** App dùng `FileProvider` làm phương án duy nhất. App tải/cache file về bộ nhớ tạm bằng token rồi chia sẻ `content://` qua `FileProvider` với cờ `FLAG_GRANT_READ_URI_PERMISSION`. Không dùng query ticket và tuyệt đối không đưa JWT vào URL.
 
 ### 2.6 Cuộc gọi
 

@@ -13,7 +13,7 @@ Trải nghiệm nhắn tin và gọi thoại ổn định, tin cậy với kiế
 - **Customer**: Giảng viên chấm điểm đồ án và sinh viên sử dụng ứng dụng trò chuyện
 - **Revenue model**: Dự án học thuật / mã nguồn mở môn học
 - **Success metric**: Đạt điểm tuyệt đối (100/100) theo rubric môn học; 100% test pass
-- **Strategy notes**: Bám sát 7 slide bài giảng và rubric môn học (xem [COURSE_ALIGNMENT.md](file:///C:/Users/Admin/Desktop/Project-Mobile/docs/COURSE_ALIGNMENT.md)). Tinh gọn các tính năng rườm rà (2FA TOTP, Thử thách bạn bè, Bot AI bên ngoài) để tập trung làm thật mượt 15 tính năng cốt lõi. Triển khai cả 2 tính năng sáng tạo trong v1: Gọi thoại 1-1 WebRTC qua WebSocket signaling và coturn (sáng tạo chính) và Dịch tin nhắn Anh–Việt bằng Google ML Kit Translation (sáng tạo dự phòng an toàn).
+- **Strategy notes**: Bám sát 7 slide bài giảng và rubric môn học (xem [COURSE_ALIGNMENT.md](../docs/COURSE_ALIGNMENT.md)). Tinh gọn các tính năng rườm rà (2FA TOTP, Thử thách bạn bè, Bot AI bên ngoài) để tập trung làm thật mượt 15 tính năng cốt lõi. Triển khai cả 2 tính năng sáng tạo trong v1: Gọi thoại 1-1 WebRTC qua WebSocket signaling và coturn (sáng tạo chính) và Dịch tin nhắn Anh–Việt bằng Google ML Kit Translation (sáng tạo dự phòng an toàn).
 
 ## Requirements
 
