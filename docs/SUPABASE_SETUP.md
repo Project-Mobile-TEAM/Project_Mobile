@@ -164,3 +164,19 @@ Trước khi xóa event cũ cần hoàn thiện phục hồi cursor hết hạn 
   anon/authenticated không được đọc/ghi, quản trị vẫn truy cập.
 - PASS local không thay thế nghiệm thu cloud: chạy migration, SQL assertions và Full trên
   đúng project, lưu chỉ kết quả PASS/FAIL đã che thông tin nhạy cảm vào báo cáo Phase 1.
+
+## 10. Kiểm thử PostgreSQL cục bộ, không cần cloud
+
+Cần Node.js và npm. Cài hai dependency kiểm thử vào thư mục tạm ngoài repository:
+
+```powershell
+$testDeps = Join-Path $env:TEMP 'utechat-phase1-verify'
+npm install --prefix $testDeps --no-save --no-package-lock @electric-sql/pglite@0.3.7 bcryptjs@3.0.2
+node backend/scripts/test-schema.mjs (Join-Path $testDeps 'node_modules')
+```
+
+Bộ kiểm thử chạy PostgreSQL WASM (PGlite) trong bộ nhớ: DDL production, seed demo,
+BCrypt, FK/CHECK/UNIQUE, seed chạy lại không lùi watermark, RLS với role không đặc quyền,
+và khả năng script phát hiện index/RLS/policy bị sửa sai. Mật khẩu kiểm thử ngẫu nhiên
+chỉ tồn tại trong bộ nhớ. Không thêm dependency vào Android hoặc runtime backend.
+PGlite không thay thế Flyway CLI, Supabase PostgREST, TLS hay pooler thật.
