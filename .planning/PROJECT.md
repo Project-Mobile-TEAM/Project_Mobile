@@ -53,7 +53,7 @@ Trải nghiệm nhắn tin và gọi thoại ổn định, tin cậy với kiế
 - **Client Stack**: Android Java, Views + XML, View Binding, Single Activity Navigation Component, MVVM + LiveData, AppExecutors, Room SQLite, Retrofit + OkHttp + Gson.
 - **Backend Stack**: Spring Boot 3 (Java 21), Spring Security JWT, Spring WebSocket thuần, Flyway migration, PostgreSQL trên Supabase (mô hình M2).
 - **Hạ tầng**: 1 máy chủ AWS EC2 Ubuntu 24.04 (Nginx, Spring Boot systemd, coturn STUN/TURN, lưu trữ media).
-- **Quy tắc phát triển**: Phân chia công việc theo lát cắt dọc độc lập, sử dụng Fake Repository khi backend chưa sẵn sàng.
+- **Quy tắc phát triển**: Phân chia công việc nhóm 5 người theo mô hình Kiến trúc chống xung đột (Anti-Conflict Architecture): Nhóm trưởng làm Phase 1 Database Supabase; Phase 2 hoàn thiện Base skeleton và khóa 6 điểm nóng; 4 thành viên độc lập phụ trách 4 module (Phase 3 đến Phase 6) theo tiến độ bậc thang an toàn.
 
 ## Constraints
 
@@ -79,6 +79,7 @@ Trải nghiệm nhắn tin và gọi thoại ổn định, tin cậy với kiế
 | ADR-021: UI i18n & DayNight | Đạt điểm tối đa tiêu chí giao diện và tiếp cận rubric | ✓ Good |
 | ADR-023: Android tech stack bám slide, package `com.utechat` | Tuân thủ 100% mẫu kiến trúc giảng dạy của môn học và khớp package codebase | ✓ Good |
 | ADR-024: Kiểm thử kim tự tháp bám slide | Đạt điều kiện 'unit test chạy đạt toàn bộ' của rubric (15 điểm) | ✓ Good |
+| ADR-025: Kiến trúc chống xung đột cho nhóm 5 người | Khóa 6 điểm nóng (Single Activity, split strings, nested nav, modular API, pre-wired Room entities) và tiến độ bậc thang | ✓ Good |
 
 ---
 *Last updated: 2026-11-10 sau khi tinh chỉnh tinh gọn bám sát Rubric 100đ*

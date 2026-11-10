@@ -16,14 +16,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-11-10)
 
 **Core value:** Trải nghiệm nhắn tin và gọi thoại ổn định, tin cậy với kiến trúc chuẩn mực theo đúng tài liệu giảng dạy, hỗ trợ offline-first mượt mà và bảo mật đa lớp.
-**Current focus:** Phase 1: Foundation & Walking Skeleton
+**Current focus:** Phase 1: Database & Supabase Infrastructure
 
 ## Current Position
 
-Phase: 1 of 7 (Foundation & Walking Skeleton)
+Phase: 1 of 7 (Database & Supabase Infrastructure)
 Plan: 0 of TBD in current phase
 Status: Ready to plan
-Last activity: 2026-11-10 — Khởi tạo cấu trúc hoạch định thành công từ tài liệu thiết kế (Ingest Docs)
+Last activity: 2026-11-10 — Chốt chiến lược Kiến trúc chống xung đột và phân công Nhóm trưởng làm Phase 1 Database Supabase
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -38,12 +38,12 @@ Progress: [░░░░░░░░░░] 0%
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 1. Foundation & Walking Skeleton | 0 | 0 min | - |
-| 2. Authentication & Account Management | 0 | 0 min | - |
-| 3. Contacts & Friendships | 0 | 0 min | - |
-| 4. Realtime & Offline-First Core Messaging | 0 | 0 min | - |
-| 5. Media Attachments & Notifications | 0 | 0 min | - |
-| 6. Creative Extensions (Voice Call & ML Kit) | 0 | 0 min | - |
+| 1. Database & Supabase Infrastructure | 0 | 0 min | - |
+| 2. Foundation & Anti-Conflict Architecture | 0 | 0 min | - |
+| 3. Authentication & Profile Management | 0 | 0 min | - |
+| 4. Contacts & Friendships | 0 | 0 min | - |
+| 5. Realtime & Offline-First Core Messaging | 0 | 0 min | - |
+| 6. Media Attachments & Creative Features | 0 | 0 min | - |
 | 7. Testing, Quality & Release Packaging | 0 | 0 min | - |
 
 **Recent Trend:**

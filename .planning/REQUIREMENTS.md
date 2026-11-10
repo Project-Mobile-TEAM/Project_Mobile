@@ -64,23 +64,24 @@ Mỗi yêu cầu ánh xạ trực tiếp đến các tiêu chí đánh giá tron
 
 ## Traceability (Ma trận ánh xạ Phase)
 
-| Requirement | Phase thực hiện | Trọng số Rubric | Status |
-|-------------|-----------------|-----------------|--------|
-| REQ-ui-standards | Phase 1 | Tiêu chí 3 & 5 (15đ + 15đ) | Pending |
-| REQ-auth-registration | Phase 2 | Tiêu chí 2 (20đ) | Pending |
-| REQ-auth-login | Phase 2 | Tiêu chí 2 (20đ) | Pending |
-| REQ-auth-account | Phase 2 | Tiêu chí 2 (20đ) | Pending |
-| REQ-contacts-management | Phase 3 | Tiêu chí 2 (20đ) | Pending |
-| REQ-messaging-realtime | Phase 4 | Tiêu chí 2 (20đ) | Pending |
-| REQ-messaging-offline-first | Phase 4 | Tiêu chí 2 & 5 (20đ + 15đ) | Pending |
-| REQ-messaging-delivery-read-status | Phase 4 | Tiêu chí 2 (20đ) | Pending |
-| REQ-messaging-group-chat | Phase 4 | Tiêu chí 2 (20đ) | Pending |
-| REQ-messaging-search | Phase 4 | Tiêu chí 2 (20đ) | Pending |
-| REQ-messaging-media-attachments | Phase 5 | Tiêu chí 3 (15đ) | Pending |
-| REQ-notifications-sync | Phase 5 | Tiêu chí 3 (15đ) | Pending |
-| REQ-voice-call-webrtc | Phase 6 | Tiêu chí 4: Sáng tạo chính (5đ) | Pending |
-| REQ-message-translation | Phase 6 | Tiêu chí 4: Sáng tạo dự phòng (5đ) | Pending |
-| REQ-testing-quality | Phase 7 | Tiêu chí 5 (15đ) | Pending |
+| Requirement | Phase thực hiện | Phụ trách | Trọng số Rubric | Status |
+|-------------|-----------------|-----------|-----------------|--------|
+| Nền móng CSDL | Phase 1 (Database & Supabase) | Nhóm trưởng | Nền tảng toàn hệ thống | Pending |
+| REQ-ui-standards | Phase 2 (Foundation Skeleton) & Phase 3 | Nhóm trưởng & Cả nhóm | Tiêu chí 3 & 5 (15đ + 15đ) | Pending |
+| REQ-auth-registration | Phase 3 (Auth & Profile) | Thành viên 2 | Tiêu chí 2 (20đ) | Pending |
+| REQ-auth-login | Phase 3 (Auth & Profile) | Thành viên 2 | Tiêu chí 2 (20đ) | Pending |
+| REQ-auth-account | Phase 3 (Auth & Profile) | Thành viên 2 | Tiêu chí 2 (20đ) | Pending |
+| REQ-contacts-management | Phase 4 (Contacts) | Thành viên 3 | Tiêu chí 2 (20đ) | Pending |
+| REQ-messaging-realtime | Phase 5 (Core Messaging) | Thành viên 4 | Tiêu chí 2 (20đ) | Pending |
+| REQ-messaging-offline-first | Phase 5 (Core Messaging) | Thành viên 4 | Tiêu chí 2 & 5 (20đ + 15đ) | Pending |
+| REQ-messaging-delivery-read-status | Phase 5 (Core Messaging) | Thành viên 4 | Tiêu chí 2 (20đ) | Pending |
+| REQ-messaging-group-chat | Phase 5 (Core Messaging) | Thành viên 4 | Tiêu chí 2 (20đ) | Pending |
+| REQ-messaging-search | Phase 5 (Core Messaging) | Thành viên 4 | Tiêu chí 2 (20đ) | Pending |
+| REQ-messaging-media-attachments | Phase 6 (Media & Sáng tạo) | Thành viên 5 | Tiêu chí 3 (15đ) | Pending |
+| REQ-notifications-sync | Phase 6 (Media & Sáng tạo) | Thành viên 5 | Tiêu chí 3 (15đ) | Pending |
+| REQ-voice-call-webrtc | Phase 6 (Media & Sáng tạo) | Thành viên 5 | Tiêu chí 4: Sáng tạo chính (5đ) | Pending |
+| REQ-message-translation | Phase 6 (Media & Sáng tạo) | Thành viên 5 | Tiêu chí 4: Sáng tạo dự phòng (5đ) | Pending |
+| REQ-testing-quality | Phase 7 (Testing & Release) | Cả nhóm (Lead nghiệm thu) | Tiêu chí 5 (15đ) | Pending |
 
 **Coverage:**
 - v1 requirements: 15 total
@@ -90,4 +91,4 @@ Mỗi yêu cầu ánh xạ trực tiếp đến các tiêu chí đánh giá tron
 
 ---
 *Requirements defined: 2026-11-10*
-*Last updated: 2026-11-10 sau khi tinh chỉnh tinh gọn bám sát Rubric 100đ*
+*Last updated: 2026-11-10 sau khi cập nhật lộ trình 7 phase và kiến trúc chống xung đột*

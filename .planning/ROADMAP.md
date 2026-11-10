@@ -2,50 +2,74 @@
 
 ## Overview
 
-Hành trình xây dựng ứng dụng chat di động UTEChat từ nền tảng walking skeleton, module xác thực SĐT/OTP, danh bạ bạn bè, hệ thống chat thời gian thực offline-first, truyền thông đa phương tiện đến 2 tính năng sáng tạo (WebRTC Voice Call & On-device Translation) và bộ unit test toàn diện đạt điểm tuyệt đối 100/100 theo rubric môn học.
+Hành trình xây dựng ứng dụng chat di động UTEChat cho nhóm 5 người theo mô hình **Kiến trúc chống xung đột (Anti-Conflict Architecture)** và **Tiến độ bậc thang an toàn (Staggered Pipeline)**. 
+- Nhóm trưởng đảm nhiệm **Phase 1** tạo lập CSDL Supabase làm nguồn chân lý duy nhất.
+- **Phase 2** thiết lập khung ứng dụng và "khóa chết" 6 điểm nóng gây conflict (Single Activity, Nested Nav Graphs, Split Resource Strings, Modular Retrofit APIs, Pre-wired Room Entities, Locked Gradle dependencies).
+- **Phase 3 đến Phase 6** phân chia độc lập tương ứng cho 4 thành viên thực hiện các lát cắt dọc tính năng.
+- **Phase 7** cả nhóm phối hợp kiểm thử toàn diện, tối ưu và đóng gói bài nộp đạt điểm tuyệt đối 100/100 theo rubric.
 
 ## Phases
 
-- [ ] **Phase 1: Foundation & Walking Skeleton** - Khởi tạo hạ tầng backend Spring Boot kết nối Supabase, khung app Android MVVM và thông luồng kiểm tra /health
-- [ ] **Phase 2: Authentication & Account Management** - Đăng ký SĐT E.164, OTP demo, đăng nhập 2 chế độ (mật khẩu/OTP), quản lý hồ sơ và soft delete tài khoản
-- [ ] **Phase 3: Contacts & Friendships** - Quản lý danh bạ, tìm kiếm SĐT chính xác, gửi/nhận lời mời kết bạn và danh sách chặn
-- [ ] **Phase 4: Realtime & Offline-First Core Messaging** - Nhắn tin 1-1 và nhóm thời gian thực qua WebSocket, hàng đợi WorkManager Room và tìm kiếm FTS4 tiếng Việt không dấu
-- [ ] **Phase 5: Media Attachments & Notifications** - Tải lên và gửi nhận ảnh/voice note/video/file, kèm thông báo NotificationChannel và đồng bộ ngầm /sync
-- [ ] **Phase 6: Creative Extensions (Voice Call & ML Kit)** - Cuộc gọi thoại WebRTC 1-1 (sáng tạo chính) và dịch tin nhắn on-device bằng ML Kit (sáng tạo dự phòng)
-- [ ] **Phase 7: Testing, Quality & Release Packaging** - Bộ unit test JVM pass 100%, kiểm thử Room in-memory, tối ưu R8 và đóng gói bản nộp bài (APK, mã nguồn, tài liệu)
+- [ ] **Phase 1: Database & Supabase Infrastructure** - Thiết lập CSDL PostgreSQL trên Supabase, bảng, khóa ngoại, RLS policies, indexes và dữ liệu seed mẫu (Nhóm trưởng)
+- [ ] **Phase 2: Foundation & Anti-Conflict Architecture** - Khung app Android MVVM, backend kết nối Supabase, thông luồng /health và khóa 6 điểm nóng gây conflict
+- [ ] **Phase 3: Authentication & Profile Management** - Đăng ký SĐT E.164, OTP demo, đăng nhập 2 chế độ, quản lý hồ sơ, soft delete tài khoản, đa ngôn ngữ & DayNight (Thành viên 2)
+- [ ] **Phase 4: Contacts & Friendships** - Quản lý danh bạ, tìm kiếm SĐT chính xác, gửi/nhận lời mời kết bạn và danh sách chặn (Thành viên 3)
+- [ ] **Phase 5: Realtime & Offline-First Core Messaging** - Nhắn tin 1-1 và nhóm thời gian thực qua WebSocket, hàng đợi Room WorkManager và tìm kiếm FTS4 tiếng Việt không dấu (Thành viên 4)
+- [ ] **Phase 6: Media Attachments & Creative Features** - Gửi ảnh/voice/video/file, gọi thoại 1-1 WebRTC (sáng tạo chính) và dịch tin nhắn ML Kit on-device (sáng tạo dự phòng) (Thành viên 5)
+- [ ] **Phase 7: Testing, Quality & Release Packaging** - Bộ unit test JVM pass 100%, kiểm thử Room in-memory, tối ưu R8 và đóng gói hồ sơ nộp bài (Cả nhóm)
 
 ---
 
 ## Phase Details
 
-### Phase 1: Foundation & Walking Skeleton
-**Goal**: Thiết lập khung dự án Android (Java, Single Activity Navigation, View Binding, AppExecutors, Room) và Backend Spring Boot (kết nối Supabase PostgreSQL với Flyway migration), thông luồng API /health đầu tiên.
-**Depends on**: Nothing (first phase)
-**Requirements**: REQ-ui-standards
+### Phase 1: Database & Supabase Infrastructure
+**Goal**: Nhóm trưởng thiết lập toàn bộ hạ tầng CSDL PostgreSQL trên Supabase, định nghĩa bảng, khóa ngoại, RLS policies, chỉ mục và nạp dữ liệu mẫu chuẩn làm nền móng vững chắc cho cả nhóm.
+**Depends on**: Nothing (bắt đầu trước tiên)
+**Requirements**: Nền móng CSDL phục vụ toàn bộ các yêu cầu
+**Phụ trách**: Nhóm trưởng (Database & Điều phối)
 **Success Criteria** (what must be TRUE):
-  1. Backend server khởi động thành công, chạy migration Flyway trên Supabase PostgreSQL và phản hồi API `GET /api/v1/health`.
-  2. Ứng dụng Android khởi động hiển thị màn hình chính với BottomNavigationView theo kiến trúc Single Activity Navigation Component.
-  3. Ứng dụng Android gọi API /health lên server qua Retrofit và hiển thị trạng thái kết nối thành công.
-  4. Hỗ trợ chuyển đổi ngôn ngữ Anh / Việt và giao diện sáng / tối (Material 3 DayNight) mà không bị mất trạng thái khi xoay màn hình (orientation change).
+  1. Toàn bộ 8 bảng CSDL theo `docs/ERD.md` được tạo thành công trên Supabase với UUID v4, kiểu dữ liệu chuẩn và khóa ngoại cascade/set null chính xác.
+  2. Kích hoạt Row Level Security (RLS) trên mọi bảng; đóng hoàn toàn Public Data API để đảm bảo chỉ backend `service_role` hoặc tài khoản hợp lệ mới có quyền truy cập.
+  3. Tạo đầy đủ các chỉ mục B-tree (cho SĐT) và composite index `(conversation_id, created_at DESC)` cho truy vấn phân trang tin nhắn tốc độ cao.
+  4. Nạp sẵn bộ dữ liệu mẫu chuẩn (Seed Data): các tài khoản test sẵn có (SĐT demo, OTP demo `123456`, mật khẩu đã băm BCrypt), danh bạ mẫu và tin nhắn mẫu.
+  5. Xuất tài liệu hướng dẫn cấu hình Supabase (`SUPABASE_SETUP.md`) chứa URL, Anon Key, Service Key và thông tin schema cho cả nhóm.
+**Plans**: TBD
+**UI hint**: no
+
+### Phase 2: Foundation & Anti-Conflict Architecture
+**Goal**: Dựng bộ khung Walking Skeleton (Android MVVM + Backend kết nối Supabase) và áp dụng kiến trúc cô lập triệt để nhằm khóa cứng 6 điểm nóng gây conflict.
+**Depends on**: Phase 1
+**Requirements**: REQ-ui-standards
+**Phụ trách**: Nhóm trưởng & Cả nhóm
+**Success Criteria** (what must be TRUE):
+  1. Khai báo sẵn toàn bộ dependencies (Retrofit, Room, Glide, CameraX, WebRTC, ML Kit...) trong `build.gradle.kts` và `libs.versions.toml`, sau đó khóa file này lại.
+  2. Áp dụng Single Activity Architecture: Chỉ duy nhất `MainActivity`, toàn bộ màn hình là Fragment; hoàn thiện và khóa `AndroidManifest.xml`.
+  3. Tách file tài nguyên chuỗi theo module: `strings_auth.xml`, `strings_contacts.xml`, `strings_chat.xml`, `strings_media.xml` để các thành viên không bao giờ sửa chung `strings.xml`.
+  4. Cấu hình Nested Navigation Graphs (`nav_auth.xml`, `nav_contacts.xml`, `nav_chat.xml`, `nav_media.xml`) được include vào `nav_main.xml`.
+  5. Khởi tạo sẵn `AppDatabase` và toàn bộ Room Entity mapping từ Supabase; tạo sẵn khung các Interface Retrofit riêng biệt (`AuthApi`, `ContactApi`, `ChatApi`, `MediaApi`).
+  6. Backend Spring Boot kết nối thành công với Supabase PostgreSQL; ứng dụng Android gọi API `GET /api/v1/health` hiển thị kết nối thành công.
 **Plans**: TBD
 **UI hint**: yes
 
-### Phase 2: Authentication & Account Management
-**Goal**: Hoàn thiện toàn bộ quy trình đăng ký số điện thoại E.164, xác thực OTP demo, đăng nhập 2 chế độ, lưu trữ JWT an toàn, quản lý hồ sơ cá nhân và xóa tài khoản an toàn.
-**Depends on**: Phase 1
-**Requirements**: REQ-auth-registration, REQ-auth-login, REQ-auth-account
+### Phase 3: Authentication & Profile Management
+**Goal**: Xây dựng toàn bộ luồng đăng ký SĐT E.164, xác thực OTP demo, đăng nhập 2 chế độ, lưu trữ JWT an toàn, quản lý hồ sơ cá nhân và xóa tài khoản.
+**Depends on**: Phase 2
+**Requirements**: REQ-auth-registration, REQ-auth-login, REQ-auth-account, REQ-ui-standards
+**Phụ trách**: Thành viên 2 (độc lập trong `feature/auth` và `feature/profile`)
 **Success Criteria** (what must be TRUE):
-  1. Người dùng có thể đăng ký tài khoản mới bằng số điện thoại E.164, xác thực bằng mã OTP demo (hiển thị trực tiếp trong giao diện/log) và đặt mật khẩu an toàn.
+  1. Người dùng có thể đăng ký tài khoản mới bằng số điện thoại E.164, xác thực bằng mã OTP demo và đặt mật khẩu an toàn.
   2. Người dùng có thể đăng nhập bằng mật khẩu hoặc đăng nhập nhanh bằng OTP demo; JWT 30 ngày được lưu an toàn trong SharedPreferences mã hóa / Keystore.
   3. Người dùng có thể cập nhật thông tin cá nhân (họ tên, avatar), đổi mật khẩu và đăng xuất.
   4. Khi người dùng thực hiện xóa tài khoản (soft delete), quan hệ danh bạ hai chiều bị xóa sạch, token bị vô hiệu hóa lập tức.
+  5. Hỗ trợ chuyển đổi ngôn ngữ Anh / Việt và giao diện sáng / tối (Material 3 DayNight) mà không bị mất trạng thái khi xoay màn hình.
 **Plans**: TBD
 **UI hint**: yes
 
-### Phase 3: Contacts & Friendships
-**Goal**: Cho phép tìm kiếm người dùng mới bằng số điện thoại chính xác, kết nối danh bạ bạn bè và quản lý quyền riêng tư.
-**Depends on**: Phase 2
+### Phase 4: Contacts & Friendships
+**Goal**: Xây dựng module quản lý danh bạ bạn bè, tìm kiếm người dùng mới bằng số điện thoại chính xác và quản lý quyền riêng tư.
+**Depends on**: Phase 2 (kế thừa User Model từ Phase 1/2)
 **Requirements**: REQ-contacts-management
+**Phụ trách**: Thành viên 3 (độc lập trong `feature/contacts`)
 **Success Criteria** (what must be TRUE):
   1. Người dùng có thể tìm kiếm chính xác người dùng khác bằng số điện thoại E.164 và gửi lời mời kết bạn.
   2. Người dùng có thể xem danh sách lời mời kết bạn đến/đi, đồng ý hoặc từ chối kết bạn.
@@ -54,10 +78,11 @@ Hành trình xây dựng ứng dụng chat di động UTEChat từ nền tảng 
 **Plans**: TBD
 **UI hint**: yes
 
-### Phase 4: Realtime & Offline-First Core Messaging
+### Phase 5: Realtime & Offline-First Core Messaging
 **Goal**: Xây dựng cốt lõi tính năng nhắn tin thời gian thực 1-1 và nhóm hỗ trợ gửi ngoại tuyến qua Room và WorkManager, cùng tìm kiếm FTS4 tiếng Việt.
-**Depends on**: Phase 3
+**Depends on**: Phase 2 (kế thừa Message Entity từ Phase 1/2)
 **Requirements**: REQ-messaging-realtime, REQ-messaging-offline-first, REQ-messaging-delivery-read-status, REQ-messaging-group-chat, REQ-messaging-search
+**Phụ trách**: Thành viên 4 (độc lập trong `feature/chat`)
 **Success Criteria** (what must be TRUE):
   1. Người dùng có thể gửi và nhận tin nhắn văn bản tức thì qua kênh WebSocket STOMP trong hội thoại 1-1 và chat nhóm.
   2. Khi mất kết nối mạng, tin nhắn được lưu trạng thái SENDING trong Room và chuỗi WorkManager tự động gửi tuần tự lên server khi có mạng lại.
@@ -67,35 +92,27 @@ Hành trình xây dựng ứng dụng chat di động UTEChat từ nền tảng 
 **Plans**: TBD
 **UI hint**: yes
 
-### Phase 5: Media Attachments & Notifications
-**Goal**: Mở rộng khả năng gửi nhận tệp đa phương tiện (ảnh, voice note, video, tài liệu), thông báo tin mới và cơ chế đồng bộ nền.
-**Depends on**: Phase 4
-**Requirements**: REQ-messaging-media-attachments, REQ-notifications-sync
+### Phase 6: Media Attachments & Creative Features
+**Goal**: Xây dựng module gửi nhận tệp đa phương tiện kết hợp 2 tính năng sáng tạo độc lập: Gọi thoại WebRTC 1-1 và Dịch tin nhắn offline on-device bằng Google ML Kit.
+**Depends on**: Phase 2 & Phase 5
+**Requirements**: REQ-messaging-media-attachments, REQ-notifications-sync, REQ-voice-call-webrtc, REQ-message-translation
+**Phụ trách**: Thành viên 5 (độc lập trong `feature/media`, `feature/call`, `feature/translate`)
 **Success Criteria** (what must be TRUE):
-  1. Người dùng có thể chọn ảnh nén, ghi âm giọng nói (voice note), quay/chọn video và gửi tệp tin tài liệu trong cuộc trò chuyện.
-  2. Tệp đính kèm được tải lên server an toàn, kiểm tra MIME type; video có thể phát ngoài thông qua FileProvider chia sẻ quyền tạm thời.
-  3. Thông báo tin mới xuất hiện trên NotificationChannel khi app ở chế độ nền.
-  4. Dữ liệu tin nhắn bị bỏ lỡ được tự động đồng bộ đầy đủ thông qua API `/api/v1/sync` sau khi kết nối mạng được khôi phục.
-**Plans**: TBD
-**UI hint**: yes
-
-### Phase 6: Creative Extensions (Voice Call & ML Kit)
-**Goal**: Triển khai 2 tính năng sáng tạo song song: Gọi thoại WebRTC 1-1 (ưu tiên chính) và Dịch tin nhắn on-device bằng ML Kit (dự phòng an toàn).
-**Depends on**: Phase 5
-**Requirements**: REQ-voice-call-webrtc, REQ-message-translation
-**Success Criteria** (what must be TRUE):
-  1. Người dùng có thể thực hiện và nhận cuộc gọi thoại 1-1 thời gian thực qua WebRTC với coturn STUN/TURN (hỗ trợ cả TCP/TLS 443); hiển thị thông báo cuộc gọi nhỡ khi đối phương không nhấc máy.
-  2. Người dùng có thể nhấn giữ tin nhắn bất kỳ để dịch tức thời hai chiều Anh - Việt bằng Google ML Kit Translation trực tiếp trên thiết bị (hoạt động 100% offline, không cần Internet).
-  3. Nếu môi trường demo tại giảng đường gặp sự cố tường lửa chặn WebRTC, tính năng Dịch tin nhắn ML Kit đảm bảo bảo toàn 100% điểm sáng tạo (5 điểm) của rubric.
+  1. Người dùng có thể chọn ảnh nén, ghi âm giọng nói (voice note), quay/chọn video và gửi tệp tin tài liệu trong cuộc trò chuyện; video mở ngoài qua FileProvider.
+  2. Thông báo tin mới xuất hiện trên NotificationChannel khi app ở chế độ nền; tự động đồng bộ bù dữ liệu qua API `/api/v1/sync`.
+  3. Người dùng có thể thực hiện và nhận cuộc gọi thoại 1-1 thời gian thực qua WebRTC với coturn STUN/TURN (hỗ trợ cả TCP/TLS 443); hiển thị thông báo cuộc gọi nhỡ.
+  4. Người dùng có thể nhấn giữ tin nhắn bất kỳ để dịch tức thời hai chiều Anh - Việt bằng Google ML Kit Translation trực tiếp trên thiết bị (hoạt động 100% offline, không cần Internet).
 **Plans**: TBD
 **UI hint**: yes
 
 ### Phase 7: Testing, Quality & Release Packaging
-**Goal**: Kiểm thử toàn diện theo kim tự tháp kiểm thử, bảo mật OWASP Mobile và đóng gói hồ sơ nộp bài đạt chuẩn 100 điểm rubric.
-**Depends on**: Phase 6
+**Goal**: Toàn nhóm phối hợp kiểm thử kim tự tháp, hoàn thiện chất lượng mã nguồn, chạy toàn bộ Unit Test và đóng gói hồ sơ nộp bài đạt chuẩn 100 điểm rubric.
+**Depends on**: Phase 3, 4, 5, 6
 **Requirements**: REQ-testing-quality
+**Phụ trách**: Cả nhóm (Nhóm trưởng chủ trì nghiệm thu)
 **Success Criteria** (what must be TRUE):
   1. Toàn bộ test suite unit test JVM chạy lệnh `./gradlew testDebugUnitTest` đạt 100% tỷ lệ pass (Room DAO, Repository, ViewModel, Crypto, Mappers).
-  2. Giao diện người dùng tuân thủ Material Design 3 rõ ràng, hỗ trợ đầy đủ tiếng Việt và tiếng Anh, xoay ngang/dọc mượt mà.
-  3. Đóng gói đầy đủ hồ sơ nộp bài theo đúng Tiêu chí 1 của Rubric: Mã nguồn có thư mục `.git`, báo cáo Word, bộ ảnh chụp màn hình đầy đủ các luồng, và file APK cài đặt hoàn chỉnh.
+  2. Kiểm thử Room in-memory test trên Android Test và UI test Espresso hoạt động ổn định.
+  3. Giao diện người dùng tuân thủ Material Design 3 rõ ràng, hỗ trợ đầy đủ tiếng Việt và tiếng Anh, xoay ngang/dọc mượt mà.
+  4. Đóng gói đầy đủ hồ sơ nộp bài theo đúng Tiêu chí 1 của Rubric: Mã nguồn có thư mục `.git`, báo cáo Word, bộ ảnh chụp màn hình đầy đủ các luồng, và file APK cài đặt hoàn chỉnh.
 **Plans**: TBD
