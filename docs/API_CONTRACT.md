@@ -81,10 +81,15 @@
 | `DELETE /conversations/{id}/members/{userId}` | — | 204 (`ADMIN`, hoặc chính mình = rời nhóm) |
 | `PUT /conversations/{id}/members/{userId}/role` | `role` | 204 (`ADMIN`) |
 | `GET /conversations/{id}/messages?before=&limit=` | — | tin cũ hơn `before`, mới nhất trước |
-| `POST /conversations/{id}/messages` | `clientId`, `type`, `text`, `mediaUrl`, `durationMs`, `latitude`, `longitude` | `messageId`, `createdAt` (201) |
+| `POST /conversations/{id}/messages` | `clientId`, `type`, `text`, `mediaUrl`, `latitude`, `longitude` | `messageId`, `createdAt` (201) |
 | `POST /conversations/{id}/delivered` | `upToMessageId` | 204 |
 | `POST /conversations/{id}/read` | `upToMessageId` | 204 |
 | `GET /sync?after=<messageId>` | — | `{messages[], conversations[], receipts[], nextCursor}` |
+
+> **Quy ước gửi tin:** Với tin nhắn đa phương tiện, client chỉ gửi `mediaUrl` (server tự động lấy `durationMs`, `width`, `height`, `sizeBytes`, `mime` từ bản ghi `attachments` đã upload tương ứng, kiểm tra quyền sở hữu và chống gán trùng).
+> **Định nghĩa biên nhận (Receipts):**
+> - `DELIVERED`: Ít nhất một thiết bị của người nhận đã lưu thành công tin nhắn vào dữ liệu cục bộ.
+> - `READ`: Người nhận đã đọc tin nhắn trên ít nhất một thiết bị.
 
 **Tin nhắn trả về:**
 
@@ -104,7 +109,9 @@
 | Method và đường dẫn | Body chính | Trả về | Lỗi |
 |---|---|---|---|
 | `POST /media` | multipart: `kind`, `file` | `mediaUrl`, `mime`, `sizeBytes`, `width`, `height`, `durationMs` (201) | `FILE_TOO_LARGE` 413, `UNSUPPORTED_TYPE` 415 |
-| `GET /media/{id}` | — (URL có bảo vệ bằng token, gửi `Authorization`) | luồng byte, hỗ trợ `Range` (phát video, tải lại) | 403 nếu không phải thành viên |
+| `GET /media/{id}` | — (URL có bảo vệ: Header `Authorization`, hoặc `?ticket=` tạm thời ngắn hạn khi stream qua app ngoài) | luồng byte, hỗ trợ `Range` (phát video, tải lại) | 403 nếu không phải thành viên |
+
+> **Phát media qua app ngoài:** App ưu tiên tải file về máy bằng token rồi chia sẻ `content://` qua `FileProvider` với quyền đọc tạm thời. Trường hợp stream trực tiếp ra app ngoài (không thể đính header `Authorization` vào Intent `ACTION_VIEW`), client xin một `ticket` ngắn hạn (gắn với user/file/thời gian) để truyền qua query parameter `?ticket=...` (hỗ trợ các request `Range` tiếp theo; tuyệt đối không đưa JWT vào URL).
 
 ### 2.6 Cuộc gọi
 

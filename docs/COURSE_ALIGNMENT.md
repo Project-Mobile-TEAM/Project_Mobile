@@ -10,9 +10,9 @@
 
 | Chủ đề | Slide dạy | Thiết kế của nhóm | Kết luận |
 |---|---|---|---|
-| Ngôn ngữ | Java (Kotlin chỉ là tuỳ chọn) | Java | Khớp |
+| Ngôn ngữ | Java (Kotlin chỉ là tuỳ chọn) | Java (package `com.utechat`) | Khớp |
 | Giao diện | Views + XML, **View Binding**, không `findViewById` | Views + XML, View Binding | Khớp |
-| Mức SDK | `minSdk 26`, `compileSdk 36`, `targetSdk 36` | Ghi vào ADR-023 | Điều chỉnh |
+| Mức SDK | `minSdk 26`, `compileSdk 36`, `targetSdk 36` | Dự án dùng SDK 35 ổn định hiện hành, sẵn sàng nâng 36 (ADR-023) | Khớp |
 | Build | Gradle **Kotlin DSL** + `gradle/libs.versions.toml` | Ghi vào ADR-023 | Điều chỉnh |
 | Bố cục | `ConstraintLayout` gốc, giữ phẳng, `0dp` với ràng buộc | Dùng ConstraintLayout | Khớp |
 | Theme | `Theme.Material3.DayNight.NoActionBar`, màu qua thuộc tính theme, `values-night` | ADR-021 | Khớp |
@@ -34,7 +34,7 @@
 | Bất đồng bộ | `AppExecutors` (một luồng đĩa), `Executor`, `postValue`. **Không dùng coroutine hay Flow** | ADR-023 | Điều chỉnh |
 | Khởi tạo đối tượng | `Application` dựng sẵn (`ChatApp`, `AppContainer`), `ViewModelProvider.Factory` | ADR-023 | Điều chỉnh |
 | Một nguồn sự thật | Repository, UI chỉ quan sát Room | ADR-009 | Khớp |
-| Room | `@Entity`, `@Dao`, truy vấn đọc trả `LiveData`, `@TypeConverter` cho `Instant`, `exportSchema = true`, migration, **không truy cập trên luồng chính** | ERD.md mục 4 | Khớp |
+| Room | `@Entity`, `@Dao`, truy vấn đọc trả `LiveData`, `@TypeConverter` cho `Instant`, `exportSchema = true`, migration, **không truy cập trên luồng chính** | ERD.md mục 4, ADR-020 (chỉ bật destructive migration ở debug) | Khớp |
 | Cài đặt người dùng | **SharedPreferences** (khoá `apply()`) | Cài đặt ngôn ngữ, theme, bật tắt thông báo | Khớp |
 | Cấm | Fragment/Activity không được chạm DAO hay database | Kiểm tra khi rà soát chéo | Khớp |
 

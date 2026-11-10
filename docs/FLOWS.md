@@ -124,13 +124,13 @@ stateDiagram-v2
     BoQua --> HoanTat
     KiemTra --> HienThiThuThach: Từ 3 bạn trở lên
     HienThiThuThach --> HoanTat: Chọn đúng cả 3
-    HienThiThuThach --> HienThiThuThach: Sai, còn lượt, tạo bộ 15 người mới
+    HienThiThuThach --> HienThiThuThach: Sai, còn lượt, xáo trộn lại thứ tự bộ 15 người cũ
     HienThiThuThach --> Khoa: Sai lần thứ 3
     Khoa --> [*]: Khoá 15 phút, báo các thiết bị tin cậy
     HoanTat --> [*]: Cấp token, ghi nhận thiết bị tin cậy
 ```
 
-**Cách sinh bộ 15 người:** chọn ngẫu nhiên 3 bạn thật (ưu tiên người đã nhắn tin), thêm 12 mồi (người dùng khác: không phải bạn, không bị chặn, không phải bot, `discoverable = true`), trộn ngẫu nhiên, chỉ trả `id` và tên hiển thị. Đáp án lưu bản băm. Mỗi bộ hiệu lực 2 phút. Mỗi lần sai trả bộ mới và tăng `attempts_used`. Thông báo sai không nói đúng bao nhiêu người.
+**Cách sinh bộ 15 người:** chọn ngẫu nhiên 3 bạn thật (ưu tiên người đã nhắn tin), thêm 12 mồi (người dùng khác: không phải bạn, không bị chặn, không phải bot, `discoverable = true`, không phải tài khoản đã xoá), trộn ngẫu nhiên, chỉ trả `id` và tên hiển thị. Đáp án lưu bản băm. **Chống tấn công giao thoa (intersection attack):** Toàn bộ 15 ứng viên (3 bạn thật + 12 mồi) và 3 đáp án được tái sử dụng và giữ cố định trong suốt cửa sổ hiệu lực (15 phút) của tài khoản/cửa sổ chống dò (đồng bộ với ERD.md). Mỗi lần sai chỉ xáo trộn lại thứ tự hiển thị và tăng `attempts_used` (tối đa 3 lần). Thông báo sai không nói đúng bao nhiêu người.
 **Lỗi và biên:** hết hạn bộ thì yêu cầu bộ mới (không tính là lần thử). Phiên `auth_sessions` hết hạn sau 10 phút thì đăng nhập lại từ đầu.
 
 ### F-05 Bật 2FA (ADR-004)
@@ -260,7 +260,7 @@ stateDiagram-v2
 - **Đã đọc:** khi hội thoại đang mở trên màn hình và tin hiển thị, app gọi `POST /conversations/{id}/read`. Server nâng `last_read_message_id` và đẩy trạng thái. Số tin chưa đọc về 0.
 - **Nhóm:** "đã đọc" khi mọi thành viên còn lại có mốc ≥ id tin, hoặc hiện số người đã xem.
 - **Nhận qua đồng bộ:** tin nhận được qua `GET /sync` (lúc app vừa mở lại) cũng phải báo `delivered` như tin nhận qua WebSocket.
-- **Nhiều thiết bị:** mốc là **theo người dùng**, không theo thiết bị. Đọc ở máy này thì máy kia cũng hết số chưa đọc (server đẩy `message.status` cho cả các thiết bị của chính người đó).
+- **Nhiều thiết bị:** mốc là **theo người dùng**, không theo thiết bị. **Định nghĩa mốc:** `DELIVERED` nghĩa là *ít nhất một thiết bị của người nhận đã lưu thành công tin nhắn vào dữ liệu cục bộ*. `READ` nghĩa là *người nhận đã đọc tin nhắn trên ít nhất một thiết bị*. Đọc ở máy này thì máy kia cũng hết số chưa đọc (server đẩy `message.status` cho cả các thiết bị của chính người đó). Thiết bị khác đang tắt sẽ đồng bộ bù sau qua `GET /sync` mà không ảnh hưởng tới trạng thái đã xác nhận trước đó. Luôn đảm bảo `last_delivered_message_id >= last_read_message_id`.
 
 ### F-16 Đang nhập
 
@@ -346,7 +346,7 @@ sequenceDiagram
 |---|---|---|
 | Ảnh | Photo picker hoặc camera | Nén về cạnh dài ≤ 1600 px, ≤ 10 MB |
 | Voice | `MediaRecorder` (xin quyền `RECORD_AUDIO` khi bấm ghi) | ≤ 5 phút, ≤ 10 MB. Chạm nhanh quá thì bỏ ("quá ngắn"). Luôn `release()` |
-| Video | Photo picker | ≤ 50 MB. Phát bằng trình phát trong app hoặc mở ngoài |
+| Video | Photo picker | ≤ 50 MB. Phát bằng trình phát trong app (`Media3 ExoPlayer`). Khi chọn mở bằng ứng dụng ngoài: app tải file về bộ nhớ tạm rồi chia sẻ `content://` qua `FileProvider` kèm quyền đọc tạm thời, hoặc xin `ticket` tạm thời từ server (xem API_CONTRACT.md), tuyệt đối không đưa JWT vào URL |
 | File | Trình chọn file hệ thống | ≤ 25 MB, MIME nằm trong danh sách cho phép |
 | Vị trí | `FusedLocationProviderClient.getCurrentLocation` một lần, ưu tiên `BALANCED_POWER_ACCURACY`, **kiểm tra `null`**, huỷ ở `onDestroyView`. Xin quyền bằng `PermissionRequester` khi bấm chia sẻ (đồng ý quyền xấp xỉ là đủ) | Bấm vào tin vị trí mở **màn hình bản đồ** (`SupportMapFragment`, marker, Safe Args truyền toạ độ) kèm nút "Mở trong bản đồ" bằng `geo:`. Khoá Maps API trong `local.properties`, không commit |
 
@@ -556,7 +556,7 @@ Mọi khoá tạm gắn với **tài khoản hoặc số điện thoại**, khô
 
 ### 11.5 Xoá tài khoản
 
-Xoá mềm: ẩn tên và ảnh (hiện "Tài khoản đã xoá"), thu hồi mọi thiết bị, rời mọi nhóm (chuyển quản trị nếu cần), xoá danh bạ của người đó, và **giải phóng số điện thoại** (`phone_e164 = NULL`) để số đó đăng ký lại được thành tài khoản mới. Tin cũ vẫn còn trong hội thoại của người khác.
+Xoá mềm: ẩn tên và ảnh (hiện "Tài khoản đã xoá"), thu hồi mọi thiết bị, rời mọi nhóm (chuyển quản trị nếu cần), xoá danh bạ hai chiều trong cùng giao dịch (`DELETE FROM contacts WHERE owner_id = :id OR contact_user_id = :id`), loại khỏi danh sách bạn/mồi khi tạo thử thách, và **giải phóng số điện thoại** (`phone_e164 = NULL`) để số đó đăng ký lại được thành tài khoản mới. Tin cũ vẫn còn trong hội thoại của người khác và tiếp tục trỏ UUID cũ (không nối quan hệ sang tài khoản mới đăng ký lại bằng số này).
 
 ### 11.6 Xem OTP demo
 

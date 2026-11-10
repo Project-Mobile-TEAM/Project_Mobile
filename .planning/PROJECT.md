@@ -6,14 +6,14 @@ UTEChat là hệ thống ứng dụng nhắn tin và gọi thoại thời gian t
 
 ## Core Value
 
-Trải nghiệm nhắn tin và gọi thoại ổn định, tin cậy với kiến trúc chuẩn mực theo đúng tài liệu giảng dạy, hỗ trợ offline-first mượt mà và bảo mật đa lớp.
+Trải nghiệm nhắn tin và gọi thoại ổn định, tin cậy với kiến trúc chuẩn mực theo đúng tài liệu giảng dạy, hỗ trợ offline-first mượt mà và tối ưu hóa đạt trọn vẹn điểm tối đa (100/100) theo rubric chấm điểm của môn học.
 
 ## Business Context
 
 - **Customer**: Giảng viên chấm điểm đồ án và sinh viên sử dụng ứng dụng trò chuyện
 - **Revenue model**: Dự án học thuật / mã nguồn mở môn học
 - **Success metric**: Đạt điểm tuyệt đối (100/100) theo rubric môn học; unit test vượt qua 100%
-- **Strategy notes**: Bám sát 7 slide bài giảng và rubric môn học (xem [COURSE_ALIGNMENT.md](file:///C:/Users/Admin/Desktop/Project-Mobile/docs/COURSE_ALIGNMENT.md))
+- **Strategy notes**: Bám sát 7 slide bài giảng và rubric môn học (xem [COURSE_ALIGNMENT.md](file:///C:/Users/Admin/Desktop/Project-Mobile/docs/COURSE_ALIGNMENT.md)). Tinh gọn các tính năng rườm rà (2FA TOTP, Thử thách bạn bè, Bot AI bên ngoài) để tập trung làm thật mượt 15 tính năng cốt lõi. Triển khai 2 tính năng sáng tạo song song: Gọi thoại WebRTC (chính) và Dịch tin nhắn ML Kit on-device (dự phòng an toàn khi demo).
 
 ## Requirements
 
@@ -21,34 +21,32 @@ Trải nghiệm nhắn tin và gọi thoại ổn định, tin cậy với kiế
 
 (None yet — ship to validate)
 
-### Active
+### Active (15 Yêu cầu bám sát Rubric 100đ)
 
-- [ ] **REQ-auth-registration**: Đăng ký bằng số điện thoại E.164 và xác thực OTP demo
-- [ ] **REQ-auth-login-password**: Đăng nhập mật khẩu với kiểm tra thiết bị và chống dò mật khẩu
-- [ ] **REQ-auth-login-otp**: Đăng nhập bằng mã OTP không cần mật khẩu
-- [ ] **REQ-auth-friend-challenge**: Thử thách nhận diện 3 bạn bè trong 15 người trên thiết bị lạ
-- [ ] **REQ-auth-totp-2fa**: Bảo mật 2 lớp TOTP RFC 6238 kèm 8 mã dự phòng
-- [ ] **REQ-auth-session-devices**: Quản lý danh sách thiết bị và thu hồi quyền từ xa
-- [ ] **REQ-contacts-management**: Quản lý danh bạ, tìm kiếm SĐT chính xác và chặn người dùng
-- [ ] **REQ-messaging-realtime-send-receive**: Nhắn tin 1-1 và nhóm thời gian thực qua REST và WebSocket
-- [ ] **REQ-messaging-offline-first**: Hàng đợi gửi offline-first với Room và WorkManager
-- [ ] **REQ-messaging-delivery-read-status**: Quản lý trạng thái đã nhận, đã đọc (watermark) và đang nhập
-- [ ] **REQ-messaging-group-chat**: Tạo nhóm, quản lý thành viên và phân quyền quản trị
-- [ ] **REQ-messaging-media-attachments**: Gửi nhận đa phương tiện (ảnh, voice, video, file, vị trí)
-- [ ] **REQ-messaging-search**: Tìm kiếm tin nhắn cục bộ bằng Room FTS4
-- [ ] **REQ-voice-call-webrtc**: Gọi thoại 1-1 qua WebRTC và ghi nhận cuộc gọi nhỡ
-- [ ] **REQ-ai-assistant**: Trợ lý ảo bot UTE AI thông minh phía server (quota 30 req/ngày)
-- [ ] **REQ-message-translation**: Dịch tin nhắn Anh <-> Việt trực tiếp trên máy bằng Google ML Kit
-- [ ] **REQ-notifications-sync**: Thông báo NotificationChannel và đồng bộ ngầm khi kết nối lại
-- [ ] **REQ-ui-standards**: Hỗ trợ đa ngôn ngữ (en/vi), Material 3 DayNight và xoay màn hình
+- [ ] **REQ-ui-standards**: Hỗ trợ giao diện Material 3 DayNight (chế độ sáng/tối), đa ngôn ngữ Anh - Việt và cơ chế giữ nguyên trạng thái khi xoay màn hình (orientation change).
+- [ ] **REQ-auth-registration**: Đăng ký tài khoản bằng số điện thoại E.164, xác thực mã OTP demo và thiết lập mật khẩu bảo mật.
+- [ ] **REQ-auth-login**: Đăng nhập bằng số điện thoại kèm mật khẩu hoặc OTP demo; cấp JWT an toàn (30 ngày) lưu trữ trong SharedPreferences mã hóa / Keystore.
+- [ ] **REQ-auth-account**: Quản lý thông tin hồ sơ (cập nhật họ tên, ảnh đại diện avatar), đổi mật khẩu, đăng xuất và soft delete tài khoản (xóa sạch danh bạ hai chiều).
+- [ ] **REQ-contacts-management**: Quản lý danh bạ bạn bè, tìm kiếm người dùng bằng số điện thoại chính xác, gửi/chấp nhận/từ chối lời mời kết bạn và chặn người dùng.
+- [ ] **REQ-messaging-realtime**: Nhắn tin văn bản trực tiếp 1-1 theo thời gian thực qua kết nối WebSocket STOMP.
+- [ ] **REQ-messaging-offline-first**: Hàng đợi gửi tin nhắn ngoại tuyến bền vững với Room SQLite, tự động thử lại và đồng bộ ngầm bằng WorkManager khi có kết nối mạng.
+- [ ] **REQ-messaging-delivery-read-status**: Quản lý vòng đời trạng thái tin nhắn (SENDING -> SENT -> DELIVERED -> READ) và hiển thị chỉ báo đang gõ (typing indicator).
+- [ ] **REQ-messaging-group-chat**: Tạo nhóm chat, thêm/xóa thành viên nhóm, phân quyền quản trị viên và cô lập lịch sử tin nhắn trước thời điểm gia nhập.
+- [ ] **REQ-messaging-search**: Tìm kiếm nội dung tin nhắn cục bộ tốc độ cao trong Room SQLite FTS4 hỗ trợ tiếng Việt không dấu (chuẩn hóa `normalized_text`).
+- [ ] **REQ-messaging-media-attachments**: Gửi và nhận tệp đa phương tiện: ảnh nén, ghi âm giọng nói (voice note), video và tệp tài liệu với xác thực quyền truy cập an toàn.
+- [ ] **REQ-notifications-sync**: Phát thông báo tin nhắn mới nội bộ qua NotificationChannel và tự động đồng bộ bù dữ liệu qua API `/api/v1/sync` khi ứng dụng mở lại.
+- [ ] **REQ-voice-call-webrtc**: *[Sáng tạo 1 - Ưu tiên]* Cuộc gọi thoại 1-1 thời gian thực bằng WebRTC qua WebSocket signaling và coturn STUN/TURN, kèm theo dõi cuộc gọi nhỡ.
+- [ ] **REQ-message-translation**: *[Sáng tạo 2 - Dự phòng]* Dịch tin nhắn văn bản hai chiều Anh - Việt trực tiếp on-device bằng Google ML Kit Translation (chạy 100% offline, không phụ thuộc mạng).
+- [ ] **REQ-testing-quality**: Bộ Unit Test toàn diện cho Room DAO, Repository, ViewModel, Crypto, Mappers sử dụng JUnit4 & Mockito đạt tỷ lệ pass 100% trên JVM.
 
 ### Out of Scope
 
-- Mã hoá đầu cuối (End-to-End Encryption) — Kiến trúc Cloud Chat giống Telegram, mã hoá truyền tải HTTPS/WSS
-- Thông báo đẩy khi app bị tắt hoàn toàn (FCM) — Không phụ thuộc Google FCM, dùng WorkManager định kỳ 15 phút
-- Cuộc gọi nhóm và cuộc gọi video — Ngoài phạm vi phiên bản v1 đồ án
-- Thu hồi / chỉnh sửa tin nhắn đã gửi — Không bắt buộc theo rubric
-- Đăng nhập bằng mạng xã hội (Google, Facebook) — Chỉ định danh bằng số điện thoại chuẩn hoá E.164
+- **Xác thực 2FA TOTP & Thử thách nhận diện bạn bè**: Hoãn sang v2 để đảm bảo quy trình demo đăng ký/đăng nhập nhanh gọn, không rủi ro khi hội đồng chấm thi.
+- **Bot AI LLM phía server**: Tránh phụ thuộc vào dịch vụ bên thứ 3 và rủi ro quota/timeout khi demo trực tiếp.
+- **Mã hoá đầu cuối (End-to-End Encryption)**: Kiến trúc Cloud Chat giống Telegram, mã hoá truyền tải HTTPS/WSS đã đáp ứng an toàn.
+- **Thông báo đẩy khi app bị tắt hoàn toàn (FCM)**: Không phụ thuộc Google Services phức tạp, dùng WorkManager đồng bộ nền định kỳ 15 phút.
+- **Cuộc gọi nhóm và cuộc gọi video**: Ngoài phạm vi phiên bản v1 đồ án.
+- **Đăng nhập bằng mạng xã hội (Google, Facebook)**: Định danh duy nhất bằng số điện thoại chuẩn hoá E.164.
 
 ## Context
 
@@ -69,16 +67,18 @@ Trải nghiệm nhắn tin và gọi thoại ổn định, tin cậy với kiế
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
 | ADR-001: Định danh bằng số điện thoại E.164 | Đơn giản hoá xác thực, tránh phụ thuộc email / OAuth | ✓ Good |
-| ADR-002: OTP là OTP demo | Không tốn chi phí SMS gateway thực tế trong đồ án | ✓ Good |
-| ADR-003: Hai cách đăng nhập & thiết bị tin cậy | Nâng cao trải nghiệm người dùng và an toàn thiết bị lạ | ✓ Good |
-| ADR-005: Bước nhận diện bạn bè | Cơ chế xác thực sáng tạo độc đáo cho đồ án | ✓ Good |
+| ADR-002: OTP là OTP demo | Không tốn chi phí SMS gateway thực tế trong đồ án, thao tác nhanh khi demo | ✓ Good |
+| ADR-003: Hai cách đăng nhập (Mật khẩu & OTP) | Nâng cao trải nghiệm người dùng theo đúng chuẩn ứng dụng chat hiện đại | ✓ Good |
 | ADR-007: CSDL PostgreSQL Supabase (M2) | Tách biệt logic và CSDL, có dashboard quản trị trực quan | ✓ Good |
 | ADR-009: Offline-first Room & WorkManager | Đảm bảo tin nhắn không bao giờ bị mất khi gián đoạn mạng | ✓ Good |
+| ADR-010: Định nghĩa rõ ràng Watermark Receipts | last_delivered >= last_read; cập nhật read tự động nâng delivered | ✓ Good |
+| ADR-013: WebRTC STUN/TURN có fallback TCP/TLS 443 | Vượt tường lửa Wi-Fi trường đại học khi demo gọi điện | ✓ Good |
 | ADR-018: Token auth & RBAC | Kiểm soát phân quyền ở tầng service, app không tự khai danh tính | ✓ Good |
 | ADR-019: Một server chung AWS EC2 | Triển khai tập trung Nginx, Backend, Media, coturn | ✓ Good |
+| ADR-020: Room Migration Policy nghiêm ngặt | Chỉ dùng destructive migration trong môi trường debug; bảo toàn tin gửi offline | ✓ Good |
 | ADR-021: UI i18n & DayNight | Đạt điểm tối đa tiêu chí giao diện và tiếp cận rubric | ✓ Good |
-| ADR-023: Android tech stack bám slide | Tuân thủ 100% mẫu kiến trúc giảng dạy của môn học | ✓ Good |
-| ADR-024: Kiểm thử kim tự tháp bám slide | Đạt điều kiện 'unit test chạy đạt toàn bộ' của rubric | ✓ Good |
+| ADR-023: Android tech stack bám slide, package `com.utechat` | Tuân thủ 100% mẫu kiến trúc giảng dạy của môn học và khớp package codebase | ✓ Good |
+| ADR-024: Kiểm thử kim tự tháp bám slide | Đạt điều kiện 'unit test chạy đạt toàn bộ' của rubric (15 điểm) | ✓ Good |
 
 ---
-*Last updated: 2026-11-10 sau quy trình Ingest Docs*
+*Last updated: 2026-11-10 sau khi tinh chỉnh tinh gọn bám sát Rubric 100đ*

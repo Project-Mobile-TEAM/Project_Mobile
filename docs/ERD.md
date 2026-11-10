@@ -178,7 +178,7 @@ Bảng chỉ dành cho môi trường `demo` (không có trong `prod`): `demo_sm
 | `user_devices` | UNIQUE (`user_id`, `device_id_hash`). `device_id_hash` là SHA-256 của `deviceId` do app tạo. `token_valid_after` là mốc: server **từ chối mọi JWT có `iat` sớm hơn mốc này** (đăng xuất, thu hồi hoặc đổi mật khẩu đặt mốc = bây giờ). `revoked_at` khác NULL là thiết bị đã bị thu hồi. Không có refresh token (ADR-018). |
 | `otp_challenges` | Mỗi lần gửi OTP là một dòng. `purpose` ∈ `REGISTER`, `LOGIN`, `PASSWORD_RESET`. Giới hạn gửi lại tính bằng số dòng trong 60 giây và 1 giờ qua theo `phone_e164`. `consumed_at` khác NULL là đã dùng. Chỉ lưu `code_hash`. |
 | `auth_sessions` | Giao dịch đăng nhập nhiều bước. `method` ∈ `PASSWORD`, `OTP`, `RESET` (sau khi đặt lại mật khẩu). `state` ∈ `NEED_OTP`, `NEED_2FA`, `NEED_FRIEND`, `COMPLETE`, `FAILED`, `LOCKED`. Hết hạn sau 10 phút. Token chỉ được cấp khi `state = COMPLETE`. |
-| `friend_challenges` | `candidate_user_ids` là danh sách 15 id đã trộn (JSON). `answer_hash` là băm của 3 id đúng đã sắp xếp. `attempts_used` tối đa 3, **đếm dồn theo tài khoản trong 15 phút** chứ không reset khi mở phiên mới. Sai lần thứ 3 thì đặt `users.friend_step_locked_until = now + 15 phút`. |
+| `friend_challenges` | `candidate_user_ids` là danh sách 15 id đã trộn (JSON). `answer_hash` là băm của 3 id đúng đã sắp xếp. Để chống tấn công giao thoa (intersection attack), **toàn bộ 15 ứng viên và 3 đáp án được tái sử dụng và giữ cố định trong suốt cửa sổ hiệu lực (15 phút) của tài khoản**, chỉ xáo trộn thứ tự hiển thị mỗi lần yêu cầu lại. `attempts_used` tối đa 3, **đếm dồn theo tài khoản trong 15 phút** chứ không reset khi mở phiên mới. Sai lần thứ 3 thì đặt `users.friend_step_locked_until = now + 15 phút`. |
 | `totp_credentials` | `secret_encrypted` AES-GCM. `confirmed_at` NULL nghĩa là đang thiết lập, chưa bật. `last_used_step` để chống dùng lại cùng một mã. |
 | `backup_codes` | 8 dòng mỗi lần bật. Dùng rồi đặt `used_at`. |
 
@@ -218,10 +218,10 @@ CHECK: đúng một trong các nhóm dữ liệu khớp `type` (ví dụ `TEXT` 
 
 1. Cặp người dùng chỉ có **một** hội thoại `DIRECT` (nhờ `direct_key`).
 2. Tạo tin nhắn, cập nhật `conversations.last_message_id` và (nếu có) `conversation_members` cho người gửi chạy trong **cùng một giao dịch**.
-3. Mốc `last_read_message_id` không bao giờ giảm. `last_read ≥ last_delivered`.
+3. Mốc `last_delivered_message_id` và `last_read_message_id` không bao giờ giảm; luôn thỏa `last_delivered_message_id >= last_read_message_id`. Khi nhận báo đọc (`POST /read`), server tự động nâng cả `last_delivered_message_id` nếu mốc delivered hiện tại nhỏ hơn mốc read.
 4. Rời nhóm hoặc bị xoá chỉ đặt `left_at`, không xoá dòng, để giữ lịch sử và vẫn hiển thị tên người gửi cũ.
 5. Thu hồi thiết bị đặt `revoked_at` và `token_valid_after = now` trong một giao dịch.
-6. Xoá tài khoản (xoá mềm) thu hồi mọi thiết bị, gỡ khỏi mọi nhóm (chuyển quản trị nếu cần), xoá danh bạ của người đó, đặt `phone_e164 = NULL` và `status = DELETED`.
+6. Xoá tài khoản (xoá mềm) thu hồi mọi thiết bị, gỡ khỏi mọi nhóm (chuyển quản trị nếu cần), xoá danh bạ hai chiều trong cùng giao dịch (`DELETE FROM contacts WHERE owner_id = :deleted_user_id OR contact_user_id = :deleted_user_id;`), đặt `phone_e164 = NULL` và `status = DELETED`. Loại tài khoản `DELETED` khỏi danh sách bạn thật/mồi khi tạo thử thách. Tin nhắn cũ tiếp tục trỏ UUID cũ (không nối quan hệ sang tài khoản mới đăng ký số này).
 7. Thiết bị đã thu hồi đăng nhập lại thì **coi như thiết bị lạ**. Thành công thì đặt `revoked_at = NULL` và `trusted = true`.
 8. `messages.attachment_id` chỉ được trỏ tới file **do chính người gửi upload** và chưa gắn vào tin nào khác. Server tách `mediaUrl` thành id file và kiểm tra điều này.
 
@@ -237,7 +237,7 @@ Room là bản lưu cục bộ phục vụ offline-first (ADR-009). **Server là
 | `member` | `conversationId`, `userId`, `role`, `lastDeliveredId`, `lastReadId`, `left` | Thành viên và mốc |
 | `message` | `localId` (PK tự tăng), `serverId` (null khi chưa gửi), `clientId` UNIQUE, `conversationId`, `senderId`, `type`, `text`, `attachmentJson`, `createdAt`, `status` | `status` ∈ `SENDING`, `SENT`, `DELIVERED`, `READ`, `FAILED` (suy ra từ mốc của người nhận, trừ `SENDING`/`FAILED`) |
 | `attachment_transfer` | `clientId`, `localUri`, `state`, `progress`, `mediaUrl` | Trạng thái upload/tải xuống, tiếp tục được sau khi mất mạng |
-| `message_fts` | FTS4 trên `message.text` | Tìm kiếm tin nhắn offline (ADR-016) |
+| `message_fts` | FTS4 trên `message.text` và `normalized_text` | Tìm kiếm tin nhắn offline (ADR-016). Cột `normalized_text` được chuẩn hóa (loại bỏ dấu tiếng Việt kết hợp, đổi đ/Đ → d, chuyển chữ thường); truy vấn tìm kiếm cũng áp dụng cùng phép chuẩn hóa để hỗ trợ tìm cả tiếng Việt có dấu và không dấu |
 | `message_translation` | `messageKey`, `targetLang`, `translatedText` | Bản dịch lưu cục bộ (ADR-014) |
 | `sync_state` | `lastMessageId`, `lastSyncAt` | Con trỏ cho `GET /sync` |
 

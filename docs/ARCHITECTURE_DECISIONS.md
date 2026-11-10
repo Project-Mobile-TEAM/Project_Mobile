@@ -107,6 +107,10 @@ flowchart LR
 **Status:** PROPOSED
 **Quyết định:** Không lưu một dòng biên nhận cho mỗi (tin, người nhận). Mỗi thành viên hội thoại có hai mốc: `last_delivered_message_id` và `last_read_message_id`. Một tin là "đã nhận/đã đọc" nếu id của nó ≤ mốc của người nhận.
 **Lý do:** Rẻ hơn rất nhiều cho nhóm đông, một câu lệnh cập nhật cho cả loạt tin.
+**Định nghĩa mốc trên nhiều thiết bị:**
+- `DELIVERED`: Ít nhất một thiết bị của người nhận đã lưu thành công tin nhắn vào dữ liệu cục bộ. Thiết bị khác đang tắt sẽ đồng bộ bù sau qua `GET /sync` mà không ngăn cản việc xác nhận đã nhận.
+- `READ`: Người nhận đã đọc tin nhắn trên ít nhất một thiết bị.
+- Luôn đảm bảo bất biến: `last_delivered_message_id >= last_read_message_id` (cả hai không giảm; khi nhận báo đọc, server tự động nâng cả delivered nếu cần).
 **Hệ quả:** Trong chat nhóm hiển thị "đã đọc" khi **mọi thành viên khác** có mốc ≥ id tin (hoặc đếm "n người đã xem").
 
 ### ADR-011 — Upload file qua REST, lưu ổ đĩa EC2
@@ -123,7 +127,7 @@ flowchart LR
 ### ADR-013 — Gọi thoại trong app bằng WebRTC
 **Status:** PROPOSED
 **Quyết định:** Gọi thoại 1-1 bằng WebRTC. Báo hiệu qua WebSocket. Server quản lý trạng thái cuộc gọi (`RINGING → ACTIVE → ENDED`, hoặc `MISSED/REJECTED/BUSY/FAILED`) và ghi một tin loại `CALL` vào hội thoại. Dùng coturn cho STUN/TURN trên EC2, server cấp thông tin TURN có thời hạn (HMAC, `use-auth-secret`). Video để sau, dùng cùng cơ chế.
-**Hệ quả:** Cần mở UDP 3478 và dải cổng relay trên security group. Hai emulator trên cùng máy cần TURN để nối. Luôn giữ nút `ACTION_DIAL` làm phương án dự phòng khi demo.
+**Hệ quả:** Cần mở UDP 3478, dải cổng relay và bổ sung cấu hình **TURNS (TURN qua TLS/TCP trên cổng 443)** (`turns:turn.example:443?transport=tcp`) để tăng khả năng kết nối và vượt tường lửa mạng trường học khi demo. Do chạy cùng EC2 với Nginx HTTPS (ADR-019), hai dịch vụ không thể cùng chiếm một cổng TCP 443 trên cùng 1 IP: cần giải pháp cấp secondary IP cho EC2 hoặc phân luồng TLS ở tầng TCP (Nginx stream preread). Hai emulator trên cùng máy bắt buộc qua TURN để nối. Luôn giữ nút `ACTION_DIAL` làm phương án dự phòng khi demo.
 
 ### ADR-014 — Dịch tin nhắn bằng ML Kit trên máy
 **Status:** PROPOSED
@@ -159,6 +163,10 @@ flowchart LR
 ### ADR-020 — Quản lý schema bằng migration, không để ORM tự tạo bảng
 **Status:** PROPOSED
 **Quyết định:** Tắt chức năng tự tạo hoặc tự sửa bảng của ORM. Schema chuẩn nằm ở `docs/ERD.md` và bản SQL tương ứng trong `db/migration`. Thay đổi schema dùng chung (bảng, cột, ràng buộc) phải được **người giữ hợp đồng chung** duyệt trước khi merge.
+**Chiến lược Room Migration (Android Client):**
+- Bật `exportSchema = true` và commit schema JSON vào Git để kiểm soát phiên bản cấu trúc.
+- Khi sửa đổi Entity Room: tăng `@Database(version)`, viết lớp `Migration` cụ thể và kiểm thử nâng cấp.
+- `fallbackToDestructiveMigration()` **chỉ được phép bật trong build variant Debug** với dữ liệu thử nghiệm chấp nhận mất; tuyệt đối không bật ở Release vì Room lưu trữ tin nhắn chưa gửi (`SENDING`), bản dịch và trạng thái offline không thể khôi phục lại hoàn toàn từ server.
 
 ### ADR-021 — Giao diện: i18n, chế độ tối, xoay màn hình
 **Status:** ACCEPTED
@@ -171,7 +179,7 @@ flowchart LR
 ### ADR-023 — Kiến trúc và công nghệ của app Android bám slide
 **Status:** ACCEPTED (theo yêu cầu bám tài liệu giảng dạy). Chi tiết đối chiếu ở `COURSE_ALIGNMENT.md`.
 **Quyết định:**
-- **Ngôn ngữ và build:** Java, Views + XML, **View Binding**, `minSdk 26`, `compileSdk 36`, `targetSdk 36`, Gradle Kotlin DSL với `gradle/libs.versions.toml`. Package đề xuất `vn.edu.course.chat` (đổi theo nhóm).
+- **Ngôn ngữ và build:** Java, Views + XML, **View Binding**, `minSdk 26`, `compileSdk 35` (chuẩn ổn định hiện hành, sẵn sàng nâng 36), `targetSdk 35`, Gradle Kotlin DSL với `gradle/libs.versions.toml`. Package chính thức đã chốt: `com.utechat`.
 - **Màn hình:** **một Activity** chứa `NavHostFragment`, điều hướng bằng Navigation component và **Safe Args chỉ truyền id** (ví dụ `conversationId`), thanh dưới `BottomNavigationView` (Hội thoại, Danh bạ, Cài đặt). Fragment gán binding trong `onViewCreated`, gán `null` trong `onDestroyView`, quan sát bằng `getViewLifecycleOwner()`.
 - **Danh sách:** `RecyclerView` + `ListAdapter` + `DiffUtil` (`areItemsTheSame` so id, `areContentsTheSame` so `equals`), `submitList`.
 - **Tầng:** UI (Fragment, ViewModel) và dữ liệu (Repository). Mũi tên chỉ xuống, **không có tầng domain**. Fragment/Activity không bao giờ gọi DAO hay database trực tiếp.

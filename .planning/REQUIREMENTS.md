@@ -1,94 +1,93 @@
 # Requirements: UTEChat
 
 **Defined:** 2026-11-10
-**Core Value:** Trải nghiệm nhắn tin và gọi thoại ổn định, tin cậy với kiến trúc chuẩn mực theo đúng tài liệu giảng dạy, hỗ trợ offline-first mượt mà và bảo mật đa lớp.
+**Core Value:** Trải nghiệm nhắn tin và gọi thoại ổn định, tin cậy với kiến trúc chuẩn mực theo đúng tài liệu giảng dạy, hỗ trợ offline-first mượt mà và bám sát 100% thang điểm đánh giá (rubric 100 điểm).
 
-## v1 Requirements
+## v1 Requirements (15 yêu cầu cốt lõi bám sát Rubric)
 
-Requirements for initial release. Each maps to roadmap phases.
+Mỗi yêu cầu ánh xạ trực tiếp đến các tiêu chí đánh giá trong Rubric môn học (100 điểm) và các phase trong roadmap.
 
-### Authentication & Account Security
+### UI Standards & Accessibility (Tiêu chí 3 & 5: 15đ + 15đ)
+- [ ] **REQ-ui-standards**: Hỗ trợ giao diện Material 3 DayNight (chế độ sáng/tối), đa ngôn ngữ Anh - Việt và cơ chế giữ nguyên trạng thái khi xoay màn hình (orientation change).
 
-- [ ] **REQ-auth-registration**: Đăng ký tài khoản bằng số điện thoại E.164, xác thực OTP demo và thiết lập mật khẩu
-- [ ] **REQ-auth-login-password**: Đăng nhập mật khẩu với kiểm tra thiết bị tin cậy và cơ chế chống dò mật khẩu
-- [ ] **REQ-auth-login-otp**: Đăng nhập bằng mã OTP không cần mật khẩu
-- [ ] **REQ-auth-friend-challenge**: Thử thách nhận diện đúng 3 bạn bè trong 15 người khi đăng nhập trên thiết bị lạ
-- [ ] **REQ-auth-totp-2fa**: Bảo vệ hai lớp (2FA) bằng TOTP chuẩn RFC 6238 và 8 mã dự phòng
-- [ ] **REQ-auth-session-devices**: Quản lý danh sách thiết bị đang hoạt động và thu hồi token từ xa qua token_valid_after
+### Authentication & Account Management (Tiêu chí 2: Quản lý tài khoản)
+- [ ] **REQ-auth-registration**: Đăng ký tài khoản bằng số điện thoại E.164, xác thực mã OTP demo và thiết lập mật khẩu bảo mật.
+- [ ] **REQ-auth-login**: Đăng nhập bằng số điện thoại kèm mật khẩu hoặc OTP demo; cấp JWT an toàn (30 ngày) lưu trữ trong SharedPreferences mã hóa / Keystore.
+- [ ] **REQ-auth-account**: Quản lý thông tin hồ sơ (cập nhật họ tên, ảnh đại diện avatar), đổi mật khẩu, đăng xuất và soft delete tài khoản (xóa sạch danh bạ hai chiều).
 
-### Contacts & Social
+### Contacts & Social (Tiêu chí 2: Thêm người dùng bằng SĐT)
+- [ ] **REQ-contacts-management**: Quản lý danh bạ bạn bè, tìm kiếm người dùng bằng số điện thoại chính xác, gửi/chấp nhận/từ chối lời mời kết bạn và chặn người dùng.
 
-- [ ] **REQ-contacts-management**: Quản lý danh bạ, tìm kiếm bạn bè bằng SĐT chính xác, gửi yêu cầu kết bạn và chặn người dùng
+### Core Messaging & Offline-first (Tiêu chí 2: Chat trực tiếp, Chat nhóm, Tìm kiếm)
+- [ ] **REQ-messaging-realtime**: Nhắn tin văn bản trực tiếp 1-1 theo thời gian thực qua kết nối WebSocket STOMP.
+- [ ] **REQ-messaging-offline-first**: Hàng đợi gửi tin nhắn ngoại tuyến bền vững với Room SQLite, tự động thử lại và đồng bộ ngầm bằng WorkManager khi có kết nối mạng.
+- [ ] **REQ-messaging-delivery-read-status**: Quản lý vòng đời trạng thái tin nhắn (SENDING -> SENT -> DELIVERED -> READ) và hiển thị chỉ báo đang gõ (typing indicator).
+- [ ] **REQ-messaging-group-chat**: Tạo nhóm chat, thêm/xóa thành viên nhóm, phân quyền quản trị viên và cô lập lịch sử tin nhắn trước thời điểm gia nhập.
+- [ ] **REQ-messaging-search**: Tìm kiếm nội dung tin nhắn cục bộ tốc độ cao trong Room SQLite FTS4 hỗ trợ tiếng Việt không dấu (chuẩn hóa `normalized_text`).
 
-### Core Messaging & Offline-first
+### Multimedia Attachments & Sync (Tiêu chí 3: Tin nhắn multimedia và file)
+- [ ] **REQ-messaging-media-attachments**: Gửi và nhận tệp đa phương tiện: ảnh nén, ghi âm giọng nói (voice note), video và tệp tài liệu với xác thực quyền truy cập an toàn.
+- [ ] **REQ-notifications-sync**: Phát thông báo tin nhắn mới nội bộ qua NotificationChannel và tự động đồng bộ bù dữ liệu qua API `/api/v1/sync` khi ứng dụng mở lại.
 
-- [ ] **REQ-messaging-realtime-send-receive**: Nhắn tin văn bản thời gian thực trong hội thoại 1-1 và nhóm qua WebSocket
-- [ ] **REQ-messaging-offline-first**: Hàng đợi gửi tin nhắn offline-first với Room SQLite và chuỗi WorkManager send-messages
-- [ ] **REQ-messaging-delivery-read-status**: Quản lý và hiển thị trạng thái đã gửi, đã nhận, đã đọc (watermark) và chỉ báo đang nhập
-- [ ] **REQ-messaging-group-chat**: Tạo nhóm chat, thêm/xóa thành viên, chuyển quyền quản trị viên và chặn xem tin trước khi vào
-- [ ] **REQ-messaging-search**: Tìm kiếm nội dung tin nhắn cục bộ nhanh chóng bằng Room FTS4
+### Creative Extensions (Tiêu chí 4: Chức năng sáng tạo - 5đ)
+- [ ] **REQ-voice-call-webrtc**: *[Chức năng sáng tạo 1 - Ưu tiên chính]* Cuộc gọi thoại 1-1 thời gian thực bằng WebRTC qua WebSocket signaling và máy chủ trung chuyển STUN/TURN coturn (hỗ trợ cả TCP/TLS 443), kèm theo dõi cuộc gọi nhỡ.
+- [ ] **REQ-message-translation**: *[Chức năng sáng tạo 2 - Dự phòng an toàn]* Dịch tin nhắn văn bản hai chiều Anh - Việt trực tiếp trên thiết bị bằng Google ML Kit Translation (chạy 100% offline, không phụ thuộc mạng, đảm bảo chắc chắn có điểm sáng tạo).
 
-### Media & Notifications
+### Testing & Quality Assurance (Tiêu chí 5: Unit test chạy đạt toàn bộ - 15đ)
+- [ ] **REQ-testing-quality**: Bộ Unit Test toàn diện cho Room DAO, Repository, ViewModel, Crypto, Mappers sử dụng JUnit4 & Mockito đạt tỷ lệ pass 100% trên JVM mà không cần thiết bị thật.
 
-- [ ] **REQ-messaging-media-attachments**: Gửi nhận đa phương tiện (ảnh nén, ghi âm voice, video, file, vị trí) với xác thực quyền tải
-- [ ] **REQ-notifications-sync**: Thông báo tin mới qua NotificationChannel và tự động đồng bộ bù dữ liệu qua /sync khi kết nối lại
+---
 
-### Advanced Extensions
+## v2 Requirements (Dành cho bản nâng cấp mở rộng)
 
-- [ ] **REQ-voice-call-webrtc**: Cuộc gọi thoại 1-1 thời gian thực bằng WebRTC (coturn STUN/TURN) và ghi nhận cuộc gọi nhỡ
-- [ ] **REQ-ai-assistant**: Trợ lý ảo bot UTE AI thông minh phía server với hạn mức 30 yêu cầu/ngày
-- [ ] **REQ-message-translation**: Dịch tin nhắn hai chiều Anh - Việt trực tiếp trên thiết bị bằng Google ML Kit Translation
+- **FEAT-auth-totp-2fa**: Bảo vệ hai lớp (2FA) bằng ứng dụng TOTP (Google Authenticator) và mã dự phòng.
+- **FEAT-auth-friend-challenge**: Thử thách xác thực chọn 3 bạn bè trong 15 người khi đăng nhập trên thiết bị lạ.
+- **FEAT-ai-assistant**: Tích hợp bot AI trợ lý thông minh trả lời tự động trong ứng dụng.
+- **FEAT-call-video**: Cuộc gọi video 1-1 và gọi video nhóm qua WebRTC.
+- **FEAT-push-fcm**: Thông báo đẩy tức thời qua Firebase Cloud Messaging (FCM) khi tắt hoàn toàn ứng dụng.
+- **FEAT-msg-reactions**: Thả biểu cảm cảm xúc (like, thả tim, haha) trên từng tin nhắn.
+- **FEAT-msg-e2ee**: Mã hóa đầu cuối (End-to-End Encryption) cho các đoạn chat riêng tư.
 
-### UI Standards & Accessibility
+---
 
-- [ ] **REQ-ui-standards**: Hỗ trợ đa ngôn ngữ (tiếng Việt, tiếng Anh), giao diện Material 3 DayNight và xoay màn hình
+## Out of Scope (Không thuộc phạm vi v1)
 
-## v2 Requirements
+| Tính năng | Lý do loại bỏ khỏi v1 |
+|-----------|------------------------|
+| Xác thực 2FA TOTP & Thử thách bạn bè | Rườm rà, dễ gây tắc nghẽn luồng demo vấn đáp; đăng nhập OTP demo và mật khẩu đã đáp ứng 100% điểm rubric |
+| Bot AI LLM phía server | Phụ thuộc bên thứ 3 (OpenAI/Gemini API key), dễ gặp lỗi quota, độ trễ cao và không thuộc rubric |
+| Mã hoá đầu cuối E2EE | Độ phức tạp cao, mô hình Cloud Chat tiêu chuẩn giống Telegram phù hợp hơn với yêu cầu đồ án |
+| Gửi SMS thật | Tốn kém chi phí viễn thông; thay thế hoàn hảo bằng OTP demo giả lập hiển thị mã |
+| Đăng nhập mạng xã hội (Google, Facebook) | Rubric và nghiệp vụ yêu cầu định danh duy nhất bằng số điện thoại |
 
-### Extended Features
+---
 
-- **FEAT-call-video**: Cuộc gọi video 1-1 và cuộc gọi nhóm WebRTC
-- **FEAT-msg-e2ee**: Mã hoá đầu cuối (End-to-End Encryption) cho các cuộc trò chuyện bí mật
-- **FEAT-push-fcm**: Tích hợp Google Firebase Cloud Messaging (FCM) để nhận thông báo tức thì khi app đã bị tắt
-- **FEAT-msg-reactions**: Thả biểu cảm cảm xúc (reactions) cho từng tin nhắn
+## Traceability (Ma trận ánh xạ Phase)
 
-## Out of Scope
-
-| Feature | Reason |
-|---------|--------|
-| Mã hoá đầu cuối E2EE | Độ phức tạp cao, mô hình Cloud Chat Telegram phù hợp hơn với yêu cầu đồ án |
-| Đăng nhập mạng xã hội | Yêu cầu nghiệp vụ định danh duy nhất bằng số điện thoại E.164 |
-| Gửi SMS thật | Tốn kém chi phí viễn thông; thay thế hoàn hảo bằng OTP demo giả lập |
-| Chỉnh sửa / Thu hồi tin nhắn | Nằm ngoài phạm vi chấm điểm của rubric môn học |
-
-## Traceability
-
-| Requirement | Phase | Status |
-|-------------|-------|--------|
-| REQ-ui-standards | Phase 1 | Pending |
-| REQ-auth-registration | Phase 2 | Pending |
-| REQ-auth-login-password | Phase 2 | Pending |
-| REQ-auth-login-otp | Phase 2 | Pending |
-| REQ-auth-friend-challenge | Phase 2 | Pending |
-| REQ-auth-totp-2fa | Phase 2 | Pending |
-| REQ-auth-session-devices | Phase 2 | Pending |
-| REQ-contacts-management | Phase 3 | Pending |
-| REQ-messaging-realtime-send-receive | Phase 4 | Pending |
-| REQ-messaging-offline-first | Phase 4 | Pending |
-| REQ-messaging-delivery-read-status | Phase 4 | Pending |
-| REQ-messaging-group-chat | Phase 4 | Pending |
-| REQ-messaging-search | Phase 4 | Pending |
-| REQ-messaging-media-attachments | Phase 5 | Pending |
-| REQ-notifications-sync | Phase 5 | Pending |
-| REQ-voice-call-webrtc | Phase 6 | Pending |
-| REQ-ai-assistant | Phase 6 | Pending |
-| REQ-message-translation | Phase 6 | Pending |
+| Requirement | Phase thực hiện | Trọng số Rubric | Status |
+|-------------|-----------------|-----------------|--------|
+| REQ-ui-standards | Phase 1 | Tiêu chí 3 & 5 (15đ + 15đ) | Pending |
+| REQ-auth-registration | Phase 2 | Tiêu chí 2 (20đ) | Pending |
+| REQ-auth-login | Phase 2 | Tiêu chí 2 (20đ) | Pending |
+| REQ-auth-account | Phase 2 | Tiêu chí 2 (20đ) | Pending |
+| REQ-contacts-management | Phase 3 | Tiêu chí 2 (20đ) | Pending |
+| REQ-messaging-realtime | Phase 4 | Tiêu chí 2 (20đ) | Pending |
+| REQ-messaging-offline-first | Phase 4 | Tiêu chí 2 & 5 (20đ + 15đ) | Pending |
+| REQ-messaging-delivery-read-status | Phase 4 | Tiêu chí 2 (20đ) | Pending |
+| REQ-messaging-group-chat | Phase 4 | Tiêu chí 2 (20đ) | Pending |
+| REQ-messaging-search | Phase 4 | Tiêu chí 2 (20đ) | Pending |
+| REQ-messaging-media-attachments | Phase 5 | Tiêu chí 3 (15đ) | Pending |
+| REQ-notifications-sync | Phase 5 | Tiêu chí 3 (15đ) | Pending |
+| REQ-voice-call-webrtc | Phase 6 | Tiêu chí 4: Sáng tạo chính (5đ) | Pending |
+| REQ-message-translation | Phase 6 | Tiêu chí 4: Sáng tạo dự phòng (5đ) | Pending |
+| REQ-testing-quality | Phase 7 | Tiêu chí 5 (15đ) | Pending |
 
 **Coverage:**
-- v1 requirements: 18 total
-- Mapped to phases: 18
+- v1 requirements: 15 total
+- Mapped to phases: 15
 - Unmapped: 0 ✓
+- Tỷ lệ đáp ứng rubric: **100/100 điểm**
 
 ---
 *Requirements defined: 2026-11-10*
-*Last updated: 2026-11-10 sau quy trình Ingest Docs*
+*Last updated: 2026-11-10 sau khi tinh chỉnh tinh gọn bám sát Rubric 100đ*
