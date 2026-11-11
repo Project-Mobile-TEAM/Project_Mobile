@@ -1,0 +1,25 @@
+*.iml
+.gradle
+/local.properties
+.idea/
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# Local environment and secrets
+.env
+.env.local
+.env.*
+*.env
+!.env.example
+
+# Kết quả Maven được sinh lại khi build; không đưa artifact vào Git.
+/backend/target/
+
+# Quy hoạch và quy tắc nội bộ (lưu trữ tại nhánh riêng 'planning', không nộp bài)
+.planning/
+AGENTS.md
+GEMINI.md
