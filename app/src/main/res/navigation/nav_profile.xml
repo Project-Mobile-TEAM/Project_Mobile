@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Nhóm profile chỉ sửa graph con này, không sửa graph của các nhóm khác. -->
+<navigation xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/nav_profile" app:startDestination="@id/profileFragment">
+    <fragment android:id="@+id/profileFragment" android:name="com.utechat.ui.profile.ProfileFragment">
+    </fragment>
+</navigation>

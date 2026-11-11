@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Chuỗi auth do nhóm phụ trách module này quản lý; bản tiếng Anh mặc định. -->
+<resources>
+    <string name="title_login">Welcome to UTEChat</string>
+    <string name="auth_subtitle">Stay close to the people who matter.</string>
+    <string name="preview_button">Explore the sample interface</string>
+</resources>

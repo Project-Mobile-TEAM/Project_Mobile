@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Nhóm contacts chỉ sửa graph con này, không sửa graph của các nhóm khác. -->
+<navigation xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/nav_contacts" app:startDestination="@id/contactsListFragment">
+    <fragment android:id="@+id/contactsListFragment" android:name="com.utechat.ui.contacts.ContactsListFragment">
+    </fragment>
+</navigation>

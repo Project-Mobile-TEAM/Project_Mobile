@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Chuỗi common do nhóm phụ trách module này quản lý; bản tiếng Việt. -->
+<resources>
+    <string name="app_name">UTEChat</string>
+    <string name="tab_chat">Tin nhắn</string>
+    <string name="tab_contacts">Danh bạ</string>
+    <string name="tab_profile">Cá nhân</string>
+    <string name="action_retry">Thử lại</string>
+    <string name="action_offline_continue">Tiếp tục ngoại tuyến</string>
+    <string name="probe_title">Đang kết nối</string>
+    <string name="probe_subtitle">Chờ một chút để kiểm tra kết nối của bạn.</string>
+    <string name="probe_checking">Đang kiểm tra kết nối…</string>
+    <string name="probe_ready">Kết nối đã sẵn sàng</string>
+    <string name="probe_network_error">Chưa kết nối được máy chủ. Hãy kiểm tra mạng hoặc tiếp tục ngoại tuyến.</string>
+    <string name="probe_database_error">Đã kết nối máy chủ. Dữ liệu tạm thời chưa sẵn sàng.</string>
+    <string name="probe_server_wait">Máy chủ · Đang kiểm tra</string>
+    <string name="probe_server_ok">Máy chủ · Đã kết nối</string>
+    <string name="probe_server_error">Máy chủ · Chưa kết nối</string>
+    <string name="probe_db_wait">Dữ liệu · Đang kiểm tra</string>
+    <string name="probe_db_ok">Dữ liệu · Đã kết nối</string>
+    <string name="probe_db_error">Dữ liệu · Chưa sẵn sàng</string>
+</resources>

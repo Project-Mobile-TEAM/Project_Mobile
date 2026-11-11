@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Material3 DayNight tự chuyển sáng/tối theo hệ thống; không dùng màu nền trắng cố định. -->
+<resources>
+    <style name="Base.Theme.UTEChat" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- Giữ biểu tượng hệ thống tương phản với nền sáng/tối của app SDK35. -->
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="colorPrimary">#245FCB</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+    </style>
+    <style name="Theme.UTEChat" parent="Base.Theme.UTEChat" />
+</resources>

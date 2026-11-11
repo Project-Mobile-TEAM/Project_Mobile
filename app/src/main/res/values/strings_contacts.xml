@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Chuỗi contacts do nhóm phụ trách module này quản lý; bản tiếng Anh mặc định. -->
+<resources>
+    <string name="title_contacts">Your contacts</string>
+    <string name="contacts_placeholder">Find friends and keep your connections close.</string>
+</resources>

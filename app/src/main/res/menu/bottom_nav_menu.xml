@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ID item phải trùng ID graph con để NavigationUI khôi phục đúng back stack mỗi tab. -->
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@+id/nav_chat" android:icon="@drawable/ic_tab_chat" android:title="@string/tab_chat" />
+    <item android:id="@+id/nav_contacts" android:icon="@drawable/ic_tab_contacts" android:title="@string/tab_contacts" />
+    <item android:id="@+id/nav_profile" android:icon="@drawable/ic_tab_profile" android:title="@string/tab_profile" />
+</menu>
