@@ -1,215 +1,186 @@
-# UTEChat — Quyết định kiến trúc (ADR)
+# UTEChat — Các quyết định kiến trúc (ADR)
 
-> **Tên app:** "UTEChat" là tên tạm, đổi được. **Trạng thái tài liệu:** kiến trúc ĐÃ CHỐT ngày 2026-11-09. Các ADR còn `PROPOSED` là lựa chọn công nghệ, quyết sau.
-> **Quy ước trạng thái:** `ACCEPTED` = người phụ trách đã xác nhận trong buổi bàn. `PROPOSED` = đề xuất, nhóm chưa xác nhận, có thể đổi trước khi code.
-> Tài liệu này có quyền cao nhất. Khi `FLOWS.md`, `ERD.md`, `API_CONTRACT.md` mâu thuẫn với một ADR `ACCEPTED`, ADR thắng. Mâu thuẫn chưa có quyết định thì **dừng và hỏi**, không tự đoán.
+> **Tên app:** "UTEChat" là tên tạm, đổi được. **Trạng thái tài liệu:** kiến trúc ĐÃ CHỐT ngày 2026-11-09 và hoàn thiện đồng bộ V1 ngày 2026-11-10. Toàn bộ kiến trúc nền tảng và 2 tính năng sáng tạo V1 đều ở trạng thái `ACCEPTED`. Các tính năng nâng cao (2FA TOTP, Thử thách bạn bè, UTE AI bot, Video call, FCM, E2EE) chỉ được ghi nhận ở mục Hướng phát triển tương lai (Future / V2), hoàn toàn không định nghĩa bảng, cột, endpoint hay flow triển khai trong V1.
+> **Quy ước trạng thái:** `ACCEPTED` = đã chốt và áp dụng chính thức cho V1.
 
 ## 1. Tổng quan kiến trúc
 
 ```mermaid
 flowchart LR
-    subgraph Phone["Điện thoại Android (Java, Views, MVVM)"]
-        UI["UI Fragment/Activity"]
-        VM["ViewModel + Repository"]
-        ROOM[("Room: nguồn dữ liệu chính trên máy")]
-        OUTBOX["WorkManager: hàng đợi gửi"]
-        WSC["OkHttp WebSocket client"]
-        RTC["WebRTC (gọi thoại)"]
-        MLK["ML Kit Translation (trên máy)"]
-        UI --> VM --> ROOM
-        VM --> OUTBOX
-        VM --> WSC
-        UI --> RTC
-        UI --> MLK
+    subgraph Client["Android Client (Java, MVVM, Room)"]
+        UI["Fragment / View Binding"] --> VM["ViewModel + LiveData"]
+        VM --> Repo["Repository (Một nguồn sự thật)"]
+        Repo --> Room[("Room SQLite (FTS4, Cache)")]
+        Repo --> Net["Retrofit + OkHttp"]
+        Repo --> WM["WorkManager (send-messages)"]
     end
 
-    subgraph AWS["Một server chung trên AWS EC2"]
-        NGINX["Nginx: HTTPS, proxy /api và /ws"]
-        SB["Server của nhóm: REST + WebSocket"]
-        FILES[("Ổ đĩa: /opt/utechat/uploads")]
-        TURN["coturn: STUN/TURN"]
-        NGINX --> SB
-        SB --> FILES
+    subgraph Server["Spring Boot 3 (AWS EC2)"]
+        REST["REST Controllers (/api)"]
+        WS["WebSocket thuần JSON (/ws)"]
+        Svc["Service Layer (RBAC, Business Logic)"]
+        REST --> Svc
+        WS --> Svc
     end
 
-    DB[("Supabase: PostgreSQL, chỉ dùng làm CSDL")]
-    SB -- "kết nối CSDL qua TLS, chỉ server có quyền" --> DB
+    subgraph Infra["Hạ tầng"]
+        Supa[("Supabase PostgreSQL (13 bảng V1)")]
+        Disk["EC2 Upload Storage (/opt/utechat/uploads)"]
+        Turn["coturn STUN/TURN (TCP/TLS 443 + UDP 3478/443)"]
+    end
 
-    LLM["Dịch vụ mô hình AI bên ngoài (qua API)"]
-
-    OUTBOX -- "REST: gửi tin, upload" --> NGINX
-    VM -- "REST: đăng nhập, danh bạ, nhóm, sync" --> NGINX
-    WSC -- "WebSocket: nhận tin, trạng thái, gọi" --> NGINX
-    RTC -- "âm thanh P2P hoặc qua TURN" --> TURN
-    SB -- "khóa API chỉ nằm ở server" --> LLM
+    Net -->|HTTPS /api| REST
+    WM -->|HTTPS /api| REST
+    Net -.->|WSS /ws| WS
+    Svc -->|JDBC / Flyway| Supa
+    Svc -->|Lưu file| Disk
+    VM -.->|Signaling WebRTC| WS
+    VM <-->|Audio P2P / Relay| Turn
 ```
 
-**Nguyên tắc xuyên suốt**
-1. **Màn hình chỉ đọc từ Room.** Mạng chỉ làm nhiệm vụ cập nhật Room (offline-first, ADR-009).
-2. **Gửi bằng REST, nhận bằng WebSocket.** REST có `clientId` chống trùng và đi qua hàng đợi WorkManager. WebSocket đẩy sự kiện và mang tin báo hiệu cuộc gọi (ADR-008).
-3. **Server tự lấy danh tính từ token.** App không bao giờ gửi `userId` để nói "tôi là ai" (ADR-018).
+### 4 nguyên tắc bất biến:
+1. **Server là nguồn sự thật duy nhất** cho toàn bộ dữ liệu nghiệp vụ. Room trên Android chỉ là bản sao cục bộ (cache) phục vụ offline-first (ADR-009).
+2. **Offline-first an toàn:** Khi mất mạng, tin nhắn vào hàng đợi Room với trạng thái `SENDING` và được WorkManager gửi tuần tự, server chống trùng nhờ `clientId`.
+3. **Server tự lấy danh tính từ token:** App không bao giờ gửi `userId` để tự khai danh tính (ADR-018).
 4. **Mọi quyền được kiểm tra ở tầng service**, không dựa vào việc ẩn nút trên giao diện.
 
-## 2. Các ADR
+## 2. Các ADR cốt lõi V1
 
 ### ADR-001 — Định danh chỉ bằng số điện thoại
 **Status:** ACCEPTED
-**Quyết định:** Tài khoản định danh bằng số điện thoại, chuẩn hoá về dạng E.164 (`+84912345678`). `0912…`, `84912…`, `+84912…` là cùng một người. Không đăng ký bằng email hay Gmail.
-**Hệ quả:** Cột `users.phone_e164` là `UNIQUE`. Mọi lookup bằng số phải chuẩn hoá trước. Tìm người mới **chỉ khớp chính xác** số (không tìm một phần) để không dò được danh sách người dùng.
+**Quyết định:** Tài khoản định danh duy nhất bằng số điện thoại, chuẩn hoá về dạng E.164 (`+84912345678`). Không đăng ký bằng email hay Google/OAuth.
+**Hệ quả:** Cột `users.phone_e164` là `UNIQUE`. Mọi lookup bằng số phải chuẩn hoá trước. Tìm người mới chỉ khớp chính xác số để chống dò danh bạ.
 
-### ADR-002 — OTP là OTP demo (giả lập), không gửi SMS thật
+### ADR-002 — OTP là OTP demo, không gửi SMS thật
 **Status:** ACCEPTED
-**Quyết định:** Server sinh OTP 6 số, lưu bản băm, và ghi nội dung tin vào bảng `demo_sms_outbox`. Chỉ khi chạy profile `demo` mới có màn hình hoặc endpoint "Hộp thư SMS giả" để xem mã. Việc gửi nằm sau interface `OtpDelivery` để sau này cắm nhà cung cấp SMS thật mà không đổi luồng.
-**Hệ quả:** Báo cáo phải ghi rõ OTP là mô phỏng. Profile `prod` không có endpoint xem OTP. Chính sách OTP: hết hạn 5 phút, sai tối đa 5 lần, gửi lại cách 60 giây, tối đa 5 lần gửi mỗi giờ mỗi số.
+**Quyết định:** Server sinh OTP 6 số, lưu bản băm, và ghi nội dung tin vào bảng `demo_sms_outbox`. Chỉ khi chạy profile `demo` mới có endpoint `/api/demo/sms` để xem mã. Việc gửi nằm sau interface `OtpDelivery` để dễ dàng thay thế cổng SMS thật sau này.
+**Hệ quả:** Profile `prod` không có endpoint xem OTP. Chính sách OTP: hết hạn 5 phút, sai tối đa 5 lần, gửi lại cách 60 giây, tối đa 5 lần gửi mỗi giờ mỗi số.
 
-### ADR-003 — Hai cách đăng nhập và thiết bị tin cậy
+### ADR-003 — Hai cách đăng nhập và chống Brute-force (auth_throttles)
 **Status:** ACCEPTED
-**Quyết định:** Có hai cách đăng nhập: (A) số điện thoại + mật khẩu, (B) số điện thoại + OTP. Thiết bị tin cậy vào thẳng. Thiết bị lạ phải qua các bước bổ sung theo `FLOWS.md` mục F-02 đến F-04. Thiết bị nhận diện bằng một `deviceId` ngẫu nhiên do app tạo và lưu mã hoá bằng Keystore, server chỉ lưu bản băm.
-**Hệ quả:** Gỡ cài đặt rồi cài lại sẽ thành thiết bị lạ. Sau khi vào thành công, thiết bị tự được ghi nhận tin cậy, người dùng xoá trong danh sách thiết bị. Đặt lại mật khẩu thu hồi mọi thiết bị khác.
+**Quyết định:** Hỗ trợ 2 phương thức đăng nhập: (A) số điện thoại + mật khẩu, (B) số điện thoại + OTP demo. Thiết bị nhận diện bằng `deviceId` ngẫu nhiên do app tạo và lưu trong Keystore, server chỉ lưu bản băm. Kiểm soát tần suất và thử sai thông qua bảng `auth_throttles`.
+**Chính sách khóa và bảo vệ khi mất thiết bị:**
+- `PHONE_DEVICE`: Khóa theo cặp (SĐT, thiết bị) với `scope_key_hash = SHA-256(phone_e164 + ":" + device_id_hash)`. Đăng nhập mật khẩu sai 5 lần khóa 15 phút cho riêng thiết bị đó. Thiết bị mới có `deviceId` mới nên không bị kế thừa khóa cũ.
+- `PHONE`: Khóa toàn tài khoản theo SĐT khi tổng số lần sai vượt ngưỡng lớn (20 lần/giờ). `PHONE` vẫn bảo vệ tài khoản khi mất thiết bị.
+- Password reset bằng OTP phải thu hồi token của các thiết bị khác (`token_valid_after = now`).
+- Người dùng sau khi đăng nhập lại có thể thu hồi thiết bị bị mất qua `/account/devices`.
 
-### ADR-004 — 2FA bằng TOTP kèm mã dự phòng
-**Status:** PROPOSED
-**Quyết định:** 2FA là tuỳ chọn, bật trong cài đặt. Dùng TOTP chuẩn RFC 6238 (SHA-1, 6 số, 30 giây, cho lệch ±1 nhịp). Phát 8 mã dự phòng dùng một lần lúc bật. Khoá TOTP mã hoá AES-GCM trước khi lưu, khoá mã hoá lấy từ biến môi trường. Mã dự phòng chỉ lưu bản băm.
-**Hệ quả:** 2FA chỉ áp dụng cho đường đăng nhập bằng mật khẩu trên thiết bị lạ. Đăng nhập bằng OTP không cần 2FA (đã chốt). Phải nói rõ đánh đổi này trong báo cáo.
-
-### ADR-005 — Bước nhận diện bạn bè trên thiết bị lạ
+### ADR-006 — Server là Spring Boot 3
 **Status:** ACCEPTED
-**Quyết định:** Sau khi qua OTP hoặc 2FA trên thiết bị lạ, nếu tài khoản có **từ 3 bạn** (3 bản ghi trong `contacts`) thì hiện 15 người (3 bạn thật + 12 mồi, trộn ngẫu nhiên, chỉ hiện tên hiển thị) và người dùng chọn đúng 3 bạn. Tài khoản mới hoặc dưới 3 bạn bỏ qua bước này. Chỉ **3 lần thử**, mỗi lần sai sinh bộ 15 người mới, mỗi bộ hiệu lực 2 phút. Sai 3 lần thì khoá bước này 15 phút và báo vào các thiết bị tin cậy.
-**Hệ quả:** Đáp án lưu bản băm trên server. Mồi lấy từ người dùng không phải bạn, không bị chặn, không phải bot, và cho phép hiện hồ sơ. Nếu hệ thống có ít hơn 12 mồi hợp lệ thì **bỏ qua bước** (và ghi nhận trong log). Môi trường demo phải nạp đủ tài khoản mồi. Đây là xác thực dựa trên hiểu biết, yếu và làm lộ tên bạn bè cho người đã nhập đúng mật khẩu hoặc OTP: nêu rõ trong báo cáo.
-
-### ADR-006 — Server là Spring Boot
-**Status:** PROPOSED
-**Quyết định:** Spring Boot 3 (Java 21), Spring Web, Spring Security (JWT), Spring Data JPA, Spring WebSocket (WebSocket thuần, không STOMP), Bean Validation, Flyway. Phân lớp `Controller → Service (interface + Impl) → Repository`, DTO ở ranh giới web, constructor injection.
-**Lý do:** Cùng ngôn ngữ Java với app Android, nên người làm app đọc hiểu được server.
-**Chưa chốt:** ngôn ngữ và framework server do nhóm chọn theo khả năng của các thành viên. Phương án thay thế: Node.js (Express). App không đổi gì vì chỉ phụ thuộc `API_CONTRACT.md`.
+**Quyết định:** Spring Boot 3 (Java 21), Spring Web, Spring Security (JWT), Spring Data JPA, Spring WebSocket (WebSocket thuần JSON, không dùng STOMP), Bean Validation, Flyway migration. Phân lớp `Controller → Service → Repository`, DTO ở ranh giới web, constructor injection.
+**Lý do:** Cùng ngôn ngữ Java với app Android, giúp cả nhóm dễ dàng đọc hiểu và phối hợp phát triển.
 
 ### ADR-007 — CSDL là PostgreSQL do Supabase quản lý (mô hình M2)
-**Status:** ACCEPTED (người phụ trách chọn ngày 2026-11-09)
-**Quyết định:** Server của nhóm giữ **toàn bộ logic** (đăng nhập, OTP demo, thiết bị tin cậy, chat, nhóm, cuộc gọi). **Supabase chỉ dùng làm CSDL PostgreSQL.** Không dùng Supabase Auth, Realtime, Storage hay Edge Functions. App **không** nói chuyện với Supabase, chỉ nói chuyện với server qua `API_CONTRACT.md`. Kiểu `uuid` cho khoá người dùng, hội thoại, thiết bị, `bigint` tự tăng cho `messages.id`.
-**Lý do:** Không phải tự cài và vận hành CSDL trên AWS, có bảng điều khiển để xem dữ liệu khi làm và demo, vẫn giữ "back end riêng" như rubric và slide yêu cầu.
-**Bảo mật bắt buộc:**
-- Supabase mở sẵn một API dữ liệu công khai cho mọi bảng. Phải **bật Row Level Security trên mọi bảng mà không tạo policy nào** (hoặc tắt Data API), để khoá `anon` không đọc được gì.
-- Server kết nối bằng **chuỗi kết nối PostgreSQL** (TLS) lấy từ biến môi trường. **Không** để chuỗi kết nối, mật khẩu CSDL hay khoá `service_role` trong app, trong Git hay trong log.
-- Chọn region Supabase gần EC2 (ví dụ Singapore) để giảm độ trễ.
-**Hệ quả:** Quản lý schema bằng Flyway (hoặc công cụ migration của framework server), mỗi thay đổi là file `V<số>__<mô_tả>.sql`, **không sửa file đã chạy**. Gói miễn phí có giới hạn dung lượng và có thể tạm dừng project khi lâu không dùng: kiểm tra trước ngày demo và xem điều khoản hiện hành. Dữ liệu nằm ở bên thứ ba: ghi vào báo cáo.
-
-### ADR-008 — Gửi bằng REST, nhận bằng WebSocket thuần
-**Status:** PROPOSED
-**Quyết định:** Gửi tin và upload qua REST (idempotent theo `clientId`, tiện cho hàng đợi WorkManager). WebSocket `/ws` (xác thực bằng JWT) dùng để: đẩy tin mới, đẩy trạng thái đã nhận/đã đọc, báo "đang nhập", báo hiệu cuộc gọi, thông báo thu hồi thiết bị. Khung WebSocket là JSON `{ "v":1, "type":"…", "id":"uuid", "payload":{…} }`, đúng cách slide Session 5 dạy (OkHttp WebSocket, trường `type`).
-**Hệ quả:** Mất kết nối thì app tự nối lại theo lũy tiến 1, 2, 4… tối đa 30 giây, rồi gọi `GET /sync` để lấy những gì đã bỏ lỡ. WebSocket không phải nguồn sự thật duy nhất: mọi thứ phục hồi được từ REST.
-
-### ADR-009 — Offline-first với Room và hàng đợi gửi
 **Status:** ACCEPTED
-**Quyết định:** Room là nguồn dữ liệu cho UI. Tin gửi đi được ghi vào Room với trạng thái `SENDING` rồi `WorkManager` gửi qua REST theo mẫu slide Session 5: `SendMessageWorker` chỉ nhận `clientId`, **một chuỗi duy nhất tên `send-messages`** (`ExistingWorkPolicy.APPEND_OR_REPLACE`, giữ đúng thứ tự gửi), ràng buộc `NetworkType.CONNECTED`, backoff lũy tiến 10 giây, `MAX_ATTEMPTS = 3`. Hết số lần hoặc lỗi vĩnh viễn thì `FAILED` và hiện nút gửi lại.
-**Hệ quả:** Mỗi tin có `clientId` (UUID tạo trên máy). Server trả lại cùng `messageId` nếu nhận trùng. Repository có `observeMessages(conversationId)` (trả `LiveData` từ Room), `refreshLatest`, `loadOlder` (phân trang theo `before`, `PAGE_SIZE = 50`) và `upsertByClientId`. Tìm kiếm tin nhắn chạy trên Room (FTS).
+**Quyết định:** Server Spring Boot giữ toàn bộ logic nghiệp vụ. Supabase chỉ làm CSDL PostgreSQL quản lý với đúng 13 bảng cốt lõi V1 theo `docs/ERD.md`. Không dùng Supabase Auth, Storage hay Realtime. App Android tuyệt đối không gọi trực tiếp Supabase.
+**Bảo mật bắt buộc:** Bật Row Level Security (RLS) trên mọi bảng, không mở policy để đóng hoàn toàn Public Data API của Supabase. Server kết nối qua chuỗi JDBC với tài khoản quản trị từ biến môi trường.
 
-### ADR-010 — Trạng thái đã nhận/đã đọc dùng mốc (watermark)
-**Status:** PROPOSED
-**Quyết định:** Không lưu một dòng biên nhận cho mỗi (tin, người nhận). Mỗi thành viên hội thoại có hai mốc: `last_delivered_message_id` và `last_read_message_id`. Một tin là "đã nhận/đã đọc" nếu id của nó ≤ mốc của người nhận.
-**Lý do:** Rẻ hơn rất nhiều cho nhóm đông, một câu lệnh cập nhật cho cả loạt tin.
-**Hệ quả:** Trong chat nhóm hiển thị "đã đọc" khi **mọi thành viên khác** có mốc ≥ id tin (hoặc đếm "n người đã xem").
+### ADR-008 — Gửi bằng REST, nhận bằng WebSocket thuần JSON và đồng bộ sync_events
+**Status:** ACCEPTED
+**Quyết định:** Gửi tin nhắn và upload file qua REST (idempotent theo `clientId`, phù hợp cho hàng đợi WorkManager). Kênh WebSocket `/ws` (xác thực bằng JWT) dùng để đẩy tin mới, đẩy trạng thái đã nhận/đã đọc, báo "đang nhập", báo hiệu cuộc gọi WebRTC, thông báo thu hồi thiết bị. Khung WebSocket là JSON `{ "v": 1, "type": "...", "id": "uuid", "syncEventId": 1042, "payload": { ... } }`, tuyệt đối không dùng STOMP. Mọi sự kiện làm thay đổi dữ liệu đều mang `syncEventId` trỏ tới `sync_events.id`.
+**Hệ quả:** Mất kết nối thì app tự động nối lại (backoff 1, 2, 4... tối đa 30s), sau đó gọi `GET /api/sync?after=<syncEventId>` để lấy toàn bộ sự kiện đã bỏ lỡ từ bảng `sync_events`. Client lưu `lastSyncEventId` trong Room và chỉ tăng cursor khi đã xử lý thành công event tương ứng. Xử lý event realtime và event qua `/sync` tuân thủ nguyên tắc idempotent.
 
-### ADR-011 — Upload file qua REST, lưu ổ đĩa EC2
-**Status:** PROPOSED
-**Quyết định:** Theo slide Session 5 ("upload qua HTTP rồi gửi một URL"): `POST /api/media` (multipart) trả `mediaUrl` (dạng `/api/media/{id}`), sau đó gửi tin có `mediaUrl`. File lưu ở `/opt/utechat/uploads/<yyyy>/<mm>/<uuid>` (không dùng tên người dùng đặt). Tải xuống qua `GET /api/media/{id}` là **URL có bảo vệ bằng token** (người tải phải là thành viên hội thoại chứa tin đó, hoặc là người upload khi tin chưa gửi), như slide Session 6 yêu cầu. Ảnh nén ở app trước khi upload.
-**Giới hạn:** ảnh ≤ 10 MB, voice ≤ 10 MB và ≤ 5 phút, video ≤ 50 MB, file ≤ 25 MB. Chỉ cho phép danh sách MIME đã khai báo, kiểm tra cả phần mở rộng lẫn nội dung đầu file.
-**Phương án thay thế:** S3 khi cần mở rộng.
+### ADR-009 — Offline-first với Room và hàng đợi gửi WorkManager
+**Status:** ACCEPTED
+**Quyết định:** Mọi dữ liệu đọc ghi trên app đều đi qua Room SQLite. Khi gửi tin nhắn, app ghi vào Room với trạng thái `SENDING`, đưa vào hàng đợi `send-messages` của WorkManager. Khi có mạng, Worker gửi qua REST; thành công chuyển trạng thái `SENT`. Server kiểm tra `clientId` để chống trùng lặp.
 
-### ADR-012 — Thông báo không dùng FCM
-**Status:** PROPOSED
-**Quyết định:** Thông báo tin mới hiển thị khi app còn sống (WebSocket đang nối), qua `NotificationChannel` `messages` và xin quyền `POST_NOTIFICATIONS` trên Android 13+. Khi app bị hệ thống dừng, dùng `WorkManager` định kỳ (15 phút) gọi `/sync` rồi báo.
-**Hệ quả:** **Không có thông báo tức thời khi app đã bị tắt hẳn.** Muốn có thì cần FCM (Firebase). Ghi giới hạn này vào báo cáo. Cuộc gọi cũng chỉ đổ chuông khi người nhận đang mở app (WebSocket đang nối).
+### ADR-010 — Mốc biên nhận (Watermarks)
+**Status:** ACCEPTED
+**Quyết định:** Mỗi thành viên hội thoại có hai mốc: `last_delivered_message_id` và `last_read_message_id`. Một tin nhắn được coi là đã nhận/đã đọc nếu id của nó $\le$ mốc của người nhận. Cập nhật mốc `read` sẽ tự động nâng mốc `delivered`, sinh sự kiện `RECEIPT_UPDATED` mang `syncEventId`.
+**Định nghĩa mốc:** `DELIVERED` nghĩa là ít nhất một thiết bị của người nhận đã lưu thành công tin nhắn vào dữ liệu cục bộ. `READ` nghĩa là người nhận đã đọc tin nhắn trên ít nhất một thiết bị.
 
-### ADR-013 — Gọi thoại trong app bằng WebRTC
-**Status:** PROPOSED
-**Quyết định:** Gọi thoại 1-1 bằng WebRTC. Báo hiệu qua WebSocket. Server quản lý trạng thái cuộc gọi (`RINGING → ACTIVE → ENDED`, hoặc `MISSED/REJECTED/BUSY/FAILED`) và ghi một tin loại `CALL` vào hội thoại. Dùng coturn cho STUN/TURN trên EC2, server cấp thông tin TURN có thời hạn (HMAC, `use-auth-secret`). Video để sau, dùng cùng cơ chế.
-**Hệ quả:** Cần mở UDP 3478 và dải cổng relay trên security group. Hai emulator trên cùng máy cần TURN để nối. Luôn giữ nút `ACTION_DIAL` làm phương án dự phòng khi demo.
+### ADR-011 — Lưu file trên server, mở ngoài bằng FileProvider
+**Status:** ACCEPTED
+**Quyết định:** Upload qua `POST /api/media` (multipart), server lưu file vào `/opt/utechat/uploads` và trả về `mediaUrl` dạng `/api/media/{id}`. Client tải xuống qua `GET /api/media/{id}` với Header `Authorization: Bearer <token>`.
+**Mở video và file ngoài app:** App dùng `FileProvider` làm phương án duy nhất. App tải/cache file về bộ nhớ tạm bằng token rồi chia sẻ `content://` qua `FileProvider` với cờ `FLAG_GRANT_READ_URI_PERMISSION`. Không dùng query ticket.
+**Giới hạn:** Ảnh $\le$ 10 MB, voice $\le$ 10 MB (tối đa 5 phút), video file $\le$ 50 MB, tài liệu $\le$ 25 MB.
 
-### ADR-014 — Dịch tin nhắn bằng ML Kit trên máy
-**Status:** PROPOSED
-**Quyết định:** Nhấn giữ tin nhắn chọn "Dịch". Dùng ML Kit Translation chạy trên máy (Anh sang Việt, và chiều ngược lại theo ngôn ngữ app). Gói ngôn ngữ tải lần đầu. Bản dịch lưu cục bộ trong bảng `message_translations` của Room, không gửi lên server.
-**Hệ quả:** Không tốn tiền, không cần khóa API. Chất lượng ở mức khá. Cần xử lý trạng thái "đang tải gói ngôn ngữ".
+### ADR-012 — Chính sách thông báo tin mới
+**Status:** ACCEPTED
+**Quyết định:** V1 không dùng Firebase Cloud Messaging (FCM). Khi ứng dụng đang mở hoặc WebSocket còn kết nối, thông báo hiển thị tức thời qua `NotificationChannel` (`messages`) từ sự kiện WebSocket. Khi ứng dụng ở nền và WebSocket bị ngắt, `PeriodicWorkRequest` (15 phút) của WorkManager định kỳ gọi `/api/sync?after=<syncEventId>` để kiểm tra tin mới theo cơ chế **best-effort** (không cam kết tức thời).
+**Giới hạn nền tảng:** Khi ứng dụng bị người dùng hoặc hệ điều hành force-stop hoàn toàn, Android đình chỉ mọi tiến trình nền, do đó không cam kết nhận được thông báo ngay lập tức. FCM chỉ được quy hoạch ở mục Future/V2.
 
-### ADR-015 — Trợ lý AI là một người dùng bot phía server
-**Status:** PROPOSED
-**Quyết định:** Có một tài khoản bot cố định ("UTE AI", `users.is_bot = true`). Người dùng nhắn cho bot như chat thường. Khi server nhận tin gửi tới hội thoại bot, nó đưa việc vào hàng chờ, gọi `LlmClient` (interface, nhà cung cấp cấu hình được), rồi gửi câu trả lời như một tin của bot. Khóa API **chỉ ở biến môi trường server**.
-**Giới hạn bắt buộc:** 30 yêu cầu mỗi người mỗi ngày (cấu hình được, bảng `ai_usage`), đầu vào tối đa 2000 ký tự, ngữ cảnh 10 tin gần nhất, trần chi tiêu đặt ở phía nhà cung cấp, có thông báo lỗi lịch sự khi hết hạn mức hoặc dịch vụ lỗi.
-**Hệ quả:** Tin gửi cho bot đi ra bên thứ ba: phải nói rõ trong báo cáo và trong giao diện. Bot không đọc các hội thoại khác của người dùng. Ai giữ tài khoản và khoá API chưa chốt.
+### ADR-013 — Gọi thoại trong app bằng WebRTC 1-1
+**Status:** ACCEPTED
+**Quyết định:** Gọi thoại 1-1 bằng WebRTC là chức năng sáng tạo chính trong V1. Báo hiệu (Signaling) thực hiện qua WebSocket thuần JSON sẵn có. Server quản lý trạng thái cuộc gọi (`RINGING → ACTIVE → ENDED/MISSED/REJECTED/BUSY`) và ghi nhận tin nhắn hệ thống loại `CALL`. Dùng coturn cho STUN/TURN trên máy chủ EC2.
+**Điều kiện cuộc gọi V1:** Chỉ được phép gọi thoại giữa hai người dùng đã có quan hệ bạn bè `ACCEPTED` và không bị `blocked`. Người lạ hoặc người bị chặn không được phép gọi điện (HTTP 403 `CONTACT_REQUIRED` hoặc `BLOCKED`).
+**Giải pháp TURN TCP/TLS 443:** Cấp secondary IP cho máy chủ EC2 dành riêng cho coturn để chiếm trọn cổng TCP 443 và UDP 3478/443, vượt tường lửa Wi-Fi trường học khi demo; Nginx HTTPS chạy trên IP chính. Giữ nút `ACTION_DIAL` làm phương án dự phòng khi demo. Không làm video call trong V1.
 
-### ADR-016 — Tìm kiếm
-**Status:** PROPOSED
-**Quyết định:** Tìm tin nhắn chạy hoàn toàn trên Room (bảng FTS4), tìm trong một hội thoại hoặc toàn bộ. Tìm người: trong danh bạ theo tên (trên máy), và người mới **chỉ theo số điện thoại chính xác** qua server (có giới hạn tần suất).
-**Hệ quả:** Không có tìm kiếm tin nhắn phía server. Tin chưa được tải về máy thì chưa tìm được.
+### ADR-014 — Dịch tin nhắn bằng ML Kit on-device
+**Status:** ACCEPTED
+**Quyết định:** Nhấn giữ tin nhắn chọn "Dịch" là chức năng sáng tạo dự phòng trong V1. Dùng Google ML Kit Translation chạy on-device (Anh sang Việt và ngược lại). Gói ngôn ngữ (~30MB) được tải lần đầu, sau đó hoạt động hoàn toàn offline trên máy. Bản dịch lưu cục bộ trong bảng `message_translation` của Room, không gửi lên server.
 
-### ADR-017 — Tin nhắn không mã hoá đầu cuối
-**Status:** PROPOSED
-**Quyết định:** Tin được mã hoá khi truyền (HTTPS/WSS) nhưng server lưu bản rõ, như chat "cloud" của Telegram. Mã hoá đầu cuối nằm ngoài phạm vi.
-**Hệ quả:** Phải ghi trong báo cáo. Quản trị server có thể đọc dữ liệu: chỉ nhóm được truy cập server.
+### ADR-016 — Tìm kiếm offline bằng FTS4
+**Status:** ACCEPTED
+**Quyết định:** Tìm kiếm nội dung tin nhắn chạy hoàn toàn trên Room SQLite bằng bảng ảo FTS4 (`message_fts`). Cột `normalized_text` được chuẩn hóa loại bỏ dấu tiếng Việt kết hợp để hỗ trợ tìm kiếm cả tiếng Việt có dấu và không dấu tốc độ cao mà không cần server. Tìm người dùng mới chỉ qua SĐT chính xác trên server.
+
+### ADR-017 — Tin nhắn mã hoá kênh truyền TLS/WSS (Cloud Chat)
+**Status:** ACCEPTED
+**Quyết định:** Tin nhắn được mã hoá khi truyền tải qua mạng bằng HTTPS và WSS; server lưu trữ dữ liệu bản rõ trong PostgreSQL theo mô hình Cloud Chat (tương tự Telegram). Mã hoá đầu cuối (E2EE) không thuộc phạm vi V1.
+**Quy tắc triển khai bắt buộc:** [DEPLOYMENT_SECURITY.md](DEPLOYMENT_SECURITY.md) cụ thể hóa TLS, URL cấu hình, Bearer handshake WebSocket, proxy, media và secret. Áp dụng ngay từ các phase chức năng; kiểm thử hosted trước khi phát hành.
 
 ### ADR-018 — Danh tính từ token, phân quyền ở service
 **Status:** ACCEPTED
-**Quyết định:** Server dựng `AuthenticatedActor` từ JWT (gồm `userId`, `deviceId`). App không gửi `userId`/`deviceId` để tự khai. Mọi thao tác kiểm tra: người dùng là thành viên hội thoại, đúng vai trò quản trị khi sửa nhóm, sở hữu thiết bị khi xoá thiết bị. Trả `403` cho cả "không tồn tại" và "không có quyền" ở các tài nguyên riêng tư để không lộ sự tồn tại.
-**Hệ quả:** Có test ma trận quyền (vai trò × endpoint). Theo slide Session 5 và 6 ("đăng nhập một lần, server trả token đã ký, gửi `Bearer` ở mọi yêu cầu, 401 thì xoá token và hiện màn hình đăng nhập"): **một JWT duy nhất** mang `userId`, `deviceId`, `iat`, `exp` (30 ngày), **không có refresh token**. Mỗi yêu cầu server kiểm tra thiết bị chưa bị thu hồi và `iat >= user_devices.token_valid_after`. Thu hồi thiết bị hoặc đăng xuất: đặt `token_valid_after = now` (và `revoked_at` nếu thu hồi), token cũ bị từ chối ngay, đóng WebSocket của thiết bị đó. App xử lý `401` bằng `AuthInterceptor` và `SessionEvents.notifyExpired()` như slide.
+**Quyết định:** Server trích xuất `AuthenticatedActor` (gồm `userId`, `deviceId`) từ JWT token. Một JWT duy nhất có thời hạn 30 ngày kèm `deviceId`, không dùng refresh token. Thu hồi thiết bị hoặc đăng xuất đặt `token_valid_after = now` để vô hiệu hóa token lập tức.
 
-### ADR-019 — Một server chung trên AWS
+### ADR-019 — Một server chung trên AWS EC2
 **Status:** ACCEPTED
-**Quyết định:** Một EC2 dùng chung cho cả nhóm (Ubuntu 24.04, t3.small trở lên): Nginx (HTTPS, proxy `/api` và `/ws`, khối WebSocket), server của nhóm chạy bằng systemd, coturn, thư mục upload. CSDL nằm ở Supabase (ADR-007), không cài trên EC2. Triển khai bằng GitHub Actions (build và test, lưu artifact kèm SHA-256, deploy qua SSH với tài khoản riêng, `/health/ready`, giữ bản trước để rollback). **Không đưa khóa quản trị vào GitHub.**
-**Hệ quả:** Một người giữ tài khoản AWS và đặt cảnh báo ngân sách. Dữ liệu test lẫn nhau: dùng tài khoản test. Cần tên miền cho HTTPS.
+**Quyết định:** Một máy chủ AWS EC2 Ubuntu 24.04 dùng chung cho cả nhóm: Nginx (reverse proxy HTTPS, WSS), Spring Boot chạy dưới dạng systemd service, coturn STUN/TURN, thư mục upload media. CSDL đặt tại Supabase. Triển khai tự động bằng GitHub Actions với liveness/readiness health check `/api/health/ready`.
 
-### ADR-020 — Quản lý schema bằng migration, không để ORM tự tạo bảng
-**Status:** PROPOSED
-**Quyết định:** Tắt chức năng tự tạo hoặc tự sửa bảng của ORM. Schema chuẩn nằm ở `docs/ERD.md` và bản SQL tương ứng trong `db/migration`. Thay đổi schema dùng chung (bảng, cột, ràng buộc) phải được **người giữ hợp đồng chung** duyệt trước khi merge.
-
-### ADR-021 — Giao diện: i18n, chế độ tối, xoay màn hình
+### ADR-020 — Quản lý schema bằng migration và chiến lược Room
 **Status:** ACCEPTED
-**Quyết định:** Không viết cứng chữ nào trong layout hay code. Chuỗi trong `values` (en) và `values-vi`. Tin hệ thống lưu **mã sự kiện và tham số**, app tự dịch theo ngôn ngữ hiện tại. Theme Material 3 DayNight, màu qua thuộc tính theme. Xoay màn hình: ViewModel giữ trạng thái, bản nháp đang gõ lưu bằng `SavedStateHandle`, có layout landscape cho màn chat. Nút chạm ≥ 48dp, icon có `contentDescription`.
+**Quyết định:** Server tắt tự tạo bảng của ORM, quản lý schema chuẩn 13 bảng qua Flyway migration.
+**Chiến lược Room Client:** Bật `exportSchema = true`. Trong giai đoạn phát triển (build variant Debug), cho phép sử dụng `fallbackToDestructiveMigration()` để linh hoạt thử nghiệm; trước ngày nộp bài và demo, toàn bộ migration Room cụ thể sẽ được hoàn thiện và khóa chặt.
 
-### ADR-022 — Quy trình làm việc nhóm
-**Status:** PROPOSED
-**Quyết định:** **Server do một người (người phụ trách nhóm) làm toàn bộ** và người này đồng thời giữ hợp đồng chung (`API_CONTRACT.md`, schema, sự kiện WebSocket). Bốn người còn lại chia **app Android theo mảng tính năng** (màn hình, ViewModel, repository, Room, test của mảng đó), làm dựa trên `API_CONTRACT.md` và **Fake repository** (đúng mẫu slide Session 7) trong lúc server chưa xong. Slide Session 5 yêu cầu **mỗi thành viên viết một phần thật sự của app Android**, nên người làm server **cũng phải nhận một mảng Android** (đề xuất: màn hình đăng ký, đăng nhập, OTP, thiết bị, vì gắn chặt với phần server của mình). Mỗi tính năng một nhánh `feature/...`, commit nhỏ, pull request, **rà soát chéo theo vòng** (A xem B, B xem C, C xem D, D xem E, E xem A). Một người giữ hợp đồng chung (schema, API, sự kiện WebSocket). `main` giữ code, kế hoạch để riêng. Không commit mật khẩu, khoá, keystore, chuỗi kết nối CSDL, file cấu hình cục bộ. Ghi nhận việc dùng AI trong README.
+### ADR-021 — Giao diện i18n, chế độ tối, xoay màn hình
+**Status:** ACCEPTED
+**Quyết định:** Chuỗi giao diện lưu trong `values/strings.xml` và `values-vi/strings.xml`, không viết cứng trong mã nguồn. Theme Material 3 DayNight. Xoay màn hình: ViewModel và `SavedStateHandle` giữ nguyên trạng thái danh sách cuộn, nội dung nháp và cuộc gọi.
 
-### ADR-023 — Kiến trúc và công nghệ của app Android bám slide
-**Status:** ACCEPTED (theo yêu cầu bám tài liệu giảng dạy). Chi tiết đối chiếu ở `COURSE_ALIGNMENT.md`.
+### ADR-022 — Quy trình làm việc nhóm 5 người
+**Status:** ACCEPTED
+**Quyết định:** Nhóm trưởng phụ trách toàn bộ CSDL Supabase (Phase 1) và backend server, đồng thời giữ hợp đồng chung (`API_CONTRACT.md`, `ERD.md`). Bốn thành viên còn lại chia 4 mảng Android (Phase 3 đến Phase 6) phát triển độc lập trên các nhánh feature riêng biệt, sử dụng kiến trúc cô lập chống xung đột.
+
+### ADR-023 — Kiến trúc Android bám sát slide bài giảng
+**Status:** ACCEPTED
 **Quyết định:**
-- **Ngôn ngữ và build:** Java, Views + XML, **View Binding**, `minSdk 26`, `compileSdk 36`, `targetSdk 36`, Gradle Kotlin DSL với `gradle/libs.versions.toml`. Package đề xuất `vn.edu.course.chat` (đổi theo nhóm).
-- **Màn hình:** **một Activity** chứa `NavHostFragment`, điều hướng bằng Navigation component và **Safe Args chỉ truyền id** (ví dụ `conversationId`), thanh dưới `BottomNavigationView` (Hội thoại, Danh bạ, Cài đặt). Fragment gán binding trong `onViewCreated`, gán `null` trong `onDestroyView`, quan sát bằng `getViewLifecycleOwner()`.
-- **Danh sách:** `RecyclerView` + `ListAdapter` + `DiffUtil` (`areItemsTheSame` so id, `areContentsTheSame` so `equals`), `submitList`.
-- **Tầng:** UI (Fragment, ViewModel) và dữ liệu (Repository). Mũi tên chỉ xuống, **không có tầng domain**. Fragment/Activity không bao giờ gọi DAO hay database trực tiếp.
-- **Trạng thái UI:** mỗi màn hình một **lớp trạng thái bất biến** (`final`, trường `final`, `withX(...)`, có `equals/hashCode/toString`), ViewModel phơi bày `LiveData` chỉ đọc, dùng `MediatorLiveData` để biến `LiveData` của repository thành trạng thái UI, `SavedStateHandle` cho trạng thái nhỏ.
-- **Bất đồng bộ:** `AppExecutors` (một luồng đĩa `Executors.newSingleThreadExecutor()` cho toàn app, `mainThread` qua `Handler`), `postValue` để trả về luồng chính. **Không dùng coroutine hay Flow.** Không chạm DB hay mạng trên luồng chính.
-- **Dựng đối tượng:** `ChatApp extends Application` giữ `AppContainer` (Retrofit, OkHttp, `TokenStore`, Room, repository, `AppExecutors`), ViewModel dựng bằng `ViewModelProvider.Factory` + `ViewModelInitializer`. **Không dùng Hilt/Dagger.**
-- **Mạng:** `ChatApi` của **Retrofit** trả `Call<T>`, JSON bằng **Gson**, **DTO tách khỏi entity Room** và có lớp `Mappers`. `ApiCall.run` trả `ApiResult` (không ném lỗi). `ErrorMessages` ánh xạ `error.code` (và HTTP status 400, 401, 403, 404, 409, `IOException`) sang chuỗi tài nguyên `en`/`vi`. Một `OkHttpClient` dùng chung cho Retrofit và WebSocket, kèm `AuthInterceptor`, logging chỉ ở debug, timeouts connect 15 s, read 30 s, write 60 s.
-- **Địa chỉ server:** `BuildConfig.BASE_URL` (debug: `http://10.0.2.2:8080/`, release: HTTPS của server chung). `network_security_config.xml` cho phép HTTP chỉ với `10.0.2.2`, `localhost`, `127.0.0.1` và đặt ở **debug source set**.
-- **Lưu cài đặt:** `SharedPreferences` (ngôn ngữ, theme, bật tắt thông báo, mã thiết bị). Token mã hoá bằng Keystore (ADR-018).
-- **Quy ước:** một `TAG` cho mỗi lớp, tài nguyên `snake_case`, đặt tên Java chuẩn, `final` cho trường bất biến, `@NonNull/@Nullable`.
-**Hệ quả:** Những phần slide không dạy (WebRTC, TOTP, ML Kit, bot AI, thử thách bạn bè) vẫn đi qua các lớp này (Retrofit, repository, ViewModel, LiveData, Executors). Không thêm khung mới (Hilt, Flow, Compose).
+- **Công nghệ:** Java, Views + XML, View Binding, `minSdk 26`, `compileSdk 35`, `targetSdk 35`, Gradle Kotlin DSL với Version Catalog (`gradle/libs.versions.toml`). Package chính thức: `com.utechat`.
+- **Màn hình:** Single Activity (`MainActivity`) chứa `NavHostFragment`, điều hướng bằng Navigation Component, Safe Args chỉ truyền định danh ID, thanh điều hướng dưới `BottomNavigationView`.
+- **Tầng kiến trúc:** UI (Fragment, ViewModel) và Data (Repository, Room, Retrofit). Không dùng Hilt/Dagger, không dùng Coroutine/Flow; bất đồng bộ dùng `AppExecutors` và `LiveData`.
 
-### ADR-024 — Kiểm thử, chất lượng và phát hành bám slide
-**Status:** ACCEPTED (theo yêu cầu bám tài liệu giảng dạy)
-**Quyết định:**
-- **Kim tự tháp test:** nhiều test JUnit chạy trên JVM (`src/test`), ít test tích hợp, ít test Espresso (`src/androidTest`).
-- **Test double:** ưu tiên **Fake** cho repository (ví dụ `FakeMessageRepository` với `MutableLiveData`), **Mockito** (`mock`, `verify`, `spy`) khi cần kiểm tra tương tác. ViewModel kiểm thử với `InstantTaskExecutorRule` và truyền `Runnable::run` làm executor.
-- **Logic thuần cần test riêng:** chuẩn hoá số điện thoại, chính sách OTP, bước chọn bạn bè (chọn mồi, kiểm tra đáp án), TOTP (dùng bộ giá trị mẫu của RFC 6238), tính mốc đã nhận/đã đọc, máy trạng thái cuộc gọi. Server có test tương ứng và test ma trận quyền (vai trò × endpoint).
-- **DAO:** test Room **in-memory** (`allowMainThreadQueries`) trong `androidTest`.
-- **UI:** Espresso với `ActivityScenarioRule` và `RecyclerViewActions`, dữ liệu cục bộ biết trước, **không `Thread.sleep`**, khớp view theo id không theo chữ đã dịch. Test đặt tên theo hành vi, mỗi test một hành vi (sắp xếp, thực hiện, khẳng định).
-- **Chất lượng:** Android Lint (có file baseline nếu cần), `StrictMode` và LeakCanary **chỉ ở bản debug**. Lệnh `./gradlew testDebugUnitTest` phải xanh (đây là điều kiện "unit test chạy đạt toàn bộ" của rubric).
-- **Phát hành:** `isMinifyEnabled = true` + R8 (kiểm thử bản release, giữ `-keep` cho phần dùng reflection như Gson DTO), ký bằng upload keystore với mật khẩu ở `~/.gradle/gradle.properties`, `versionCode` tăng dần, nộp APK (và AAB nếu có). **Không đưa keystore hay `local.properties` vào Git.**
-- **Bảo mật bản dựng:** `android:allowBackup="false"`, không ghi token vào log, khoá Maps lấy từ `local.properties` và giới hạn theo package + SHA-1, R8 **không** coi là cách giấu khoá. Đối chiếu danh sách OWASP Mobile Top 10 (M1, M3, M5, M7, M8, M9, M10) trước khi nộp.
+### ADR-024 — Kiểm thử kim tự tháp bám slide
+**Status:** ACCEPTED
+**Quyết định:** Tập trung kiểm thử Unit Test JVM cho Room DAO, Repository, ViewModel, Crypto, Mappers sử dụng JUnit4 và Mockito. Lệnh `./gradlew testDebugUnitTest` phải đạt tỷ lệ pass 100%.
 
-## 3. Ngoài phạm vi (không làm ở phiên bản này)
+### ADR-025 — Kiến trúc chống xung đột cho nhóm 5 người
+**Status:** ACCEPTED
+**Quyết định:** Khóa 6 điểm nóng gây conflict: (1) Single Activity duy nhất, (2) Tách file chuỗi tài nguyên theo module (`strings_auth.xml`, `strings_contacts.xml`, v.v.), (3) Nested Navigation Graphs, (4) Chia nhỏ Retrofit API Interfaces, (5) Dựng sẵn các Entity Room, (6) Quy trình tiến độ bậc thang an toàn.
 
-Mã hoá đầu cuối, FCM/push khi app đã tắt, gọi nhóm, video (ngoài bản đầu), chỉnh sửa hoặc thu hồi tin, biểu tượng cảm xúc phản hồi, kênh công khai, tìm kiếm tin nhắn phía server, đăng nhập bằng mạng xã hội, SMS thật.
+---
+
+## 3. Hướng phát triển tương lai (Future / V2)
+
+Các tính năng sau đây chỉ được ghi nhận như định hướng nâng cấp trong tương lai cho V2, **hoàn toàn không định nghĩa bảng, cột, endpoint hoặc flow triển khai trong V1**:
+
+1. **Xác thực hai lớp (2FA TOTP & Backup Codes):** Bật tùy chọn trong cài đặt bảo mật, quét mã QR qua Google Authenticator và lưu mã dự phòng.
+2. **Thử thách nhận diện bạn bè (Friend Challenge):** Thử thách chọn đúng 3 bạn bè trong bộ 15 người khi đăng nhập trên thiết bị lạ.
+3. **Trợ lý ảo thông minh (AI Bot):** Tích hợp bot AI trả lời tự động qua API nhà cung cấp LLM bên ngoài (OpenAI/Gemini).
+4. **Cuộc gọi video (Video Call):** Cuộc gọi video 1-1 và gọi video nhóm qua WebRTC.
+5. **Thông báo đẩy khi tắt hẳn app (FCM):** Tích hợp Firebase Cloud Messaging để đánh thức thiết bị khi ứng dụng bị tắt hoàn toàn.
+6. **Mã hoá đầu cuối (End-to-End Encryption - E2EE):** Mã hóa nội dung tin nhắn trực tiếp tại thiết bị đầu cuối với giao thức Signal hoặc tương đương.
+7. **Tính năng xã hội mở rộng:** Gọi thoại/video nhóm đông người, biểu tượng cảm xúc (reactions), thu hồi tin nhắn, kênh phát sóng công khai (channels), đăng nhập mạng xã hội (Google, Facebook), tích hợp SMS thật qua cổng viễn thông.
+
+---
 
 ## 4. Ghi chú bảo mật tổng hợp
 
-| Hạng mục | Quy tắc |
+| Hạng mục | Quy tắc V1 |
 |---|---|
-| Mật khẩu | ≥ 8 ký tự, BCrypt, không ghi log |
-| Token | Một JWT 30 ngày kèm `deviceId`, vô hiệu hoá được ngay bằng `token_valid_after`, không có refresh token |
-| Lưu token trên máy | Mã hoá bằng Keystore |
-| OTP, mã dự phòng, đáp án bạn bè | Chỉ lưu bản băm |
-| Khoá TOTP | AES-GCM, khoá mã hoá trong biến môi trường |
-| Giới hạn tần suất | Đăng nhập, OTP, tra số điện thoại, bot AI, upload (xem `API_CONTRACT.md`) |
-| Thông báo lỗi | Chung chung khi đăng nhập sai, không lộ số có tồn tại hay không |
-| HTTPS/WSS | Bắt buộc ngoài môi trường dev, HTTP cleartext chỉ cho `10.0.2.2` và `localhost` ở bản debug |
-| Khoá bên thứ ba (AI, TURN, Maps nếu dùng) | Chỉ ở server hoặc `local.properties`, không commit |
+| Mật khẩu | $\ge$ 8 ký tự, băm BCrypt, không ghi log |
+| Token | Một JWT 30 ngày kèm `deviceId`, vô hiệu hoá tức thì bằng `token_valid_after`, không có refresh token |
+| Lưu token trên máy | Mã hoá bằng Keystore AES-256-GCM |
+| OTP demo | Chỉ lưu bản băm SHA-256 trên server |
+| Chống Brute-force | Bảng `auth_throttles` kiểm soát theo `PHONE_DEVICE` (`phone_e164 + ":" + device_id_hash`), `PHONE` và `DEVICE` |
+| Quyền riêng tư | `allow_messages_from_non_contacts` kiểm soát nhận tin từ người lạ; chỉ bạn bè `ACCEPTED` mới được gọi thoại WebRTC hoặc thêm vào nhóm |
+| Giới hạn tần suất | Tra cứu số điện thoại (10 lượt/phút), gửi tin (30 tin/10s), upload (20 tệp/phút) |
+| Thông báo lỗi | Chung chung khi đăng nhập sai, không làm lộ số điện thoại có tồn tại hay không |
+| HTTPS / WSS | Release/hosted bắt buộc HTTPS/WSS với chứng chỉ hợp lệ; HTTP chỉ cho Debug nội bộ (localhost, emulator, IP LAN được cấu hình), theo DEPLOYMENT_SECURITY.md |
