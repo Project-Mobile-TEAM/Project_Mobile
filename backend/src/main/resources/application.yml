@@ -1,0 +1,31 @@
+# Profile mặc định cho máy phát triển; biến môi trường vẫn có thể chọn profile khác.
+server:
+  port: 8080
+spring:
+  profiles:
+    default: dev
+  datasource:
+    # Spring tự giải quyết tham chiếu ${DB_HOST} bên trong URL lấy từ .env.
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      # Pool nhỏ tránh chiếm hết kết nối Supabase của các thành viên khác.
+      pool-name: UTEChat-HikariCP
+      maximum-pool-size: 5
+      minimum-idle: 1
+      idle-timeout: 300000
+      max-lifetime: 600000
+      connection-timeout: 10000
+      validation-timeout: 3000
+      # Server vẫn khởi động để liveness trả lời khi CSDL tạm thời mất kết nối.
+      initialization-fail-timeout: -1
+  jdbc:
+    template:
+      query-timeout: 5s
+logging:
+  level:
+    root: INFO
+    # Không bật DEBUG JDBC/Hikari để tránh in cấu hình hoặc thông tin đăng nhập.
+    com.utechat.backend: INFO

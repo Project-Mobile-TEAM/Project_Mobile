@@ -1,0 +1,5 @@
+# Chỉ profile dev mới cho phép CORS rộng; Android native không cần CORS.
+server:
+  port: 8080
+# URL thực tế lấy từ .env: cổng 6543, sslmode=require và prepareThreshold=0.
+# Không dùng transaction pooler này để chạy Flyway; migration dùng session5432.

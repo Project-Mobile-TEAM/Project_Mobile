@@ -15,3 +15,6 @@ local.properties
 .env.*
 *.env
 !.env.example
+
+# Kết quả Maven được sinh lại khi build; không đưa artifact vào Git.
+/backend/target/
