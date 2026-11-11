@@ -1,0 +1,48 @@
+{
+  "contract": "1.0.0",
+  "flavor": "core",
+  "milestone": null,
+  "phases": [
+    {
+      "number": "1",
+      "name": "Database & Supabase Infrastructure",
+      "status": "complete"
+    },
+    {
+      "number": "2",
+      "name": "Foundation & Anti-Conflict Architecture",
+      "status": "complete"
+    },
+    {
+      "number": "3",
+      "name": "Authentication & Profile Management",
+      "status": "in_progress"
+    },
+    {
+      "number": "4",
+      "name": "Contacts & Friendships",
+      "status": "pending"
+    },
+    {
+      "number": "5",
+      "name": "Realtime & Offline-First Core Messaging",
+      "status": "pending"
+    },
+    {
+      "number": "6",
+      "name": "Media Attachments & Creative Features",
+      "status": "pending"
+    },
+    {
+      "number": "7",
+      "name": "Testing, Quality & Release Packaging",
+      "status": "pending"
+    }
+  ],
+  "next": {
+    "command": "/gsd:progress --next",
+    "label": "Advance to the next step (plan phase 3)",
+    "reason": "Phase 3 of 7 — needs a plan"
+  },
+  "updated_at": "2026-11-11T03:21:26.643Z"
+}

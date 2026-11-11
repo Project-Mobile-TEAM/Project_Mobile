@@ -67,7 +67,7 @@ Mỗi yêu cầu ánh xạ trực tiếp đến các tiêu chí đánh giá tron
 | Requirement | Phase thực hiện | Phụ trách | Trọng số Rubric | Status |
 |-------------|-----------------|-----------|-----------------|--------|
 | Nền móng CSDL | Phase 1 (Database & Supabase) | Nhóm trưởng | Nền tảng toàn hệ thống | Pending |
-| REQ-ui-standards | Phase 2 (Foundation Skeleton) & Phase 3 | Nhóm trưởng & Cả nhóm | Tiêu chí 3 & 5 (15đ + 15đ) | Pending |
+| REQ-ui-standards | Phase 2 (Foundation) & Phase 3 | Nhóm trưởng & Cả nhóm | Tiêu chí 3 & 5 (15đ + 15đ) | In Progress |
 | REQ-auth-registration | Phase 3 (Auth & Profile) | Thành viên 2 | Tiêu chí 2 (20đ) | Pending |
 | REQ-auth-login | Phase 3 (Auth & Profile) | Thành viên 2 | Tiêu chí 2 (20đ) | Pending |
 | REQ-auth-account | Phase 3 (Auth & Profile) | Thành viên 2 | Tiêu chí 2 (20đ) | Pending |

@@ -11,7 +11,7 @@ Hành trình xây dựng ứng dụng chat di động UTEChat cho nhóm 5 ngư�
 ## Phases
 
 - [ ] **Phase 1: Database & Supabase Infrastructure** - Thiết lập CSDL PostgreSQL trên Supabase, 10 bảng v1, khóa ngoại, RLS policies, indexes và dữ liệu seed mẫu (Nhóm trưởng)
-- [ ] **Phase 2: Foundation & Anti-Conflict Architecture** - Khung app Android MVVM, backend kết nối Supabase, thông luồng /api/health và khóa 6 điểm nóng gây conflict
+- [x] **Phase 2: Foundation & Anti-Conflict Architecture** - Khung app Android MVVM, backend kết nối Supabase, thông luồng /api/health và khóa 6 điểm nóng gây conflict
 - [ ] **Phase 3: Authentication & Profile Management** - Đăng ký SĐT E.164, OTP demo, đăng nhập 2 chế độ, quản lý hồ sơ, soft delete tài khoản, đa ngôn ngữ & DayNight (Thành viên 2)
 - [ ] **Phase 4: Contacts & Friendships** - Quản lý danh bạ, tìm kiếm SĐT chính xác, gửi/nhận lời mời kết bạn và danh sách chặn (Thành viên 3)
 - [ ] **Phase 5: Realtime & Offline-First Core Messaging** - Nhắn tin 1-1 và nhóm qua REST + WebSocket thuần, hàng đợi Room WorkManager và tìm kiếm FTS4 tiếng Việt không dấu (Thành viên 4)
@@ -37,18 +37,25 @@ Hành trình xây dựng ứng dụng chat di động UTEChat cho nhóm 5 ngư�
 **UI hint**: no
 
 ### Phase 2: Foundation & Anti-Conflict Architecture
-**Goal**: Dựng bộ khung Walking Skeleton (Android MVVM + Backend kết nối Supabase) và áp dụng kiến trúc cô lập triệt để nhằm khóa cứng 6 điểm nóng gây conflict.
+
+**Goal**: Walking Skeleton Android MVVM + Backend kết nối Supabase và khóa6 điểm xung đột.
 **Depends on**: Phase 1
 **Requirements**: REQ-ui-standards
 **Phụ trách**: Nhóm trưởng & Cả nhóm
-**Success Criteria** (what must be TRUE):
-  1. Khai báo và chuẩn hóa các dependencies nền tảng cốt lõi trong `build.gradle.kts` và `libs.versions.toml` (Retrofit, Gson, Room, Navigation Component, ViewBinding). Thư viện chuyên biệt (Glide, WebRTC, ML Kit) chỉ bổ sung khi bước vào phase tương ứng (Just-in-Time).
-  2. Áp dụng Single Activity Architecture: Chỉ duy nhất `MainActivity`, toàn bộ màn hình là Fragment; hoàn thiện và khóa `AndroidManifest.xml`.
-  3. Tách file tài nguyên chuỗi theo module: `strings_auth.xml`, `strings_contacts.xml`, `strings_chat.xml`, `strings_media.xml` để các thành viên không bao giờ sửa chung `strings.xml`.
-  4. Cấu hình Nested Navigation Graphs (`nav_auth.xml`, `nav_contacts.xml`, `nav_chat.xml`, `nav_media.xml`) được include vào `nav_main.xml`.
-  5. Khởi tạo sẵn `AppDatabase` và các Room Entity v1 mapping từ Supabase; tạo sẵn khung các Interface Retrofit riêng biệt (`AuthApi`, `ContactApi`, `ChatApi`, `MediaApi`).
-  6. Backend Spring Boot kết nối thành công với Supabase PostgreSQL; ứng dụng Android gọi API `GET /api/health` và `GET /api/health/ready` hiển thị kết nối thành công.
-**Plans**: TBD
+**Success Criteria**:
+1. Java17, minSdk26/compileSdk35/targetSdk35, package com.utechat; dependencies tập trung.
+2. Một MainActivity, ViewBinding, Fragment và BottomNavigation3 tab.
+3. Chuỗi common/auth/chat/contacts/profile tách EN/VI; Media bổ sung Phase6.
+4. nav_graph include nav_auth/nav_chat/nav_contacts/nav_profile theo CONTEXT.
+5. Room10 bảng ERD mục4, không credential server; API interfaces Auth/Contact/Chat/Media riêng.
+6. /api/health liveness, /api/health/ready truy vấn DB thật; Android gọi ready.
+
+**Plans**: 3/3 complete
+- [x] 02-01: Backend Maven và readiness Supabase
+- [x] 02-02: Room10 bảng và repository seams
+- [x] 02-03: Navigation, resources và live probe
+
+**Verification**: passed - 02-VERIFICATION.md; REQ-ui-standards còn phần Phase3.
 **UI hint**: yes
 
 ### Phase 3: Authentication & Profile Management

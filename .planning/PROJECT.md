@@ -19,7 +19,7 @@ Trải nghiệm nhắn tin và gọi thoại ổn định, tin cậy với kiế
 
 ### Validated
 
-(None yet — ship to validate)
+Nền tảng Phase2: readiness Supabase, Room10 bảng và navigation đã kiểm thử. REQ-ui-standards còn phần Phase3.
 
 ### Active (15 Yêu cầu bám sát Rubric 100đ)
 
@@ -52,7 +52,7 @@ Trải nghiệm nhắn tin và gọi thoại ổn định, tin cậy với kiế
 
 - **Client Stack**: Android Java, Views + XML, View Binding, Single Activity Navigation Component, MVVM + LiveData, AppExecutors, Room SQLite, Retrofit + OkHttp + Gson.
 - **Android SDK**: `minSdk 26`, `compileSdk 35`, `targetSdk 35`.
-- **Backend Stack**: Spring Boot 3 (Java 21), Spring Security JWT, Spring WebSocket thuần JSON, Flyway migration, PostgreSQL trên Supabase (mô hình M2).
+- **Backend Stack**: Spring Boot 3 (Java 17), Spring Security JWT, Spring WebSocket thuần JSON, Flyway migration, PostgreSQL trên Supabase (mô hình M2).
 - **Hạ tầng**: 1 máy chủ AWS EC2 Ubuntu 24.04 (Nginx, Spring Boot systemd, coturn STUN/TURN, lưu trữ media).
 - **Quy tắc phát triển**: Phân chia công việc nhóm 5 người theo mô hình Kiến trúc chống xung đột (Anti-Conflict Architecture): Nhóm trưởng làm Phase 1 Database Supabase; Phase 2 hoàn thiện Base skeleton và khóa 6 điểm nóng; 4 thành viên độc lập phụ trách 4 module (Phase 3 đến Phase 6) theo tiến độ bậc thang an toàn.
 
