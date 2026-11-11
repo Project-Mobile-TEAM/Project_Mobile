@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Màu trạng thái có độ tương phản cho giao diện sáng; luôn đi kèm chữ. -->
+<resources>
+    <color name="probe_ok">#176B3A</color>
+    <color name="probe_error">#B42318</color>
+</resources>

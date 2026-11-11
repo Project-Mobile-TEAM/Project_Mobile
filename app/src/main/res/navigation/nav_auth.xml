@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Nhóm auth chỉ sửa graph con này, không sửa graph của các nhóm khác. -->
+<navigation xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/nav_auth" app:startDestination="@id/loginFragment">
+    <fragment android:id="@+id/loginFragment" android:name="com.utechat.ui.auth.LoginFragment">
+        <!-- Chỉ nút xem mẫu Debug dùng action này; xóa Auth khỏi back stack khi vào tab. -->
+        <action android:id="@+id/action_login_to_main" app:destination="@id/nav_chat"
+            app:popUpTo="@id/nav_auth" app:popUpToInclusive="true" />
+    </fragment>
+</navigation>

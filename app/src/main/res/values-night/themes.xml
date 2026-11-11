@@ -1,7 +1,10 @@
-<resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme. -->
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Primary sáng hơn trên nền tối để chữ và nút giữ độ tương phản. -->
+<resources>
     <style name="Base.Theme.UTEChat" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Customize your dark theme here. -->
-        <!-- <item name="colorPrimary">@color/my_dark_primary</item> -->
+        <!-- Giữ biểu tượng hệ thống tương phản với nền sáng/tối của app SDK35. -->
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="colorPrimary">#ADC6FF</item>
+        <item name="colorOnPrimary">#003064</item>
     </style>
 </resources>

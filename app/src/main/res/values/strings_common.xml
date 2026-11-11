@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Chuỗi common do nhóm phụ trách module này quản lý; bản tiếng Anh mặc định. -->
+<resources>
+    <string name="app_name">UTEChat</string>
+    <string name="tab_chat">Chats</string>
+    <string name="tab_contacts">Contacts</string>
+    <string name="tab_profile">Profile</string>
+    <string name="action_retry">Try again</string>
+    <string name="action_offline_continue">Continue offline</string>
+    <string name="probe_title">Connecting you</string>
+    <string name="probe_subtitle">A moment to check your connection.</string>
+    <string name="probe_checking">Checking your connection…</string>
+    <string name="probe_ready">You’re connected</string>
+    <string name="probe_network_error">Unable to reach the server. Check your network or continue offline.</string>
+    <string name="probe_database_error">The server is reachable. Data is temporarily unavailable.</string>
+    <string name="probe_server_wait">Server · Checking</string>
+    <string name="probe_server_ok">Server · Connected</string>
+    <string name="probe_server_error">Server · Unavailable</string>
+    <string name="probe_db_wait">Data · Checking</string>
+    <string name="probe_db_ok">Data · Connected</string>
+    <string name="probe_db_error">Data · Unavailable</string>
+</resources>

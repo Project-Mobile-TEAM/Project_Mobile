@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Chuỗi chat do nhóm phụ trách module này quản lý; bản tiếng Việt. -->
+<resources>
+    <string name="title_chats">Cuộc trò chuyện của bạn</string>
+    <string name="chat_placeholder">Nơi trò chuyện cùng bạn bè và các nhóm.</string>
+</resources>

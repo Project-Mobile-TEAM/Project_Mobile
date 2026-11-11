@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Chuỗi profile do nhóm phụ trách module này quản lý; bản tiếng Anh mặc định. -->
+<resources>
+    <string name="title_profile">Your profile</string>
+    <string name="profile_placeholder">Your account, privacy and preferences.</string>
+</resources>
