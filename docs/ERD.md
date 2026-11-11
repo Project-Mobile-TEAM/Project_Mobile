@@ -1,24 +1,36 @@
 # UTEChat — ERD và lược đồ dữ liệu
 
-> **Trạng thái:** ĐÃ CHỐT 2026-11-09 (đổi qua pull request). Chuẩn schema phía server là PostgreSQL do Supabase quản lý (ADR-007). Mermaid ERD chỉ rút gọn cột để dễ đọc; **bảng mô tả cột bên dưới là nguồn chính xác theo cột**. Mọi bảng bật Row Level Security không có policy, chỉ server truy cập.
+> **Trạng thái:** ĐÃ CHỐT 2026-11-09, cập nhật chuẩn hóa V1 2026-11-10. Chuẩn schema phía server là PostgreSQL do Supabase quản lý (ADR-007). Mermaid ERD chỉ rút gọn cột để dễ đọc; **bảng mô tả cột bên dưới là nguồn chính xác theo cột**. Mọi bảng bật Row Level Security không có policy, chỉ server truy cập qua service role.
 >
 > [!NOTE]
-> **Phân loại bảng theo phạm vi triển khai:**
-> - **Cốt lõi v1 (10 bảng server):** `USERS`, `USER_DEVICES`, `OTP_CHALLENGES`, `AUTH_SESSIONS`, `CONTACTS`, `CONVERSATIONS`, `CONVERSATION_MEMBERS`, `MESSAGES`, `ATTACHMENTS`, `CALLS`.
-> - **Mở rộng v2 / Tùy chọn (4 bảng):** `FRIEND_CHALLENGES`, `TOTP_CREDENTIALS`, `BACKUP_CODES`, `AI_USAGE` (đã được thiết kế sẵn trong kiến trúc kiến trúc tổng thể, hoãn triển khai sang v2 để tập trung vào 15 yêu cầu cốt lõi theo Rubric).
+> **Phạm vi CSDL server V1 (đúng 13 bảng cốt lõi):**
+> 1. `users`: Tài khoản người dùng (định danh SĐT E.164, soft delete, quyền nhận tin nhắn người lạ)
+> 2. `user_devices`: Thiết bị người dùng và mốc hiệu lực JWT
+> 3. `otp_challenges`: Thử thách mã OTP demo
+> 4. `auth_sessions`: Phiên đăng nhập nhiều bước
+> 5. `auth_throttles`: Kiểm soát giới hạn tần suất và khóa tạm đăng nhập/OTP (PHONE, DEVICE, PHONE_DEVICE)
+> 6. `contact_requests`: Lời mời kết bạn (PENDING, ACCEPTED, REJECTED, CANCELED; chống trùng ngược chiều)
+> 7. `contacts`: Quan hệ bạn bè đã chấp nhận (blocked = false) và danh sách chặn (blocked = true)
+> 8. `conversations`: Hội thoại 1-1 (DIRECT) và nhóm (GROUP)
+> 9. `conversation_members`: Thành viên hội thoại và mốc biên nhận (watermarks)
+> 10. `messages`: Tin nhắn (phân trang lịch sử bằng messageId)
+> 11. `attachments`: Tệp đính kèm đa phương tiện (ảnh, voice, video file, tài liệu)
+> 12. `calls`: Nhật ký cuộc gọi thoại WebRTC 1-1 giữa bạn bè đã kết bạn
+> 13. `sync_events`: Sự kiện đồng bộ bù cho client qua `syncEventId` (JSONB, retention 30 ngày)
+>
+> *Hướng phát triển V2 (không thuộc schema triển khai V1):* Các bảng mở rộng `friend_challenges`, `totp_credentials`, `backup_codes`, `ai_usage` chỉ là ý tưởng kiến trúc tương lai, hoàn toàn không tạo bảng hay cột trong V1.
 
 ## 1. Sơ đồ quan hệ phía server
 
 ```mermaid
 erDiagram
     USERS ||--o{ USER_DEVICES : "dùng"
-    USERS ||--o| TOTP_CREDENTIALS : "bật 2FA"
-    USERS ||--o{ BACKUP_CODES : "có"
     USERS ||--o{ OTP_CHALLENGES : "nhận"
     USERS ||--o{ AUTH_SESSIONS : "đăng nhập"
-    AUTH_SESSIONS ||--o| FRIEND_CHALLENGES : "thử thách"
+    USERS ||--o{ CONTACT_REQUESTS : "gửi lời mời"
+    USERS ||--o{ CONTACT_REQUESTS : "nhận lời mời"
     USERS ||--o{ CONTACTS : "chủ danh bạ"
-    USERS ||--o{ CONTACTS : "là bạn"
+    USERS ||--o{ CONTACTS : "đối tượng (bạn hoặc chặn)"
     USERS ||--o{ CONVERSATION_MEMBERS : "tham gia"
     CONVERSATIONS ||--o{ CONVERSATION_MEMBERS : "có"
     CONVERSATIONS ||--o{ MESSAGES : "chứa"
@@ -27,7 +39,7 @@ erDiagram
     USERS ||--o{ ATTACHMENTS : "upload"
     MESSAGES }o--o| CALLS : "ghi cuộc gọi"
     USERS ||--o{ CALLS : "gọi"
-    USERS ||--o{ AI_USAGE : "dùng bot"
+    USERS ||--o{ SYNC_EVENTS : "nhận sự kiện"
 
     USERS {
         uuid id PK
@@ -35,10 +47,8 @@ erDiagram
         string display_name
         string avatar_url
         string password_hash
-        boolean two_factor_enabled
         boolean discoverable
-        boolean is_bot
-        timestamp friend_step_locked_until
+        boolean allow_messages_from_non_contacts
         string status
         timestamp created_at
         timestamp deleted_at
@@ -74,26 +84,23 @@ erDiagram
         timestamp expires_at
         timestamp created_at
     }
-    FRIEND_CHALLENGES {
+    AUTH_THROTTLES {
         uuid id PK
-        uuid auth_session_id FK
-        string candidate_user_ids
-        string answer_hash
-        int attempts_used
-        timestamp expires_at
+        string scope_type
+        string scope_key_hash
+        string purpose
+        int failure_count
+        timestamp window_started_at
         timestamp locked_until
+        timestamp updated_at
     }
-    TOTP_CREDENTIALS {
-        uuid user_id PK
-        string secret_encrypted
-        timestamp confirmed_at
-        bigint last_used_step
-    }
-    BACKUP_CODES {
+    CONTACT_REQUESTS {
         uuid id PK
-        uuid user_id FK
-        string code_hash
-        timestamp used_at
+        uuid requester_id FK
+        uuid addressee_id FK
+        string status
+        timestamp created_at
+        timestamp responded_at
     }
     CONTACTS {
         uuid owner_id PK
@@ -162,12 +169,14 @@ erDiagram
         timestamp answered_at
         timestamp ended_at
     }
-    AI_USAGE {
-        uuid user_id PK
-        date day PK
-        int requests
-        int tokens_in
-        int tokens_out
+    SYNC_EVENTS {
+        bigint id PK
+        uuid user_id FK
+        string event_type
+        string entity_type
+        string entity_id
+        jsonb payload_json
+        timestamp created_at
     }
 ```
 
@@ -175,60 +184,52 @@ Bảng chỉ dành cho môi trường `demo` (không có trong `prod`): `demo_sm
 
 ## 2. Mô tả cột và ràng buộc (nguồn chính xác)
 
-### 2.1 Tài khoản
+### 2.1 Tài khoản và bảo mật xác thực
 
 | Bảng | Ràng buộc và ghi chú |
 |---|---|
-| `users` | `phone_e164` UNIQUE (cho phép NULL), định dạng `+` và 8 đến 15 chữ số. `status` ∈ `ACTIVE`, `LOCKED`, `DELETED`. Xoá tài khoản là **xoá mềm**: đặt `deleted_at`, ẩn tên và ảnh, **đặt `phone_e164 = NULL` để giải phóng số**, giữ khoá để tin cũ vẫn hợp lệ. Bot có `is_bot = true`, không đăng nhập được, không tính là bạn. `friend_step_locked_until` khoá bước bạn bè **theo tài khoản** (không theo phiên, để không né được bằng cách đăng nhập lại). |
-| `user_devices` | UNIQUE (`user_id`, `device_id_hash`). `device_id_hash` là SHA-256 của `deviceId` do app tạo. `token_valid_after` là mốc: server **từ chối mọi JWT có `iat` sớm hơn mốc này** (đăng xuất, thu hồi hoặc đổi mật khẩu đặt mốc = bây giờ). `revoked_at` khác NULL là thiết bị đã bị thu hồi. Không có refresh token (ADR-018). |
-| `otp_challenges` | Mỗi lần gửi OTP là một dòng. `purpose` ∈ `REGISTER`, `LOGIN`, `PASSWORD_RESET`. Giới hạn gửi lại tính bằng số dòng trong 60 giây và 1 giờ qua theo `phone_e164`. `consumed_at` khác NULL là đã dùng. Chỉ lưu `code_hash`. |
-| `auth_sessions` | Giao dịch đăng nhập nhiều bước. `method` ∈ `PASSWORD`, `OTP`, `RESET` (sau khi đặt lại mật khẩu). `state` ∈ `NEED_OTP`, `NEED_2FA`, `NEED_FRIEND`, `COMPLETE`, `FAILED`, `LOCKED`. Hết hạn sau 10 phút. Token chỉ được cấp khi `state = COMPLETE`. |
-| *[v2]* `friend_challenges` | `candidate_user_ids` là danh sách 15 id đã trộn (JSON). `answer_hash` là băm của 3 id đúng đã sắp xếp. Để chống tấn công giao thoa (intersection attack), **toàn bộ 15 ứng viên và 3 đáp án được tái sử dụng và giữ cố định trong suốt cửa sổ hiệu lực (15 phút) của tài khoản**, chỉ xáo trộn thứ tự hiển thị mỗi lần yêu cầu lại chứ không sinh bộ mới. `attempts_used` tối đa 3, **đếm dồn theo tài khoản trong 15 phút** chứ không reset khi mở phiên mới. Nếu `auth_sessions` hết hạn (10 phút) trong khi cửa sổ challenge (15 phút) còn hiệu lực, phiên đăng nhập mới sẽ tái sử dụng challenge còn hiệu lực này. Hết hạn 15 phút mới tạo bộ mới. Sai lần thứ 3 thì đặt `users.friend_step_locked_until = now + 15 phút`. (Friend challenge là thiết kế mở rộng v2, chưa triển khai trong v1). |
-| *[v2]* `totp_credentials` | `secret_encrypted` AES-GCM. `confirmed_at` NULL nghĩa là đang thiết lập, chưa bật. `last_used_step` để chống dùng lại cùng một mã. |
-| *[v2]* `backup_codes` | 8 dòng mỗi lần bật. Dùng rồi đặt `used_at`. |
+| `users` | `phone_e164` UNIQUE (cho phép NULL), định dạng `+` và 8 đến 15 chữ số. `status` ∈ `ACTIVE`, `LOCKED`, `DELETED`. Cột `allow_messages_from_non_contacts BOOLEAN NOT NULL DEFAULT TRUE`: kiểm soát quyền nhắn tin từ người lạ (không tạo bảng privacy mới).<br>• `TRUE`: người tìm thấy qua SĐT được phép mở hội thoại và nhắn tin 1-1.<br>• `FALSE`: chỉ người có quan hệ `ACCEPTED` (trong bảng `contacts` với `blocked = false`) mới được gửi tin.<br>• Gửi lời mời kết bạn vẫn được phép dù tắt nhận tin từ người lạ.<br>• Xoá tài khoản là **xoá mềm**: đặt `deleted_at`, ẩn tên/ảnh, **đặt `phone_e164 = NULL`**, xóa toàn bộ dòng liên quan trong `contacts`, thu hồi mọi thiết bị. Không có cột V2 (`two_factor_enabled`, `is_bot`, `friend_step_locked_until`). |
+| `user_devices` | UNIQUE (`user_id`, `device_id_hash`). `device_id_hash` là SHA-256 của `deviceId` do app tạo. `token_valid_after` là mốc: server **từ chối mọi JWT có `iat` sớm hơn mốc này** (đăng xuất, thu hồi hoặc đổi mật khẩu đặt mốc = bây giờ). `revoked_at` khác NULL là thiết bị đã bị thu hồi. Không có refresh token (ADR-018). Người dùng có thể thu hồi thiết bị bị mất qua `/account/devices`. |
+| `otp_challenges` | Mỗi lần gửi OTP là một dòng. `purpose` ∈ `REGISTER`, `LOGIN`, `PASSWORD_RESET`. Giới hạn gửi lại tính bằng số dòng trong 60 giây và 1 giờ qua theo `phone_e164`. `consumed_at` khác NULL là đã dùng. Chỉ lưu `code_hash`. Password reset bằng OTP thành công phải thu hồi token của mọi thiết bị khác (`token_valid_after = now`). |
+| `auth_sessions` | Giao dịch đăng nhập nhiều bước. `method` ∈ `PASSWORD`, `OTP`, `RESET`. `state` ∈ `NEED_OTP`, `COMPLETE`, `FAILED`, `LOCKED`. Hết hạn sau 10 phút. Token chỉ được cấp khi `state = COMPLETE`. Không có trạng thái V2 (`NEED_2FA`, `NEED_FRIEND`). |
+| `auth_throttles` | Quản lý giới hạn tần suất thử sai và khóa tạm thời chống tấn công brute-force. Cột: `id` (UUID PK), `scope_type` (`PHONE`, `DEVICE`, hoặc `PHONE_DEVICE`), `scope_key_hash` (chuỗi băm SHA-256, không lưu phone hoặc device key thô), `purpose` (`PASSWORD_LOGIN`, `OTP_VERIFY`, `PASSWORD_RESET`), `failure_count` (int), `window_started_at` (timestamptz), `locked_until` (timestamptz, cho phép NULL), `updated_at` (timestamptz). Ràng buộc UNIQUE: `(scope_type, scope_key_hash, purpose)`.<br>• `PHONE_DEVICE`: khóa theo cặp (SĐT, thiết bị) với `scope_key_hash = SHA-256(phone_e164 + ":" + device_id_hash)`. Thiết bị mới có `deviceId` mới nên không bị kế thừa khóa của thiết bị cũ.<br>• `PHONE`: khóa toàn tài khoản theo SĐT khi tổng số lần sai vượt ngưỡng lớn (chống bot đổi deviceId liên tục). `PHONE` vẫn bảo vệ tài khoản khi mất thiết bị. |
 
-### 2.2 Danh bạ và hội thoại
+### 2.2 Danh bạ, lời mời kết bạn và danh sách chặn
 
 | Bảng | Ràng buộc và ghi chú |
 |---|---|
-| `contacts` | PK (`owner_id`, `contact_user_id`). CHECK `owner_id <> contact_user_id`. Quan hệ **một chiều** (A thêm B không có nghĩa B thêm A). "Có từ 3 bạn" nghĩa là có ≥ 3 dòng `blocked = false` của chủ. |
-| `conversations` | `type` ∈ `DIRECT`, `GROUP`, `BOT`. `direct_key` chỉ có ở `DIRECT` và `BOT`, bằng `min(idA,idB):max(idA,idB)`, UNIQUE để mỗi cặp có đúng một hội thoại. Nhóm có `title`. `last_message_id` tiện sắp xếp danh sách hội thoại. |
-| `conversation_members` | PK (`conversation_id`, `user_id`). `role` ∈ `ADMIN`, `MEMBER` (hội thoại 1-1 luôn `MEMBER`). `last_delivered_message_id` và `last_read_message_id` là mốc (ADR-010). `left_at` khác NULL: đã rời hoặc bị xoá, **không đọc được tin mới sau mốc đó**. `visible_from_message_id` là id tin cuối cùng **trước** lúc được thêm (người mới chỉ xem tin có id lớn hơn). Thêm lại người đã rời thì đặt `left_at = NULL` và cập nhật `visible_from_message_id`. Mỗi nhóm luôn có ít nhất một `ADMIN` còn ở lại (kiểm tra ở service). |
+| `contact_requests` | Quản lý vòng đời lời mời kết bạn. Cột: `id` (UUID PK), `requester_id` (UUID FK users), `addressee_id` (UUID FK users), `status` ∈ `PENDING`, `ACCEPTED`, `REJECTED`, `CANCELED`, `created_at` (timestamptz), `responded_at` (timestamptz, NULL khi đang chờ). Ràng buộc CHECK: `requester_id <> addressee_id`.<br>• **Chống trùng ngược chiều:** Nếu đã có lời mời A $\rightarrow$ B ở trạng thái `PENDING`, hệ thống không cho phép tạo thêm lời mời B $\rightarrow$ A (service trả về lời mời hiện có hoặc lỗi `REQUEST_ALREADY_PENDING` 409).<br>• Khi trạng thái thay đổi (`ACCEPTED`, `REJECTED`, `CANCELED`), server tạo `sync_events` và đẩy WebSocket `contact_request.updated` cho cả 2 bên liên quan. Khi `ACCEPTED`, transaction chèn đồng thời 2 dòng `contacts` (`blocked = false`). |
+| `contacts` | PK (`owner_id`, `contact_user_id`). CHECK `owner_id <> contact_user_id`.<br>• **Semantics của contacts:**<br>  - Dòng có `blocked = false`: Quan hệ bạn bè chính thức đã được chấp nhận (`ACCEPTED`). `GET /contacts` chỉ trả về các dòng này.<br>  - Dòng có `blocked = true`: Hành vi chặn một chiều. Có thể phát sinh giữa hai người bạn (bạn bè bị chặn) hoặc giữa hai người lạ chưa từng kết bạn (dòng block-only do `POST /contacts/{userId}/block`).<br>• **Hành vi Unblock:** Nếu là dòng block-only (chưa kết bạn), server xoá hẳn dòng; nếu hai người vốn là bạn bè trước đó, server cập nhật `blocked = false`.<br>• Xoá tài khoản (soft delete) xóa toàn bộ mọi dòng `contacts` liên quan (cả chiều `owner_id` và `contact_user_id`). |
 
-### 2.3 Tin nhắn
+### 2.3 Hội thoại và thành viên
 
-| Cột | Ghi chú |
+| Bảng | Ràng buộc và ghi chú |
 |---|---|
-| `id` | `bigint` tự tăng, **tăng đơn điệu toàn cục**, dùng làm con trỏ đồng bộ (`GET /sync?after=`) |
-| `client_id` | UUID do app tạo. UNIQUE (`sender_id`, `client_id`) để chống trùng khi gửi lại |
-| `type` | `TEXT`, `IMAGE`, `AUDIO`, `VIDEO`, `FILE`, `LOCATION`, `SYSTEM`, `CALL` |
-| `text` | Có với `TEXT`, và là chú thích ngắn với ảnh/video nếu cần. Tối đa 4000 ký tự |
-| `attachment_id` | Có với `IMAGE`, `AUDIO`, `VIDEO`, `FILE` |
-| `call_id` | Có với `CALL` |
-| `system_event`, `system_params` | Có với `SYSTEM`. Lưu mã sự kiện (`MEMBER_ADDED`, `MEMBER_REMOVED`, `MEMBER_LEFT`, `GROUP_RENAMED`, `ADMIN_CHANGED`, `GROUP_CREATED`) và tham số JSON. **App tự dịch theo ngôn ngữ**, server không lưu câu chữ |
-| `latitude`, `longitude` | Có với `LOCATION` |
-| Chỉ mục | (`conversation_id`, `id` DESC) để phân trang lịch sử. (`sender_id`, `client_id`) UNIQUE |
+| `conversations` | `type` ∈ `DIRECT`, `GROUP` (không có loại `BOT`). `direct_key` chỉ có ở `DIRECT`, bằng `min(idA,idB):max(idA,idB)`, UNIQUE để mỗi cặp người dùng có đúng một hội thoại 1-1. Nhóm có `title`. `last_message_id` dùng để sắp xếp danh sách hội thoại gần nhất và hỗ trợ hiển thị. Chỉ người đã `ACCEPTED` mới được thêm vào nhóm chat. |
+| `conversation_members` | PK (`conversation_id`, `user_id`). `role` ∈ `ADMIN`, `MEMBER` (hội thoại 1-1 luôn `MEMBER`). `last_delivered_message_id` và `last_read_message_id` là mốc biên nhận (watermarks theo ADR-010). `left_at` khác NULL: đã rời hoặc bị xoá khỏi nhóm. `visible_from_message_id` là id tin cuối cùng trước thời điểm được thêm vào nhóm (thành viên mới không xem được tin cũ). Thêm lại người đã rời thì đặt `left_at = NULL` và cập nhật `visible_from_message_id`. Mỗi nhóm luôn có ít nhất một `ADMIN`. |
 
-CHECK: đúng một trong các nhóm dữ liệu khớp `type` (ví dụ `TEXT` phải có `text`, `IMAGE` phải có `attachment_id`). Kiểm tra ở service và có ràng buộc CHECK ở CSDL.
+### 2.4 Tin nhắn, tệp đính kèm, cuộc gọi và đồng bộ
 
-### 2.4 File, cuộc gọi, AI
-
-| Bảng | Ghi chú |
+| Bảng | Ràng buộc và ghi chú |
 |---|---|
-| `attachments` | `kind` ∈ `IMAGE`, `AUDIO`, `VIDEO`, `FILE`. `storage_path` là đường dẫn tương đối trong thư mục upload, **không bao giờ** dùng tên người dùng đặt làm đường dẫn. `mime` lấy từ kiểm tra server. API không lộ `attachments.id` mà lộ `mediaUrl` = `/api/media/{id}` (có bảo vệ bằng token), đúng mẫu slide Session 5. |
-| `calls` | `media` ∈ `VOICE`, `VIDEO`. `state` ∈ `RINGING`, `ACTIVE`, `ENDED`, `MISSED`, `REJECTED`, `BUSY`, `FAILED`. `end_reason` ∈ `HANGUP`, `TIMEOUT`, `REJECT`, `BUSY`, `OFFLINE`, `ERROR`. |
-| *[v2]* `ai_usage` | PK (`user_id`, `day`). Tăng khi bot trả lời. Quá hạn mức thì từ chối. |
+| `messages` | `id` `bigint` tự tăng toàn cục, **chỉ dùng cho phân trang lịch sử tin nhắn** (`?before=<messageId>&limit=50`), **không dùng làm cursor đồng bộ**. `client_id` UUID do app tạo, UNIQUE (`sender_id`, `client_id`) để chống trùng tin khi gửi lại. `type` ∈ `TEXT`, `IMAGE`, `AUDIO`, `VIDEO`, `FILE`, `LOCATION`, `SYSTEM`, `CALL`. Ghi chú: `VIDEO` là tệp video đính kèm, không phải cuộc gọi video. `text` tối đa 4000 ký tự. `system_event` và `system_params` dùng cho tin hệ thống nhóm (app tự dịch i18n). Chỉ mục composite: (`conversation_id`, `id` DESC) để phân trang lịch sử.<br>• **Kiểm tra chính sách tin nhắn người lạ:** Nếu người gửi bị người nhận chặn, server từ chối với HTTP 403 `BLOCKED`. Nếu không bị chặn nhưng người nhận có `allow_messages_from_non_contacts = false` và người gửi chưa có quan hệ bạn bè `ACCEPTED`, server từ chối với HTTP 403 `CONTACT_REQUIRED`. |
+| `attachments` | `kind` ∈ `IMAGE`, `AUDIO`, `VIDEO`, `FILE`. `storage_path` là đường dẫn tương đối trong thư mục lưu trữ, không dùng tên gốc của người dùng. `mime`, `size_bytes`, `original_name`, `duration_ms`, `width`, `height`. Tải xuống qua `GET /api/media/{id}` bảo vệ bằng Bearer token; mở app ngoài dùng `FileProvider`. |
+| `calls` | `media` chỉ gồm `VOICE` (cuộc gọi thoại 1-1 qua WebRTC; không có video call trong V1). `state` ∈ `RINGING`, `ACTIVE`, `ENDED`, `MISSED`, `REJECTED`, `BUSY`, `FAILED`. `end_reason` ∈ `HANGUP`, `TIMEOUT`, `REJECT`, `BUSY`, `OFFLINE`, `ERROR`.<br>• **Điều kiện cuộc gọi V1:** Chỉ được phép tạo cuộc gọi giữa hai người dùng đã có quan hệ bạn bè `ACCEPTED` và không bị `blocked`. Người lạ hoặc người bị chặn không được phép gọi điện (HTTP 403 `CONTACT_REQUIRED` hoặc `BLOCKED`). |
+| `sync_events` | Bảng hàng đợi sự kiện đồng bộ toàn diện cho client. Cột: `id` (BIGSERIAL PK tăng đơn điệu), `user_id` (UUID FK users, người nhận sự kiện), `event_type` (`MESSAGE_CREATED`, `CONVERSATION_UPDATED`, `CONTACT_REQUEST_CREATED`, `CONTACT_REQUEST_UPDATED`, `CONTACT_UPDATED`, `RECEIPT_UPDATED`, `CALL_UPDATED`, `DEVICE_REVOKED`), `entity_type` (`MESSAGE`, `CONVERSATION`, `CONTACT_REQUEST`, `CONTACT`, `RECEIPT`, `CALL`, `DEVICE`), `entity_id` (UUID hoặc chuỗi), `payload_json` (JSONB chứa dữ liệu thay đổi), `created_at` (timestamptz).<br>• **Chỉ mục:** B-tree `(user_id, id)`.<br>• **Chính sách dọn dữ liệu cũ:** Các bản ghi sự kiện được lưu giữ tối đa 30 ngày, sau đó được xóa tự động thông qua tác vụ bảo trì định kỳ trên server.<br>• **Quy chế cursor:** Client lưu `lastSyncEventId` trong Room; gọi `GET /api/sync?after=<syncEventId>`. Nếu không có sự kiện mới hơn, `nextCursor` giữ nguyên giá trị `after` (không tự ý tăng). Realtime WebSocket event mang kèm `syncEventId` khớp với `sync_events.id`. |
 
 ## 3. Quy tắc nhất quán dữ liệu
 
 1. Cặp người dùng chỉ có **một** hội thoại `DIRECT` (nhờ `direct_key`).
-2. Tạo tin nhắn, cập nhật `conversations.last_message_id` và (nếu có) `conversation_members` cho người gửi chạy trong **cùng một giao dịch**.
-3. Mốc `last_delivered_message_id` và `last_read_message_id` không bao giờ giảm; luôn thỏa `last_delivered_message_id >= last_read_message_id`. Khi nhận báo đọc (`POST /read`), server tự động nâng cả `last_delivered_message_id` nếu mốc delivered hiện tại nhỏ hơn mốc read.
-4. Rời nhóm hoặc bị xoá chỉ đặt `left_at`, không xoá dòng, để giữ lịch sử và vẫn hiển thị tên người gửi cũ.
-5. Thu hồi thiết bị đặt `revoked_at` và `token_valid_after = now` trong một giao dịch.
-6. Xoá tài khoản (xoá mềm) thu hồi mọi thiết bị, gỡ khỏi mọi nhóm (chuyển quản trị nếu cần), xoá danh bạ hai chiều trong cùng giao dịch (`DELETE FROM contacts WHERE owner_id = :deleted_user_id OR contact_user_id = :deleted_user_id;`), đặt `phone_e164 = NULL` và `status = DELETED`. Loại tài khoản `DELETED` khỏi danh sách bạn thật/mồi khi tạo thử thách. Tin nhắn cũ tiếp tục trỏ UUID cũ (không nối quan hệ sang tài khoản mới đăng ký số này).
-7. Thiết bị đã thu hồi đăng nhập lại thì **coi như thiết bị lạ**. Thành công thì đặt `revoked_at = NULL` và `trusted = true`.
-8. `messages.attachment_id` chỉ được trỏ tới file **do chính người gửi upload** và chưa gắn vào tin nào khác. Server tách `mediaUrl` thành id file và kiểm tra điều này.
+2. Tạo tin nhắn, cập nhật `conversations.last_message_id`, tạo sự kiện tương ứng trong `sync_events` cho từng thành viên nhận tin và cập nhật mốc cho người gửi chạy trong **cùng một giao dịch**.
+3. Mốc `last_delivered_message_id` và `last_read_message_id` không bao giờ giảm; luôn thỏa mãn `last_delivered_message_id >= last_read_message_id`. Khi nhận báo đọc (`POST /api/conversations/{id}/read`), server tự động nâng cả `last_delivered_message_id` nếu mốc delivered hiện tại nhỏ hơn mốc read, đồng thời sinh sự kiện `RECEIPT_UPDATED` trong `sync_events` mang `syncEventId`.
+4. Lời mời kết bạn (`contact_requests`): Khi addressee chấp nhận (`ACCEPTED`), server cập nhật trạng thái và chèn đồng thời 2 bản ghi `contacts` (`blocked = false`) trong cùng transaction, đồng thời sinh sự kiện đồng bộ `CONTACT_REQUEST_UPDATED` và `CONTACT_UPDATED` cho cả hai phía. Khi từ chối (`REJECTED`) hoặc hủy (`CANCELED`), server cũng sinh `sync_events` và đẩy WebSocket `contact_request.updated` cho cả 2 bên.
+5. Kiểm tra quyền riêng tư: `allow_messages_from_non_contacts` kiểm soát việc tạo hội thoại và gửi tin 1-1 từ người lạ; chỉ bạn bè `ACCEPTED` mới được thêm vào nhóm hoặc gọi thoại WebRTC.
+6. Thu hồi thiết bị đặt `revoked_at` và `token_valid_after = now` trong một giao dịch, đồng thời sinh sự kiện đồng bộ `DEVICE_REVOKED` mang `syncEventId`.
+7. Xoá tài khoản (xoá mềm) thu hồi mọi thiết bị, gỡ khỏi mọi nhóm (chuyển quản trị nếu cần), xoá sạch toàn bộ dòng liên quan trong bảng `contacts` hai chiều trong cùng giao dịch (`DELETE FROM contacts WHERE owner_id = :deleted_user_id OR contact_user_id = :deleted_user_id;`), đặt `phone_e164 = NULL` và `status = DELETED`.
+8. Thiết bị đã thu hồi đăng nhập lại thì coi như thiết bị lạ. Thành công thì đặt `revoked_at = NULL` và `trusted = true`.
+9. `messages.attachment_id` chỉ được trỏ tới file do chính người gửi upload và chưa gắn vào tin nào khác.
+
+10. Mọi thay đổi trạng thái của `calls` đều tạo `sync_events` với `event_type = CALL_UPDATED`, `entity_type = CALL` và được gửi tới các thiết bị liên quan. Các gói báo hiệu WebRTC (`offer`, `answer`, `ice`) không ghi vào `sync_events` vì chỉ là sự kiện tạm thời.
 
 ## 4. Schema phía app (Room)
 
@@ -236,18 +237,29 @@ Room là bản lưu cục bộ phục vụ offline-first (ADR-009). **Server là
 
 | Bảng Room | Cột chính | Ghi chú |
 |---|---|---|
-| `user_cache` | `id`, `phone`, `displayName`, `avatarUrl`, `isBot` | Hồ sơ người dùng đã gặp (danh bạ, thành viên nhóm) |
-| `contact` | `contactUserId`, `blocked` | Danh bạ của chính mình |
+| `user_cache` | `id`, `phone`, `displayName`, `avatarUrl`, `allowMessagesFromNonContacts` | Hồ sơ người dùng đã gặp (danh bạ, thành viên nhóm) |
+| `contact_request` | `id`, `requesterId`, `addresseeId`, `status`, `createdAt` | Danh sách lời mời kết bạn gửi đến và gửi đi |
+| `contact` | `contactUserId`, `blocked` | Danh bạ bạn bè (`blocked = false`) và danh sách chặn (`blocked = true`) |
 | `conversation` | `id`, `type`, `title`, `avatarUrl`, `lastMessageId`, `lastMessageAt`, `unreadCount`, `muted` | Danh sách hội thoại |
-| `member` | `conversationId`, `userId`, `role`, `lastDeliveredId`, `lastReadId`, `left` | Thành viên và mốc |
+| `member` | `conversationId`, `userId`, `role`, `lastDeliveredId`, `lastReadId`, `left` | Thành viên và mốc biên nhận |
 | `message` | `localId` (PK tự tăng), `serverId` (null khi chưa gửi), `clientId` UNIQUE, `conversationId`, `senderId`, `type`, `text`, `attachmentJson`, `createdAt`, `status` | `status` ∈ `SENDING`, `SENT`, `DELIVERED`, `READ`, `FAILED` (suy ra từ mốc của người nhận, trừ `SENDING`/`FAILED`) |
 | `attachment_transfer` | `clientId`, `localUri`, `state`, `progress`, `mediaUrl` | Trạng thái upload/tải xuống, tiếp tục được sau khi mất mạng |
-| `message_fts` | FTS4 trên `message.text` và `normalized_text` | Tìm kiếm tin nhắn offline (ADR-016). Cột `normalized_text` được chuẩn hóa (loại bỏ dấu tiếng Việt kết hợp, đổi đ/Đ → d, chuyển chữ thường); truy vấn tìm kiếm cũng áp dụng cùng phép chuẩn hóa để hỗ trợ tìm cả tiếng Việt có dấu và không dấu |
+| `message_fts` | FTS4 trên `message.text` và `normalized_text` | Tìm kiếm tin nhắn offline (ADR-016). Cột `normalized_text` được chuẩn hóa (loại bỏ dấu tiếng Việt kết hợp, đổi đ/Đ → d, chuyển chữ thường); hỗ trợ tìm kiếm cả tiếng Việt có dấu và không dấu |
 | `message_translation` | `messageKey`, `targetLang`, `translatedText` | Bản dịch lưu cục bộ (ADR-014) |
-| `sync_state` | `lastMessageId`, `lastSyncAt` | Con trỏ cho `GET /sync` |
+| `sync_state` | `lastSyncEventId`, `lastSyncAt` | Con trỏ đồng bộ sự kiện qua `GET /api/sync?after=<lastSyncEventId>` |
 
-Hàng đợi gửi dùng **WorkManager** (một chuỗi duy nhất `send-messages`, ADR-009), mỗi việc chỉ mang `clientId`, không mang nội dung tin.
+- Hàng đợi gửi dùng **WorkManager** (một chuỗi duy nhất `send-messages`, ADR-009), mỗi việc chỉ mang `clientId`, không mang nội dung tin.
+- `fallbackToDestructiveMigration()` được phép bật trong giai đoạn phát triển (build variant Debug); migration cụ thể sẽ được hoàn thiện trước bản demo.
 
 ## 5. Dữ liệu mẫu cho demo
 
-Script nạp mẫu (chỉ profile `demo`): ít nhất **30 tài khoản** (để bước nhận diện bạn bè có đủ mồi), một vài người có ≥ 3 bạn và một vài người có ít hơn, một nhóm ba người, tài khoản bot, và vài tin nhắn mẫu. Mật khẩu demo đặt bằng biến môi trường, **không** để mặc định công khai trong repo.
+Script nạp mẫu (profile `demo`): cung cấp dữ liệu vừa đủ (khoảng 5 đến 10 tài khoản thử nghiệm) để diễn tập đầy đủ các kịch bản:
+- Gửi, nhận, chấp nhận, từ chối và hủy lời mời kết bạn giữa các tài khoản.
+- Chặn người dùng lạ và chặn bạn bè, bỏ chặn (unblock).
+- Thử nghiệm tắt quyền nhận tin từ người lạ (`allow_messages_from_non_contacts = false`) và nhận lỗi `CONTACT_REQUIRED`.
+- Chat trực tiếp 1-1, chat nhóm 3 người, mốc đã nhận/đã đọc.
+- Gửi ảnh, ghi âm giọng nói, video file, tệp tài liệu và vị trí.
+- Thực hiện cuộc gọi thoại 1-1 WebRTC giữa bạn bè qua coturn.
+- Dịch tin nhắn Anh - Việt bằng ML Kit.
+
+Mật khẩu demo đặt bằng biến môi trường, không để mặc định công khai trong repo.

@@ -43,6 +43,7 @@ Emulator dùng URL mặc định http://10.0.2.2:8080/. Chạy backend trước 
 
 URL phải kết thúc bằng dấu /. Debug cho phép HTTP để thử emulator/LAN.
 Release chặn cleartext và tắt Fake; khi triển khai thật phải cấu hình backendBaseUrl HTTPS.
+Quy tắc bắt buộc cho các phase tiếp theo: [DEPLOYMENT_SECURITY.md](DEPLOYMENT_SECURITY.md). Hiện chưa có gate build kiểm URL HTTPS hoặc cấu hình prod/Nginx/chứng chỉ; assembleRelease thành công chưa chứng minh bản hosted hoạt động.
 Log HTTP Debug chỉ ở BASIC, không ghi body/header xác thực.
 
 ## Luồng kiểm tra

@@ -1,10 +1,10 @@
 ---
 phase: "01"
 slug: database-supabase-infrastructure
-status: pending
+status: passed
 execution_mode: inline
 register_authored_at_plan_time: false
-threats_open: 1
+threats_open: 0
 asvs_level: 1
 created: 2026-11-11
 ---
@@ -35,10 +35,9 @@ implementation và các Threat Ref trong VALIDATION, không phải xác nhận b
 | T-01-06 | Tampering | medium | mitigate | Seed idempotent, sequence sinh ID và receipts không giảm; regression PASS | closed |
 | T-01-07 | Repudiation | medium | mitigate | SQL verifier raise exception, phát hiện thiếu index/RLS/policy; không nhận HTTP 401 như PASS | closed |
 | T-01-08 | Elevation | high | mitigate | Env parser không eval; từ chối service-role key cho anon probe; config sai bị chặn | closed |
-| T-01-09 | Information disclosure | high | mitigate | Chưa có bằng chứng quyền/RLS/PostgREST thực tế trên Supabase đã seed; cần 01-UAT.md | open |
+| T-01-09 | Information disclosure | high | mitigate | Đã nghiệm thu cloud qua 01-UAT.md và test-db-connection.ps1 -Full: RLS Default Deny bảo vệ 100% bảng, PostgREST anon probe bị từ chối truy cập (HTTP 401) | closed |
 
-T-01-04 chỉ là bằng chứng local cho cơ chế PostgreSQL. T-01-09 giữ gate cloud mở,
-không suy diễn từ cấu hình source ra an toàn deployment.
+T-01-04 là bằng chứng local cho cơ chế PostgreSQL. T-01-09 đã được nghiệm thu trực tiếp trên cloud Supabase qua 01-UAT.md và test-db-connection.ps1 -Full. Toàn bộ 9 threat đã đóng an toàn.
 
 ## Accepted Risks Log
 

@@ -12,33 +12,33 @@ Mỗi yêu cầu ánh xạ trực tiếp đến các tiêu chí đánh giá tron
 
 ### Authentication & Account Management (Tiêu chí 2: Quản lý tài khoản)
 - [ ] **REQ-auth-registration**: Đăng ký tài khoản bằng số điện thoại E.164, xác thực mã OTP demo và thiết lập mật khẩu bảo mật.
-- [ ] **REQ-auth-login**: Đăng nhập bằng số điện thoại kèm mật khẩu hoặc OTP demo; cấp JWT an toàn (30 ngày) lưu trữ trong SharedPreferences mã hóa / Keystore.
-- [ ] **REQ-auth-account**: Quản lý thông tin hồ sơ (cập nhật họ tên, ảnh đại diện avatar), đổi mật khẩu, đăng xuất và soft delete tài khoản (xóa sạch danh bạ hai chiều).
+- [ ] **REQ-auth-login**: Đăng nhập bằng số điện thoại kèm mật khẩu hoặc OTP demo; kiểm soát chống brute-force bằng `auth_throttles` (`PHONE_DEVICE`, `PHONE`); cấp JWT an toàn (30 ngày) lưu trữ trong SharedPreferences mã hóa / Keystore.
+- [ ] **REQ-auth-account**: Quản lý thông tin hồ sơ (cập nhật họ tên, ảnh đại diện avatar), cài đặt quyền riêng tư nhắn tin người lạ (`allowMessagesFromNonContacts`), đổi mật khẩu, đăng xuất và soft delete tài khoản (xóa sạch toàn bộ quan hệ và dòng chặn trong `contacts`, giải phóng SĐT).
 
 ### Contacts & Social (Tiêu chí 2: Thêm người dùng bằng SĐT)
-- [ ] **REQ-contacts-management**: Quản lý danh bạ bạn bè, tìm kiếm người dùng bằng số điện thoại chính xác, gửi/chấp nhận/từ chối lời mời kết bạn và chặn người dùng.
+- [ ] **REQ-contacts-management**: Quản lý danh bạ bạn bè, tìm kiếm người dùng bằng số điện thoại chính xác, gửi/chấp nhận/từ chối/hủy lời mời kết bạn (`contact_requests`), quản lý bạn bè chính thức (`blocked = false`) và danh sách chặn người dùng (`blocked = true`) trong bảng `contacts`.
 
 ### Core Messaging & Offline-first (Tiêu chí 2: Chat trực tiếp, Chat nhóm, Tìm kiếm)
-- [ ] **REQ-messaging-realtime**: Nhắn tin văn bản trực tiếp 1-1 theo thời gian thực: gửi qua REST (`POST /api/conversations/{id}/messages`), nhận qua WebSocket thuần JSON (OkHttp events qua `/ws`) theo đúng ADR-008.
+- [ ] **REQ-messaging-realtime**: Nhắn tin văn bản trực tiếp 1-1 theo thời gian thực: gửi qua REST (`POST /api/conversations/{id}/messages`), nhận qua WebSocket thuần JSON (`/ws`) mang `syncEventId`, tuân thủ chính sách người lạ `allow_messages_from_non_contacts` (từ chối bằng `403 CONTACT_REQUIRED`).
 - [ ] **REQ-messaging-offline-first**: Hàng đợi gửi tin nhắn ngoại tuyến bền vững với Room SQLite, tự động thử lại và đồng bộ ngầm bằng WorkManager khi có kết nối mạng.
 - [ ] **REQ-messaging-delivery-read-status**: Quản lý vòng đời trạng thái tin nhắn (SENDING -> SENT -> DELIVERED -> READ) và hiển thị chỉ báo đang gõ (typing indicator).
-- [ ] **REQ-messaging-group-chat**: Tạo nhóm chat, thêm/xóa thành viên nhóm, phân quyền quản trị viên và cô lập lịch sử tin nhắn trước thời điểm gia nhập.
+- [ ] **REQ-messaging-group-chat**: Tạo nhóm chat, thêm/xóa thành viên nhóm (chỉ thêm người dùng đã kết bạn `ACCEPTED`), phân quyền quản trị viên và cô lập lịch sử tin nhắn trước thời điểm gia nhập.
 - [ ] **REQ-messaging-search**: Tìm kiếm nội dung tin nhắn cục bộ tốc độ cao trong Room SQLite FTS4 hỗ trợ tiếng Việt không dấu (chuẩn hóa `normalized_text`).
 
 ### Multimedia Attachments & Sync (Tiêu chí 3: Tin nhắn multimedia và file)
-- [ ] **REQ-messaging-media-attachments**: Gửi và nhận tệp đa phương tiện: ảnh nén, ghi âm giọng nói (voice note), video và tệp tài liệu với xác thực quyền truy cập an toàn.
-- [ ] **REQ-notifications-sync**: Phát thông báo tin nhắn mới nội bộ qua NotificationChannel và tự động đồng bộ bù dữ liệu qua API `/api/sync` khi ứng dụng mở lại.
+- [ ] **REQ-messaging-media-attachments**: Gửi và nhận tệp đa phương tiện: ảnh nén, ghi âm giọng nói (voice note), video file và tệp tài liệu với xác thực quyền truy cập an toàn; mở ra app ngoài qua `FileProvider`.
+- [ ] **REQ-notifications-sync**: Phát thông báo tin nhắn mới qua NotificationChannel khi online/WebSocket; đồng bộ nền best-effort qua WorkManager định kỳ 15 phút (không cam kết tức thời khi app bị force-stop); tự động đồng bộ bù dữ liệu qua API `/api/sync?after=<syncEventId>` từ bảng `sync_events` khi ứng dụng mở lại.
 
 ### Creative Extensions (Tiêu chí 4: Chức năng sáng tạo - 5đ)
-- [ ] **REQ-voice-call-webrtc**: *[Chức năng sáng tạo 1 - Ưu tiên chính]* Cuộc gọi thoại 1-1 thời gian thực bằng WebRTC qua WebSocket signaling thuần và máy chủ trung chuyển STUN/TURN coturn (hỗ trợ cả TCP/TLS 443), kèm theo dõi cuộc gọi nhỡ.
-- [ ] **REQ-message-translation**: *[Chức năng sáng tạo 2 - Dự phòng an toàn]* Dịch tin nhắn văn bản hai chiều Anh - Việt trực tiếp on-device bằng Google ML Kit Translation (chạy offline trên thiết bị sau khi tải gói ngôn ngữ ban đầu).
+- [ ] **REQ-voice-call-webrtc**: *[Chức năng sáng tạo 1 - Ưu tiên chính]* Cuộc gọi thoại 1-1 thời gian thực giữa hai người dùng đã kết bạn `ACCEPTED` và không bị chặn bằng WebRTC qua WebSocket signaling thuần và máy chủ trung chuyển STUN/TURN coturn (hỗ trợ cả TCP/TLS 443 và UDP 3478/443), kèm theo dõi cuộc gọi nhỡ.
+- [ ] **REQ-message-translation**: *[Chức năng sáng tạo 2 - Dự phòng an toàn]* Dịch tin nhắn văn bản hai chiều Anh - Việt trực tiếp on-device bằng Google ML Kit Translation (chạy offline trên thiết bị sau khi tải gói ngôn ngữ ban đầu, lưu Room `message_translation`).
 
 ### Testing & Quality Assurance (Tiêu chí 5: Unit test chạy đạt toàn bộ - 15đ)
 - [ ] **REQ-testing-quality**: Bộ Unit Test toàn diện cho Room DAO, Repository, ViewModel, Crypto, Mappers sử dụng JUnit4 & Mockito đạt tỷ lệ pass 100% trên JVM mà không cần thiết bị thật.
 
 ---
 
-## v2 Requirements (Dành cho bản nâng cấp mở rộng)
+## v2 Requirements (Hướng phát triển tương lai ngoài phạm vi V1)
 
 - **FEAT-auth-totp-2fa**: Bảo vệ hai lớp (2FA) bằng ứng dụng TOTP (Google Authenticator) và mã dự phòng.
 - **FEAT-auth-friend-challenge**: Thử thách xác thực chọn 3 bạn bè trong 15 người khi đăng nhập trên thiết bị lạ.
@@ -50,13 +50,14 @@ Mỗi yêu cầu ánh xạ trực tiếp đến các tiêu chí đánh giá tron
 
 ---
 
-## Out of Scope (Không thuộc phạm vi v1)
+## Out of Scope (Không thuộc phạm vi V1)
 
-| Tính năng | Lý do loại bỏ khỏi v1 |
+| Tính năng | Lý do loại bỏ khỏi V1 |
 |-----------|------------------------|
 | Xác thực 2FA TOTP & Thử thách bạn bè | Rườm rà, dễ gây tắc nghẽn luồng demo vấn đáp; đăng nhập OTP demo và mật khẩu đã đáp ứng 100% điểm rubric |
 | Bot AI LLM phía server | Phụ thuộc bên thứ 3 (OpenAI/Gemini API key), dễ gặp lỗi quota, độ trễ cao và không thuộc rubric |
 | Mã hoá đầu cuối E2EE | Độ phức tạp cao, mô hình Cloud Chat tiêu chuẩn giống Telegram phù hợp hơn với yêu cầu đồ án |
+| Thông báo đẩy FCM khi tắt app hoàn toàn | V1 dùng NotificationChannel khi online và WorkManager sync nền 15p best-effort; không phụ thuộc FCM |
 | Gửi SMS thật | Tốn kém chi phí viễn thông; thay thế hoàn hảo bằng OTP demo giả lập hiển thị mã |
 | Đăng nhập mạng xã hội (Google, Facebook) | Rubric và nghiệp vụ yêu cầu định danh duy nhất bằng số điện thoại |
 
@@ -66,7 +67,7 @@ Mỗi yêu cầu ánh xạ trực tiếp đến các tiêu chí đánh giá tron
 
 | Requirement | Phase thực hiện | Phụ trách | Trọng số Rubric | Status |
 |-------------|-----------------|-----------|-----------------|--------|
-| Nền móng CSDL | Phase 1 (Database & Supabase) | Nhóm trưởng | Nền tảng toàn hệ thống | Pending |
+| Nền móng CSDL (13 bảng V1) | Phase 1 (Database & Supabase) | Nhóm trưởng | Nền tảng toàn hệ thống | Pending |
 | REQ-ui-standards | Phase 2 (Foundation) & Phase 3 | Nhóm trưởng & Cả nhóm | Tiêu chí 3 & 5 (15đ + 15đ) | In Progress |
 | REQ-auth-registration | Phase 3 (Auth & Profile) | Thành viên 2 | Tiêu chí 2 (20đ) | Pending |
 | REQ-auth-login | Phase 3 (Auth & Profile) | Thành viên 2 | Tiêu chí 2 (20đ) | Pending |
@@ -91,4 +92,4 @@ Mỗi yêu cầu ánh xạ trực tiếp đến các tiêu chí đánh giá tron
 
 ---
 *Requirements defined: 2026-11-10*
-*Last updated: 2026-11-10 sau khi cập nhật lộ trình 7 phase và kiến trúc chống xung đột*
+*Last updated: 2026-11-10 sau khi cập nhật lộ trình 7 phase, CSDL 13 bảng V1 và đồng bộ API contract*

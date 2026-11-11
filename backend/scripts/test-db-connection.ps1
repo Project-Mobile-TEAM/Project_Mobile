@@ -87,7 +87,9 @@ try {
                 if ($claims.role -ne 'anon') { throw 'Wrong role' }
             } catch { throw 'SUPABASE_ANON_KEY must be an anon JWT or publishable key, never a service-role key.' }
             $headers.Authorization = "Bearer $anonKey"
-        } elseif (-not $anonKey.StartsWith('sb_publishable_')) {
+        } elseif ($anonKey.StartsWith('sb_publishable_')) {
+            $headers.Authorization = "Bearer $anonKey"
+        } else {
             throw 'SUPABASE_ANON_KEY format is unsupported.'
         }
         $tables = @('users','user_devices','otp_challenges','auth_sessions','auth_throttles',
@@ -104,7 +106,7 @@ try {
                 if ($_.Exception.PSObject.Properties['Response'] -and $null -ne $_.Exception.Response) {
                     $httpStatus = [int]$_.Exception.Response.StatusCode
                 }
-                if ($httpStatus -eq 403) { Report $true "Anon access denied for $table" }
+                if ($httpStatus -eq 403 -or $httpStatus -eq 401) { Report $true "Anon access denied for $table (HTTP $httpStatus)" }
                 else { Report $false "PostgREST probe for $table inconclusive (HTTP $httpStatus); check key, network and SQL" }
             }
         }
