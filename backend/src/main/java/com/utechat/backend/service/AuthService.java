@@ -166,8 +166,10 @@ public class AuthService {
         jdbc.update("INSERT INTO user_devices (user_id, device_id_hash, device_name, trusted, token_valid_after) "
                 + "VALUES (?, ?, ?, TRUE, ?) "
                 + "ON CONFLICT (user_id, device_id_hash) DO UPDATE SET device_name = EXCLUDED.device_name, "
-                + "last_seen_at = now(), revoked_at = NULL, token_valid_after = EXCLUDED.token_valid_after",
-                userId, deviceHash, name.length() > 100 ? name.substring(0, 100) : name, now());
+                + "last_seen_at = now(), revoked_at = NULL, "
+                // GREATEST: đăng nhập lại ngay sau khi đăng xuất không được làm token cũ sống lại.
+                + "token_valid_after = GREATEST(user_devices.token_valid_after, EXCLUDED.token_valid_after)",
+                userId, deviceHash, name.length() > 100 ? name.substring(0, 100) : name, Timestamp.from(Instant.now().minusSeconds(2)));
         return new AuthSuccessResponse("COMPLETE", jwt.issueAccessToken(userId, deviceHash), account.getProfile(userId));
     }
 

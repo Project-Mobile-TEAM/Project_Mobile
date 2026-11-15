@@ -12,10 +12,10 @@ import org.springframework.stereotype.Component;
 
 /**
  * OTP demo không gửi SMS thật: ghi mã vào thư mục otp-local, mỗi số một file (otp-local/84912345678.txt).
- * Chỉ bật ở profile dev; prod sẽ dùng cổng SMS thật qua cùng interface OtpDelivery.
+ * Chỉ bật ở profile dev hoặc demo; prod sẽ dùng cổng SMS thật qua cùng interface OtpDelivery.
  */
 @Component
-@Profile("dev")
+@Profile({"dev", "demo"})
 public class LocalFileOtpDelivery implements OtpDelivery {
     private final Path directory; // Thư mục chứa file OTP, mặc định tính từ nơi chạy backend.
 

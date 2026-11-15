@@ -125,3 +125,13 @@ Nếu gặp lỗi này, dừng Gradle daemon và dùng PowerShell xóa đúng th
 Đây là output sinh tự động; không xóa `app/schemas`, source hoặc dữ liệu cấu hình.
 AndroidX Test JUnit 1.3.0 / Espresso 3.7.0 được dùng để chạy được trên emulator API 37 có sẵn;
 compileSdk/targetSdk của ứng dụng vẫn là 35. Chưa kiểm thử trên thiết bị thật hoặc API 26.
+
+## Host backend lên server (Phase 3)
+
+Đóng gói `.\mvnw.cmd -DskipTests package` rồi chạy `java -jar target/backend-1.0.0.jar` với biến môi trường:
+
+| Biến | Ý nghĩa |
+|---|---|
+| `SPRING_PROFILES_ACTIVE=demo` | OTP demo (trả `demoOtp`, ghi `otp-local/`), chưa có cổng SMS thật. |
+| `JWT_SECRET` | Bắt buộc với `demo`: chuỗi ngẫu nhiên từ 32 ký tự. |
+| `SPRING_DATASOURCE_URL`, `_USERNAME`, `_PASSWORD` | Supabase pooler 6543 (xem SUPABASE_SETUP.md). |
