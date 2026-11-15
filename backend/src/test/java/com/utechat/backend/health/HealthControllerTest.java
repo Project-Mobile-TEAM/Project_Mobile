@@ -14,6 +14,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /** Kiểm tra hợp đồng HTTP và bảo đảm lỗi CSDL không làm lộ secret. */
 @WebMvcTest(HealthController.class)
+// Slice test chỉ kiểm hợp đồng HTTP của health; tắt bộ lọc Security (đã có SecurityConfig riêng, kiểm ở AuthApiTest).
+@org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc(addFilters = false)
 class HealthControllerTest {
     @Autowired private MockMvc mvc;
     @MockBean private JdbcTemplate jdbc;

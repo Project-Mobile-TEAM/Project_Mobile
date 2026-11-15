@@ -24,6 +24,17 @@ spring:
   jdbc:
     template:
       query-timeout: 5s
+# Bí mật ký JWT lấy từ biến môi trường JWT_SECRET (>= 32 ký tự); không có giá trị mặc định ngoài profile dev.
+jwt:
+  secret: ${JWT_SECRET:}
+  # Một JWT duy nhất sống 30 ngày, không có refresh token (ADR-018).
+  expiration-seconds: 2592000
+app:
+  # Chế độ demo: trả OTP trong response (ADR-002); chỉ bật ở profile dev.
+  demo-mode: false
+  otp:
+    # Giãn cách tối thiểu giữa hai lần gửi OTP cho cùng một số (F-01: 60 giây).
+    cooldown-seconds: 60
 logging:
   level:
     root: INFO

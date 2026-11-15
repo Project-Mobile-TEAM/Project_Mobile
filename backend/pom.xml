@@ -24,7 +24,16 @@
         <dependency><groupId>org.postgresql</groupId><artifactId>postgresql</artifactId><scope>runtime</scope></dependency>
         <!-- Chỉ đọc .env ở máy phát triển; secret không được đóng vào artifact. -->
         <dependency><groupId>io.github.cdimascio</groupId><artifactId>dotenv-java</artifactId><version>3.1.0</version></dependency>
+        <!-- Spring Security: BCrypt và chuỗi lọc JWT không trạng thái (ADR-006, ADR-018). -->
+        <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-security</artifactId></dependency>
+        <!-- JJWT 0.12.6: ký/kiểm HMAC-SHA256 cho JWT 30 ngày và token tạm. -->
+        <dependency><groupId>io.jsonwebtoken</groupId><artifactId>jjwt-api</artifactId><version>0.12.6</version></dependency>
+        <dependency><groupId>io.jsonwebtoken</groupId><artifactId>jjwt-impl</artifactId><version>0.12.6</version><scope>runtime</scope></dependency>
+        <dependency><groupId>io.jsonwebtoken</groupId><artifactId>jjwt-jackson</artifactId><version>0.12.6</version><scope>runtime</scope></dependency>
         <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-test</artifactId><scope>test</scope></dependency>
+        <dependency><groupId>org.springframework.security</groupId><artifactId>spring-security-test</artifactId><scope>test</scope></dependency>
+        <!-- PostgreSQL thật chạy nhúng cho test tích hợp: kiểm SQL trên đúng schema V1, không cần Docker hay Supabase. -->
+        <dependency><groupId>io.zonky.test</groupId><artifactId>embedded-postgres</artifactId><version>2.0.7</version><scope>test</scope></dependency>
     </dependencies>
     <build>
         <plugins>
