@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Chuỗi common do nhóm phụ trách module này quản lý; bản tiếng Anh mặc định. -->
 <resources>
-    <string name="app_name">UTEChat</string>
+    <string name="app_name">UTE-chat</string>
     <string name="tab_chat">Chats</string>
     <string name="tab_contacts">Friends</string>
     <string name="tab_profile">Profile</string>

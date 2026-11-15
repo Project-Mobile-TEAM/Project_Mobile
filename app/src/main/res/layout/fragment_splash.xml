@@ -15,7 +15,7 @@
         </FrameLayout>
         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
             android:layout_marginTop="10dp" android:text="@string/auth_brand" android:textColor="@android:color/white"
-            android:textSize="34sp" android:textStyle="bold" android:accessibilityHeading="true" />
+            android:textSize="36sp" android:textStyle="bold" android:accessibilityHeading="true" />
         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
             android:layout_marginTop="6dp" android:text="@string/auth_tagline" android:textColor="@android:color/white"
             android:textSize="15sp" />

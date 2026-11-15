@@ -15,7 +15,7 @@
     <string name="auth_register_heading">Số điện thoại của bạn</string>
     <string name="auth_register_subtitle">Chúng tôi sẽ gửi mã xác nhận gồm 6 số đến số này.</string>
     <string name="auth_phone_helper">Ví dụ: +84912345678</string>
-    <string name="auth_register_terms">Bằng việc tiếp tục, bạn đồng ý với Điều khoản và Chính sách quyền riêng tư của UTEchat.</string>
+    <string name="auth_register_terms">Bằng việc tiếp tục, bạn đồng ý với Điều khoản và Chính sách quyền riêng tư của UTE-chat.</string>
     <string name="auth_continue">Tiếp tục</string>
     <!-- Xác minh OTP -->
     <string name="auth_otp_title">Xác minh</string>

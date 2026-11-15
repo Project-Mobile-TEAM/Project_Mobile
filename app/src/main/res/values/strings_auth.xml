@@ -15,7 +15,7 @@
     <string name="auth_register_heading">Your phone number</string>
     <string name="auth_register_subtitle">We’ll send a 6-digit verification code to this number.</string>
     <string name="auth_phone_helper">Example: +84912345678</string>
-    <string name="auth_register_terms">By continuing, you agree to the Terms and Privacy Policy of UTEchat.</string>
+    <string name="auth_register_terms">By continuing, you agree to the Terms and Privacy Policy of UTE-chat.</string>
     <string name="auth_continue">Continue</string>
     <!-- Xác minh OTP -->
     <string name="auth_otp_title">Verify</string>
