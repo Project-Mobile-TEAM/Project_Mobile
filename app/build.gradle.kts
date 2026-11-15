@@ -31,8 +31,8 @@ android {
 
     buildTypes {
         getByName("debug") {
-            // Chỉ Debug có hồ sơ giả để phát triển UI khi backend chưa có module nghiệp vụ.
-            buildConfigField("boolean", "USE_FAKE_DATA", "true")
+            // Chỉ Debug có hồ sơ giả; chạy backend thật bằng: gradlew installDebug -PuseFakeData=false
+            buildConfigField("boolean", "USE_FAKE_DATA", providers.gradleProperty("useFakeData").orElse("true").get())
         }
         getByName("release") {
             buildConfigField("boolean", "USE_FAKE_DATA", "false")

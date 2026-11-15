@@ -4,6 +4,7 @@ import android.content.Context;
 import com.utechat.BuildConfig;
 import com.utechat.data.local.AppDatabase;
 import com.utechat.data.remote.api.*;
+import com.utechat.data.session.SessionManager;
 import com.utechat.data.repository.*;
 import com.utechat.data.repository.fake.*;
 import com.utechat.data.repository.real.*;
@@ -14,12 +15,15 @@ public final class Injection {
     private static ContactsRepository contacts;
     private static ChatRepository chat;
     private static HealthRepository health;
+    private static final java.util.concurrent.Executor DISK = java.util.concurrent.Executors.newSingleThreadExecutor();
     private Injection() { }
 
     public static synchronized AuthRepository provideAuthRepository(Context context) {
         if (auth == null) {
-            auth = useFake() ? new FakeAuthRepository() : new RealAuthRepository(
-                    AppDatabase.getInstance(context).userDao(), ApiClient.getRetrofit().create(AuthApi.class));
+            AppDatabase db = AppDatabase.getInstance(context);
+            // Đăng xuất xoá cache Room trên luồng đĩa riêng (không truy cập DAO trên luồng chính).
+            auth = useFake() ? new FakeAuthRepository() : new RealAuthRepository(ApiClient.getRetrofit().create(AuthApi.class),
+                    SessionManager.get(), () -> DISK.execute(db::clearAllTables));
         }
         return auth;
     }

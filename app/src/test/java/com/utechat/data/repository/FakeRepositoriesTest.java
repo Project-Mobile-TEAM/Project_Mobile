@@ -12,10 +12,10 @@ public class FakeRepositoriesTest {
 
     @Test public void loginUsesExactPhoneAndLogoutClearsSession() {
         FakeAuthRepository auth = new FakeAuthRepository();
-        assertEquals(DemoData.ALICE, auth.login("+84901111111", "demo").getValue().getId());
+        assertEquals(DemoData.ALICE, auth.login("+84901111111", "demo").getValue().data.getId());
         auth.logout();
         assertNull(auth.getCurrentUser().getValue());
-        assertNull(auth.login("0901111111", "demo").getValue());
+        assertEquals("BAD_CREDENTIALS", auth.login("0901111111", "demo").getValue().errorCode);
         assertEquals(5, DemoData.users().size());
     }
 

@@ -47,11 +47,11 @@ public class LoginFragment extends Fragment {
 
         binding.btnLogin.setEnabled(false); // Chặn bấm lặp trong lúc chờ.
         // shortcut: LiveData theo từng lần gọi; khi Real gọi mạng thật cần giữ kết quả trong ViewModel để sống qua xoay màn hình.
-        viewModel.login(phone, password).observe(getViewLifecycleOwner(), user -> {
+        viewModel.login(phone, password).observe(getViewLifecycleOwner(), result -> {
             binding.btnLogin.setEnabled(true);
-            if (user == null) {
-                // Lỗi chung, không nói rõ số có tồn tại hay không (bảo mật F-02).
-                binding.tilPassword.setError(getString(R.string.auth_error_bad_credentials));
+            if (!result.isSuccess()) {
+                // Sai thông tin hiện lỗi chung (không nói số có tồn tại hay không); bị khoá hay mất mạng thì báo đúng.
+                binding.tilPassword.setError(getString(AuthErrors.message(result.errorCode)));
             } else {
                 Navigation.findNavController(binding.getRoot()).navigate(R.id.action_login_to_main);
             }

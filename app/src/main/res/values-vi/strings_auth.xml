@@ -68,4 +68,7 @@
     <string name="auth_rule_special">Có ký tự đặc biệt</string>
     <string name="auth_rule_met">Đạt</string>
     <string name="auth_rule_unmet">Chưa đạt</string>
+    <string name="auth_error_locked">Thử quá nhiều lần. Vui lòng thử lại sau.</string>
+    <string name="auth_error_network">Không kết nối được máy chủ. Kiểm tra mạng của bạn.</string>
+    <string name="auth_session_expired">Phiên đăng nhập đã hết hạn hoặc thiết bị đã bị đăng xuất.</string>
 </resources>

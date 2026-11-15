@@ -69,7 +69,7 @@ public class AuthViewModel extends ViewModel {
         return Math.max(0, RESEND_MILLIS - (SystemClock.elapsedRealtime() - sentAt));
     }
 
-    public LiveData<UserEntity> login(String phoneE164, String password) {
+    public LiveData<AuthResult<UserEntity>> login(String phoneE164, String password) {
         return repository.login(phoneE164, password);
     }
 

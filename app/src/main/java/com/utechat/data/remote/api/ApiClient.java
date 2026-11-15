@@ -19,7 +19,7 @@ public final class ApiClient {
                 .baseUrl(BuildConfig.BACKEND_BASE_URL)
                 .client(new OkHttpClient.Builder().connectTimeout(15, TimeUnit.SECONDS)
                         .readTimeout(15, TimeUnit.SECONDS).callTimeout(20, TimeUnit.SECONDS)
-                        .addInterceptor(LOGGING).build())
+                        .addInterceptor(new AuthInterceptor()).addInterceptor(LOGGING).build())
                 .addConverterFactory(GsonConverterFactory.create()).build();
     }
 

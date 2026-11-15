@@ -68,4 +68,7 @@
     <string name="auth_rule_special">A special character</string>
     <string name="auth_rule_met">Met</string>
     <string name="auth_rule_unmet">Not met</string>
+    <string name="auth_error_locked">Too many attempts. Please try again later.</string>
+    <string name="auth_error_network">Can’t reach the server. Check your connection.</string>
+    <string name="auth_session_expired">Your session has expired or this device was logged out.</string>
 </resources>

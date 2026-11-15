@@ -25,7 +25,7 @@ public class FakeAuthRepository implements AuthRepository {
     private final List<DeviceInfo> devices = new ArrayList<>();
     private UserEntity resetUser; // Tài khoản đang đặt lại mật khẩu; null nếu số chưa đăng ký.
 
-    @Override public LiveData<UserEntity> login(String phoneE164, String password) {
+    @Override public LiveData<AuthResult<UserEntity>> login(String phoneE164, String password) {
         // Fake chọn hồ sơ bằng số chính xác; không kiểm mật khẩu và chỉ được bật ở Debug.
         UserEntity found = null;
         for (UserEntity user : DemoData.users()) {
@@ -33,7 +33,7 @@ public class FakeAuthRepository implements AuthRepository {
         }
         setCurrent(found);
         // Trả LiveData mới cho mỗi lần gọi để màn hình không nhận lại kết quả cũ.
-        return new MutableLiveData<>(found);
+        return new MutableLiveData<>(found == null ? AuthResult.error("BAD_CREDENTIALS") : AuthResult.ok(found));
     }
 
     @Override public LiveData<UserEntity> getCurrentUser() { return current; }

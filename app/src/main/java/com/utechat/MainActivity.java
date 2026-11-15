@@ -7,9 +7,13 @@ import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.navigation.NavController;
+import androidx.navigation.NavOptions;
 import androidx.navigation.fragment.NavHostFragment;
 import androidx.navigation.ui.NavigationUI;
+import com.google.android.material.snackbar.Snackbar;
+import com.utechat.data.session.SessionEvents;
 import com.utechat.databinding.ActivityMainBinding;
+import com.utechat.di.Injection;
 
 /** Activity duy nhất; điều hướng Fragment và xử lý vùng an toàn của Android SDK36. */
 public class MainActivity extends AppCompatActivity {
@@ -31,6 +35,14 @@ public class MainActivity extends AppCompatActivity {
         NavHostFragment host = (NavHostFragment) getSupportFragmentManager().findFragmentById(R.id.nav_host_fragment);
         NavController controller = host.getNavController();
         NavigationUI.setupWithNavController(binding.bottomNav, controller);
+        // F-07: server từ chối token (hết hạn/thu hồi) thì dọn phiên cục bộ và về màn Đăng nhập kèm thông báo.
+        SessionEvents.expired().observe(this, expired -> {
+            if (!Boolean.TRUE.equals(expired)) return;
+            SessionEvents.consume(); // Xoay màn hình không xử lý lại sự kiện cũ.
+            Injection.provideAuthRepository(this).logout();
+            controller.navigate(R.id.nav_auth, null, new NavOptions.Builder().setPopUpTo(R.id.nav_graph, true).build());
+            Snackbar.make(binding.getRoot(), R.string.auth_session_expired, Snackbar.LENGTH_LONG).show();
+        });
         controller.addOnDestinationChangedListener((nav, destination, arguments) -> {
             int id = destination.getId();
             // Auth/Splash/detail không hiển thị tab để người dùng không đi tắt qua xác thực.

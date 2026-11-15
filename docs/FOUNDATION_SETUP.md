@@ -46,6 +46,24 @@ Release chặn cleartext và tắt Fake; khi triển khai thật phải cấu h�
 Quy tắc bắt buộc cho các phase tiếp theo: [DEPLOYMENT_SECURITY.md](DEPLOYMENT_SECURITY.md). Hiện chưa có gate build kiểm URL HTTPS hoặc cấu hình prod/Nginx/chứng chỉ; assembleRelease thành công chưa chứng minh bản hosted hoạt động.
 Log HTTP Debug chỉ ở BASIC, không ghi body/header xác thực.
 
+## Chạy app với backend thật (Phase 3)
+
+Mặc định Debug dùng dữ liệu giả (`USE_FAKE_DATA=true`). Để gọi backend thật:
+
+```powershell
+.\gradlew.bat installDebug -PuseFakeData=false
+```
+
+Chưa có Supabase/.env thì chạy backend trên PostgreSQL nhúng (dữ liệu mất khi tắt), từ thư mục `backend`:
+
+```powershell
+.\mvnw.cmd test-compile
+.\mvnw.cmd -q dependency:build-classpath "-Dmdep.outputFile=cp.txt" "-Dmdep.includeScope=test"
+java -cp "target\test-classes;target\classes;$(Get-Content cp.txt -Raw)" com.utechat.backend.LocalDevServer
+```
+
+OTP demo hiện trong response (`demoOtp`) và được ghi vào `backend/otp-local/<số>.txt`. JWT lưu trong Android Keystore (`SessionManager`); server trả 401 thì app tự về màn Đăng nhập.
+
 ## Luồng kiểm tra
 
 SplashFragment → HealthViewModel → HealthRepository → Retrofit → /api/health/ready → Supabase.

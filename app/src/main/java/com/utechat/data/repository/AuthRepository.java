@@ -6,8 +6,8 @@ import java.util.List;
 
 /** Ranh giới AuthRepository: UI không phụ thuộc cách lưu SQLite hoặc gọi REST. */
 public interface AuthRepository {
-    // Đăng nhập: giá trị null nghĩa là sai thông tin; bản Fake chỉ dành Debug.
-    LiveData<UserEntity> login(String phoneE164, String password);
+    // Đăng nhập bằng mật khẩu: lỗi BAD_CREDENTIALS, LOCKED, NETWORK...; bản Fake chỉ dành Debug.
+    LiveData<AuthResult<UserEntity>> login(String phoneE164, String password);
     LiveData<UserEntity> getCurrentUser();
     void logout();
 

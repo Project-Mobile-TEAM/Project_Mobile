@@ -10,9 +10,11 @@ import androidx.fragment.app.Fragment;
 import androidx.lifecycle.Lifecycle;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.navigation.NavController;
+import androidx.navigation.NavOptions;
 import androidx.navigation.fragment.NavHostFragment;
 import com.utechat.R;
 import com.utechat.data.repository.HealthRepository;
+import com.utechat.data.session.SessionManager;
 import com.utechat.databinding.FragmentSplashBinding;
 import com.utechat.di.Injection;
 import com.utechat.di.ViewModelFactory;
@@ -74,7 +76,12 @@ public class SplashFragment extends Fragment {
         if (binding == null || !getViewLifecycleOwner().getLifecycle().getCurrentState().isAtLeast(Lifecycle.State.STARTED)) return;
         NavController controller = NavHostFragment.findNavController(this);
         if (controller.getCurrentDestination() != null && controller.getCurrentDestination().getId() == R.id.splashFragment) {
-            controller.navigate(R.id.action_splash_to_auth);
+            // Đã có token (F-26): vào thẳng app, offline-first; chưa có thì sang Đăng nhập.
+            if (SessionManager.get().hasToken()) {
+                controller.navigate(R.id.nav_chat, null, new NavOptions.Builder().setPopUpTo(R.id.splashFragment, true).build());
+            } else {
+                controller.navigate(R.id.action_splash_to_auth);
+            }
         }
     }
 
