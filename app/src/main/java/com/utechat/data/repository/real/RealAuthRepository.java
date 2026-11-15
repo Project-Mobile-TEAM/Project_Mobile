@@ -34,4 +34,14 @@ public class RealAuthRepository implements AuthRepository {
             String displayName, String password) {
         return new MutableLiveData<>(AuthResult.error("UNAVAILABLE"));
     }
+
+    @Override public LiveData<AuthResult<OtpChallenge>> requestResetOtp(String phoneE164) {
+        return new MutableLiveData<>(AuthResult.error("UNAVAILABLE"));
+    }
+    @Override public LiveData<AuthResult<String>> verifyResetOtp(String challengeId, String code) {
+        return new MutableLiveData<>(AuthResult.error("UNAVAILABLE"));
+    }
+    @Override public LiveData<AuthResult<UserEntity>> completePasswordReset(String resetToken, String newPassword) {
+        return new MutableLiveData<>(AuthResult.error("UNAVAILABLE"));
+    }
 }

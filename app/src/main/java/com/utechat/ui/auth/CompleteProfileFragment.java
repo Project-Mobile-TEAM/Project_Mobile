@@ -26,7 +26,7 @@ public class CompleteProfileFragment extends Fragment {
         viewModel = AuthViewModel.of(this);
         binding.toolbar.setNavigationOnClickListener(v -> Navigation.findNavController(v).navigateUp());
         // Mất registrationToken (tiến trình bị thu hồi) thì phải xác minh OTP lại: quay về bước trước.
-        if (viewModel.getRegistrationToken() == null) {
+        if (viewModel.getFlowToken() == null) {
             Navigation.findNavController(view).navigateUp();
             return;
         }

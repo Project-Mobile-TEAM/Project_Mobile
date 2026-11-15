@@ -29,6 +29,7 @@ public class AuthViewModel extends ViewModel {
     private static final String KEY_PHONE = "phone";
     private static final String KEY_CHALLENGE_ID = "challengeId";
     private static final String KEY_OTP_SENT_AT = "otpSentAt";
+    private static final String KEY_RESET_FLOW = "resetFlow"; // true khi đang quên mật khẩu, false khi đăng ký.
 
     /** Dựng ViewModel theo mẫu slide Session 4: lấy Application và SavedStateHandle từ CreationExtras. */
     public static final ViewModelProvider.Factory FACTORY = ViewModelProvider.Factory.from(
@@ -39,9 +40,9 @@ public class AuthViewModel extends ViewModel {
 
     private final SavedStateHandle state;
     private final AuthRepository repository;
-    // Cố ý KHÔNG lưu vào SavedStateHandle: demoCode chỉ để hiển thị, registrationToken là thông tin xác thực dùng một lần.
+    // Cố ý KHÔNG lưu vào SavedStateHandle: demoCode chỉ để hiển thị, flowToken (registrationToken hoặc resetToken) là thông tin xác thực dùng một lần.
     private String demoCode;
-    private String registrationToken;
+    private String flowToken;
 
     public AuthViewModel(SavedStateHandle state, AuthRepository repository) {
         this.state = state;
@@ -57,7 +58,9 @@ public class AuthViewModel extends ViewModel {
 
     @Nullable public String getPhone() { return state.get(KEY_PHONE); }
     @Nullable public String getDemoCode() { return demoCode; }
-    @Nullable public String getRegistrationToken() { return registrationToken; }
+    @Nullable public String getFlowToken() { return flowToken; }
+    /** Đang ở luồng quên mật khẩu (true) hay đăng ký (false); quyết định API và màn kế tiếp sau OTP. */
+    public boolean isResetFlow() { return Boolean.TRUE.equals(state.get(KEY_RESET_FLOW)); }
 
     /** Số mili giây còn phải chờ trước khi được gửi lại OTP; 0 nghĩa là gửi lại được. */
     public long resendRemainingMillis() {
@@ -70,10 +73,28 @@ public class AuthViewModel extends ViewModel {
         return repository.login(phoneE164, password);
     }
 
-    /** Gửi OTP (cũng dùng cho "Gửi lại"); thành công thì nhớ phiên và bắt đầu đếm ngược. */
+    /** Bắt đầu đăng ký: gửi OTP tới số mới. */
     public LiveData<AuthResult<OtpChallenge>> requestOtp(String phoneE164) {
-        return Transformations.map(repository.requestRegisterOtp(phoneE164), result -> {
+        return sendOtp(phoneE164, false);
+    }
+
+    /** Bắt đầu quên mật khẩu: gửi OTP đặt lại mật khẩu. */
+    public LiveData<AuthResult<OtpChallenge>> requestResetOtp(String phoneE164) {
+        return sendOtp(phoneE164, true);
+    }
+
+    /** "Gửi lại" ở màn OTP: gửi lại theo đúng luồng đang chạy. */
+    public LiveData<AuthResult<OtpChallenge>> resendOtp() {
+        return sendOtp(getPhone(), isResetFlow());
+    }
+
+    // Thành công thì nhớ phiên, luồng đang chạy và bắt đầu đếm ngược 60 giây.
+    private LiveData<AuthResult<OtpChallenge>> sendOtp(String phoneE164, boolean reset) {
+        LiveData<AuthResult<OtpChallenge>> source = reset
+                ? repository.requestResetOtp(phoneE164) : repository.requestRegisterOtp(phoneE164);
+        return Transformations.map(source, result -> {
             if (result.isSuccess()) {
+                state.set(KEY_RESET_FLOW, reset);
                 state.set(KEY_PHONE, phoneE164);
                 state.set(KEY_CHALLENGE_ID, result.data.challengeId);
                 state.set(KEY_OTP_SENT_AT, SystemClock.elapsedRealtime());
@@ -84,13 +105,20 @@ public class AuthViewModel extends ViewModel {
     }
 
     public LiveData<AuthResult<String>> verifyOtp(String code) {
-        return Transformations.map(repository.verifyRegisterOtp(state.get(KEY_CHALLENGE_ID), code), result -> {
-            if (result.isSuccess()) registrationToken = result.data;
+        String challengeId = state.get(KEY_CHALLENGE_ID);
+        LiveData<AuthResult<String>> source = isResetFlow()
+                ? repository.verifyResetOtp(challengeId, code) : repository.verifyRegisterOtp(challengeId, code);
+        return Transformations.map(source, result -> {
+            if (result.isSuccess()) flowToken = result.data;
             return result;
         });
     }
 
     public LiveData<AuthResult<UserEntity>> completeRegister(String displayName, String password) {
-        return repository.completeRegister(registrationToken, displayName, password);
+        return repository.completeRegister(flowToken, displayName, password);
+    }
+
+    public LiveData<AuthResult<UserEntity>> completePasswordReset(String newPassword) {
+        return repository.completePasswordReset(flowToken, newPassword);
     }
 }

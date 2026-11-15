@@ -82,7 +82,8 @@ public class OtpFragment extends Fragment {
         viewModel.verifyOtp(String.valueOf(binding.etCode.getText())).observe(getViewLifecycleOwner(), result -> {
             binding.btnConfirm.setEnabled(true);
             if (result.isSuccess()) {
-                Navigation.findNavController(binding.getRoot()).navigate(R.id.action_otp_to_complete);
+                Navigation.findNavController(binding.getRoot()).navigate(viewModel.isResetFlow()
+                        ? R.id.action_otp_to_reset : R.id.action_otp_to_complete);
             } else {
                 showError(result.errorCode);
             }
@@ -91,7 +92,7 @@ public class OtpFragment extends Fragment {
 
     private void resend() {
         binding.btnResend.setEnabled(false);
-        viewModel.requestOtp(viewModel.getPhone()).observe(getViewLifecycleOwner(), result -> {
+        viewModel.resendOtp().observe(getViewLifecycleOwner(), result -> {
             if (result.isSuccess()) {
                 binding.etCode.setText(""); // Mã cũ không còn dùng được.
                 if (viewModel.getDemoCode() != null) {

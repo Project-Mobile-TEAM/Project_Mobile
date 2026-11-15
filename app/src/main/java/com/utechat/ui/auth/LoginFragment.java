@@ -25,6 +25,8 @@ public class LoginFragment extends Fragment {
         binding.btnLogin.setOnClickListener(v -> submit());
         binding.btnGoRegister.setOnClickListener(v ->
                 Navigation.findNavController(v).navigate(R.id.action_login_to_register));
+        binding.btnForgot.setOnClickListener(v ->
+                Navigation.findNavController(v).navigate(R.id.action_login_to_forgot));
         // Release không được mở đường tắt bỏ qua xác thực.
         binding.btnPreview.setVisibility(BuildConfig.DEBUG && BuildConfig.USE_FAKE_DATA ? View.VISIBLE : View.GONE);
         binding.btnPreview.setOnClickListener(v ->

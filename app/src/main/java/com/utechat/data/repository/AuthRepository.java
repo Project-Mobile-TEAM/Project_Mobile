@@ -16,4 +16,11 @@ public interface AuthRepository {
     LiveData<AuthResult<String>> verifyRegisterOtp(String challengeId, String code);
     // Đăng ký bước 3: tạo tài khoản bằng registrationToken, tên hiển thị và mật khẩu.
     LiveData<AuthResult<UserEntity>> completeRegister(String registrationToken, String displayName, String password);
+
+    // Quên mật khẩu (F-04) bước 1: gửi OTP; số chưa đăng ký vẫn trả thành công để không lộ số có tồn tại.
+    LiveData<AuthResult<OtpChallenge>> requestResetOtp(String phoneE164);
+    // Bước 2: xác minh OTP, trả resetToken dùng một lần.
+    LiveData<AuthResult<String>> verifyResetOtp(String challengeId, String code);
+    // Bước 3: đặt mật khẩu mới; thành công thì thiết bị hiện tại được đăng nhập.
+    LiveData<AuthResult<UserEntity>> completePasswordReset(String resetToken, String newPassword);
 }

@@ -48,4 +48,24 @@
     <string name="auth_error_otp_attempts">Nhập sai quá nhiều lần. Hãy yêu cầu mã mới.</string>
     <string name="auth_error_otp_rate_limit">Yêu cầu quá nhiều lần. Vui lòng thử lại sau.</string>
     <string name="auth_error_generic">Đã có lỗi xảy ra. Vui lòng thử lại.</string>
+    <!-- Quên / đặt lại mật khẩu -->
+    <string name="auth_forgot_link">Quên mật khẩu?</string>
+    <string name="auth_forgot_title">Quên mật khẩu</string>
+    <string name="auth_forgot_heading">Khôi phục tài khoản</string>
+    <string name="auth_forgot_subtitle">Nhập số điện thoại đã đăng ký. Chúng tôi sẽ gửi mã để bạn đặt lại mật khẩu.</string>
+    <string name="auth_send_code">Gửi mã xác nhận</string>
+    <string name="auth_reset_title">Đặt lại mật khẩu</string>
+    <string name="auth_reset_heading">Tạo mật khẩu mới</string>
+    <string name="auth_hint_new_password">Mật khẩu mới</string>
+    <string name="auth_reset_submit">Đặt lại mật khẩu</string>
+    <string name="auth_strength">Độ mạnh: %1$s</string>
+    <string name="auth_strength_none">Chưa có</string>
+    <string name="auth_strength_weak">Yếu</string>
+    <string name="auth_strength_medium">Trung bình</string>
+    <string name="auth_strength_strong">Mạnh</string>
+    <string name="auth_rule_length">Ít nhất 8 ký tự</string>
+    <string name="auth_rule_letters_digits">Gồm cả chữ và số</string>
+    <string name="auth_rule_special">Có ký tự đặc biệt</string>
+    <string name="auth_rule_met">Đạt</string>
+    <string name="auth_rule_unmet">Chưa đạt</string>
 </resources>

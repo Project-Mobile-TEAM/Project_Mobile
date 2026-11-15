@@ -26,6 +26,15 @@ public final class AuthValidator {
         return password.length() >= 8 && password.matches(".*[A-Za-z].*") && password.matches(".*\\d.*");
     }
 
+    /** Số tiêu chí mật khẩu đạt (0 đến 3): đủ 8 ký tự, có cả chữ và số, có ký tự đặc biệt. Dùng cho thanh độ mạnh. */
+    public static int passwordScore(String password) {
+        int score = 0;
+        if (password.length() >= 8) score++;
+        if (password.matches(".*[A-Za-z].*") && password.matches(".*\\d.*")) score++;
+        if (password.matches(".*[^A-Za-z0-9].*")) score++;
+        return score;
+    }
+
     /** Tên hiển thị 1 đến 50 ký tự (ADR/F-01). */
     public static boolean isNameValid(String name) {
         int length = name.trim().length();

@@ -32,6 +32,13 @@ public class AuthValidatorTest {
         assertFalse(AuthValidator.isPasswordValid("12345678")); // Thiếu chữ.
     }
 
+    @Test public void passwordScore_countsCriteria() {
+        assertEquals(0, AuthValidator.passwordScore(""));
+        assertEquals(1, AuthValidator.passwordScore("abcdefgh")); // Chỉ đủ độ dài.
+        assertEquals(2, AuthValidator.passwordScore("abcd1234")); // Độ dài + chữ và số.
+        assertEquals(3, AuthValidator.passwordScore("abcd123!")); // Thêm ký tự đặc biệt.
+    }
+
     @Test public void name_lengthBounds() {
         assertFalse(AuthValidator.isNameValid("   "));
         assertTrue(AuthValidator.isNameValid("A"));

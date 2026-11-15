@@ -48,4 +48,24 @@
     <string name="auth_error_otp_attempts">Too many wrong attempts. Request a new code.</string>
     <string name="auth_error_otp_rate_limit">Too many requests. Please try again later.</string>
     <string name="auth_error_generic">Something went wrong. Please try again.</string>
+    <!-- Quên / đặt lại mật khẩu -->
+    <string name="auth_forgot_link">Forgot password?</string>
+    <string name="auth_forgot_title">Forgot password</string>
+    <string name="auth_forgot_heading">Recover your account</string>
+    <string name="auth_forgot_subtitle">Enter your registered phone number. We’ll send a code so you can reset your password.</string>
+    <string name="auth_send_code">Send verification code</string>
+    <string name="auth_reset_title">Reset password</string>
+    <string name="auth_reset_heading">Create a new password</string>
+    <string name="auth_hint_new_password">New password</string>
+    <string name="auth_reset_submit">Reset password</string>
+    <string name="auth_strength">Strength: %1$s</string>
+    <string name="auth_strength_none">None</string>
+    <string name="auth_strength_weak">Weak</string>
+    <string name="auth_strength_medium">Medium</string>
+    <string name="auth_strength_strong">Strong</string>
+    <string name="auth_rule_length">At least 8 characters</string>
+    <string name="auth_rule_letters_digits">Letters and numbers</string>
+    <string name="auth_rule_special">A special character</string>
+    <string name="auth_rule_met">Met</string>
+    <string name="auth_rule_unmet">Not met</string>
 </resources>

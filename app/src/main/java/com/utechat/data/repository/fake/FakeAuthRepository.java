@@ -14,6 +14,7 @@ public class FakeAuthRepository implements AuthRepository {
     public static final String DEMO_OTP = "123456";
     private final MutableLiveData<UserEntity> current = new MutableLiveData<>(null);
     private String pendingPhone; // Số đang đăng ký, nhớ giữa ba bước.
+    private UserEntity resetUser; // Tài khoản đang đặt lại mật khẩu; null nếu số chưa đăng ký.
 
     @Override public LiveData<UserEntity> login(String phoneE164, String password) {
         // Fake chọn hồ sơ bằng số chính xác; không kiểm mật khẩu và chỉ được bật ở Debug.
@@ -51,5 +52,25 @@ public class FakeAuthRepository implements AuthRepository {
         user.setAllowMessagesFromNonContacts(true); // Mặc định theo F-01.
         current.setValue(user);
         return new MutableLiveData<>(AuthResult.ok(user));
+    }
+
+    @Override public LiveData<AuthResult<OtpChallenge>> requestResetOtp(String phoneE164) {
+        // Luôn trả thành công (không lộ số có tồn tại); số lạ thì bước xác minh sẽ không bao giờ đúng.
+        resetUser = null;
+        for (UserEntity user : DemoData.users()) {
+            if (phoneE164.equals(user.getPhone())) resetUser = user;
+        }
+        return new MutableLiveData<>(AuthResult.ok(new OtpChallenge("fake-reset-challenge", DEMO_OTP)));
+    }
+
+    @Override public LiveData<AuthResult<String>> verifyResetOtp(String challengeId, String code) {
+        return new MutableLiveData<>(resetUser != null && DEMO_OTP.equals(code)
+                ? AuthResult.ok("fake-reset-token") : AuthResult.error("OTP_INVALID"));
+    }
+
+    @Override public LiveData<AuthResult<UserEntity>> completePasswordReset(String resetToken, String newPassword) {
+        if (resetUser == null) return new MutableLiveData<>(AuthResult.error("VALIDATION"));
+        current.setValue(resetUser);
+        return new MutableLiveData<>(AuthResult.ok(resetUser));
     }
 }

@@ -30,6 +30,18 @@ public class FakeRepositoriesTest {
         assertEquals("Khang", auth.getCurrentUser().getValue().getDisplayName());
     }
 
+    @Test public void resetFlowWorksForKnownPhoneAndNeverSucceedsForUnknown() {
+        FakeAuthRepository auth = new FakeAuthRepository();
+        // Số lạ vẫn nhận phiên OTP (không lộ số tồn tại) nhưng xác minh luôn thất bại.
+        assertTrue(auth.requestResetOtp("+84912345678").getValue().isSuccess());
+        assertEquals("OTP_INVALID", auth.verifyResetOtp("c", FakeAuthRepository.DEMO_OTP).getValue().errorCode);
+        // Số có tài khoản: OTP đúng thì đặt lại và đăng nhập luôn.
+        auth.requestResetOtp("+84901111111");
+        String token = auth.verifyResetOtp("c", FakeAuthRepository.DEMO_OTP).getValue().data;
+        assertEquals(DemoData.ALICE, auth.completePasswordReset(token, "abcd1234").getValue().data.getId());
+        assertEquals(DemoData.ALICE, auth.getCurrentUser().getValue().getId());
+    }
+
     @Test public void contactsRespectDirectionAndPrivacyFixture() {
         FakeContactsRepository contacts = new FakeContactsRepository();
         assertEquals(2, contacts.getFriends(DemoData.ALICE).getValue().size());

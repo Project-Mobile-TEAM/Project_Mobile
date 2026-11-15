@@ -30,6 +30,15 @@
         <item name="android:textColor">?attr/colorOnSurface</item>
         <item name="android:importantForAccessibility">no</item>
     </style>
+    <!-- Một dòng tiêu chí mật khẩu: icon tích/X bên trái chữ. -->
+    <style name="Widget.UTEChat.Rule" parent="">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">8dp</item>
+        <item name="android:drawablePadding">10dp</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:textAppearance">?attr/textAppearanceBodyMedium</item>
+    </style>
     <!-- Tiêu đề lớn của màn (ví dụ "Số điện thoại của bạn"). -->
     <style name="TextAppearance.UTEChat.Heading" parent="TextAppearance.Material3.HeadlineSmall">
         <item name="android:textSize">26sp</item>
