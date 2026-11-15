@@ -1,6 +1,5 @@
 package com.utechat;
 
-import android.content.res.Configuration;
 import android.os.Bundle;
 import android.view.View;
 import androidx.appcompat.app.AppCompatActivity;
@@ -31,7 +30,10 @@ public class MainActivity extends AppCompatActivity {
         ViewCompat.setOnApplyWindowInsetsListener(binding.main, (view, insets) -> {
             // Cộng cả bàn phím (ime) để nút ở đáy màn auth không bị bàn phím che khi edge-to-edge.
             Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.ime());
-            view.setPadding(bars.left, bars.top, bars.right, bars.bottom);
+            view.setPadding(bars.left, 0, bars.right, bars.bottom);
+            // Phần inset trên cùng do status_bg đảm nhiệm (xanh) để thanh tiêu đề liền mạch với status bar.
+            binding.statusBg.getLayoutParams().height = bars.top;
+            binding.statusBg.requestLayout();
             return insets;
         });
         NavHostFragment host = (NavHostFragment) getSupportFragmentManager().findFragmentById(R.id.nav_host_fragment);
@@ -50,12 +52,11 @@ public class MainActivity extends AppCompatActivity {
             // Auth/Splash/detail không hiển thị tab để người dùng không đi tắt qua xác thực.
             boolean topLevel = id == R.id.chatListFragment || id == R.id.contactsListFragment || id == R.id.profileFragment;
             binding.bottomNav.setVisibility(topLevel ? View.VISIBLE : View.GONE);
-            // Vùng status bar lấy màu nền của root: Splash nối gradient xanh (icon trắng), các màn khác cùng màu thanh tiêu đề (Figma).
+            // Splash tự có gradient phủ tới mép trên; các màn khác có status bar xanh nên icon luôn trắng.
             boolean splash = id == R.id.splashFragment;
-            binding.main.setBackgroundResource(splash ? R.drawable.bg_splash : R.color.ute_card);
-            boolean night = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)
-                    == Configuration.UI_MODE_NIGHT_YES;
-            WindowCompat.getInsetsController(getWindow(), binding.main).setAppearanceLightStatusBars(!splash && !night);
+            binding.statusBg.setVisibility(splash ? View.GONE : View.VISIBLE);
+            binding.main.setBackgroundResource(splash ? R.drawable.bg_splash : R.color.ute_background);
+            WindowCompat.getInsetsController(getWindow(), binding.main).setAppearanceLightStatusBars(false);
         });
     }
 }

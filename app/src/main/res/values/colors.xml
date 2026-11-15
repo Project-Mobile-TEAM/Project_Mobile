@@ -18,14 +18,19 @@
     <color name="ute_text">#111111</color>
     <color name="ute_text_secondary">#6B6F76</color>
     <!-- Màu đỏ cho badge, thông báo lỗi, nút kết thúc cuộc gọi. -->
+    <!-- Thanh tiêu đề xanh đậm (Figma cập nhật): dùng chung sáng/tối. -->
+    <color name="ute_bar">#0A6099</color>
+    <color name="ute_on_bar">#FFFFFF</color>
+    <color name="ute_on_accent_fixed">#FFFFFF</color>
+    <color name="ute_stroke">#DEDEDE</color>
     <color name="ute_error">#E31E24</color>
     <!-- Avatar xám chung (không tô màu theo từng người). -->
     <color name="ute_avatar_bg">#EDEEF0</color>
     <color name="ute_avatar_text">#3A3D42</color>
     <!-- Màu trạng thái cho thanh độ mạnh mật khẩu: xanh lá = đạt/mạnh, cam = trung bình, xám = chưa đạt. -->
     <color name="ute_success">#1E8E4E</color>
-    <color name="ute_warning">#E8820C</color>
-    <color name="ute_bar_off">#E6E7EA</color>
+    <color name="ute_warning">#E8890C</color>
+    <color name="ute_bar_off">#DEDEDE</color>
     <!-- Nền nhạt cho nút "Thu hồi" (chữ dùng ute_error). -->
     <color name="ute_error_bg">#FDE7E8</color>
 </resources>

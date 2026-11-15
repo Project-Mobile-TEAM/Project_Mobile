@@ -2,5 +2,5 @@
 <!-- Huy hiệu máy ảnh góc avatar (theo Figma): nền xanh, viền cùng màu nền màn hình. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
     <solid android:color="@color/ute_accent" />
-    <stroke android:width="2dp" android:color="?attr/colorSurface" />
+    <stroke android:width="3dp" android:color="?attr/colorSurface" />
 </shape>

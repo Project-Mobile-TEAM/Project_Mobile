@@ -23,6 +23,7 @@ public class LoginFragment extends Fragment {
 
     @Override public void onViewCreated(@NonNull View view, @Nullable Bundle state) {
         viewModel = AuthViewModel.of(this);
+        PhoneField.attach(binding.tilPhone, binding.etPhone);
         binding.btnLogin.setOnClickListener(v -> submit());
         binding.btnGoRegister.setOnClickListener(v ->
                 Navigation.findNavController(v).navigate(R.id.action_login_to_register));

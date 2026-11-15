@@ -35,7 +35,7 @@ public class DevicesFragment extends Fragment {
         binding.list.setAdapter(adapter);
         // Đường kẻ giữa các thiết bị (theo Figma), thụt vào cho thẳng với chữ.
         MaterialDividerItemDecoration line = new MaterialDividerItemDecoration(requireContext(), LinearLayoutManager.VERTICAL);
-        line.setDividerInsetStart((int) (68 * getResources().getDisplayMetrics().density));
+        line.setDividerInsetStart((int) (76 * getResources().getDisplayMetrics().density));
         line.setLastItemDecorated(false);
         binding.list.addItemDecoration(line);
         load();

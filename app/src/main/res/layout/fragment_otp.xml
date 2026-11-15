@@ -24,12 +24,12 @@
                 android:layout_marginTop="8dp" android:text="@string/auth_otp_heading"
                 android:textAppearance="@style/TextAppearance.UTEChat.Heading" android:accessibilityHeading="true" />
             <TextView android:id="@+id/tv_subtitle" android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:layout_marginTop="6dp" android:textAppearance="?attr/textAppearanceBodyMedium"
+                android:layout_marginTop="8dp" android:textAppearance="?attr/textAppearanceBodyMedium"
                 android:textColor="?attr/colorOnSurfaceVariant" />
 
-            <FrameLayout android:layout_width="match_parent" android:layout_height="56dp" android:layout_marginTop="20dp">
+            <FrameLayout android:layout_width="match_parent" android:layout_height="58dp" android:layout_marginTop="14dp">
                 <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent"
-                    android:orientation="horizontal" android:weightSum="6">
+                    android:orientation="horizontal" android:gravity="center">
                     <TextView android:id="@+id/otp_1" style="@style/Widget.UTEChat.OtpBox" />
                     <TextView android:id="@+id/otp_2" style="@style/Widget.UTEChat.OtpBox" />
                     <TextView android:id="@+id/otp_3" style="@style/Widget.UTEChat.OtpBox" />
@@ -52,18 +52,19 @@
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:layout_marginTop="8dp" android:gravity="center" android:orientation="horizontal">
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                    android:text="@string/auth_otp_no_code" android:textColor="?attr/colorOnSurfaceVariant" />
+                    android:text="@string/auth_otp_no_code" android:textSize="14sp" android:textColor="?attr/colorOnSurfaceVariant" />
                 <!-- Bấm được khi hết đếm ngược; trong lúc đếm hiện "Gửi lại sau mm:ss". -->
                 <com.google.android.material.button.MaterialButton android:id="@+id/btn_resend"
                     style="@style/Widget.Material3.Button.TextButton" android:layout_width="wrap_content" android:layout_height="wrap_content"
-                    android:minHeight="48dp" android:enabled="false" />
+                    android:minHeight="48dp" android:enabled="false" android:textColor="@color/ute_accent"
+                    android:textSize="14sp" android:fontFamily="@font/poppins_medium" />
             </LinearLayout>
         </LinearLayout>
     </ScrollView>
 
     <com.google.android.material.button.MaterialButton android:id="@+id/btn_confirm"
         style="@style/Widget.UTEChat.PrimaryButton" android:layout_width="0dp" android:layout_height="wrap_content"
-        android:layout_margin="16dp" android:enabled="false" android:text="@string/auth_confirm"
+        android:layout_marginStart="16dp" android:layout_marginEnd="16dp" android:layout_marginBottom="12dp" android:enabled="false" android:text="@string/auth_confirm"
         app:layout_constraintBottom_toBottomOf="parent" app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 </androidx.constraintlayout.widget.ConstraintLayout>

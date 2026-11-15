@@ -27,8 +27,8 @@
                     android:contentDescription="@string/auth_avatar_description"
                 android:textColor="@color/ute_avatar_text" android:textSize="32sp" android:textStyle="bold" />
                 <!-- Chỉ trang trí: đổi ảnh thuộc phase media. -->
-                <ImageView android:layout_width="28dp" android:layout_height="28dp" android:layout_gravity="bottom|end"
-                    android:background="@drawable/bg_avatar_badge" android:padding="6dp"
+                <ImageView android:layout_width="32dp" android:layout_height="32dp" android:layout_gravity="bottom|end"
+                    android:background="@drawable/bg_avatar_badge" android:padding="8dp"
                     android:src="@drawable/ic_camera" android:importantForAccessibility="no" />
             </FrameLayout>
 
@@ -43,7 +43,7 @@
             <com.google.android.material.textfield.TextInputLayout android:id="@+id/til_password"
                 style="@style/Widget.UTEChat.InputLayout" android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:layout_marginTop="12dp" android:hint="@string/auth_hint_password"
-                app:endIconMode="password_toggle" app:helperText="@string/auth_password_helper">
+                app:endIconMode="password_toggle" app:endIconDrawable="@drawable/ic_password_toggle" app:helperText="@string/auth_password_helper">
                 <com.google.android.material.textfield.TextInputEditText android:id="@+id/et_password"
                     android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:inputType="textPassword" android:autofillHints="newPassword" />
@@ -52,7 +52,7 @@
             <com.google.android.material.textfield.TextInputLayout android:id="@+id/til_confirm"
                 style="@style/Widget.UTEChat.InputLayout" android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:layout_marginTop="12dp" android:hint="@string/auth_hint_confirm_password"
-                app:endIconMode="password_toggle">
+                app:endIconMode="password_toggle" app:endIconDrawable="@drawable/ic_password_toggle">
                 <com.google.android.material.textfield.TextInputEditText android:id="@+id/et_confirm"
                     android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:inputType="textPassword" android:autofillHints="newPassword" />
@@ -62,7 +62,7 @@
 
     <com.google.android.material.button.MaterialButton android:id="@+id/btn_create"
         style="@style/Widget.UTEChat.PrimaryButton" android:layout_width="0dp" android:layout_height="wrap_content"
-        android:layout_margin="16dp" android:text="@string/auth_create_account"
+        android:layout_marginStart="16dp" android:layout_marginEnd="16dp" android:layout_marginBottom="12dp" android:text="@string/auth_create_account"
         app:layout_constraintBottom_toBottomOf="parent" app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 </androidx.constraintlayout.widget.ConstraintLayout>

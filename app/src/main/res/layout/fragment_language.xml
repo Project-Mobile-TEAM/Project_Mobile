@@ -23,7 +23,7 @@
             android:orientation="vertical">
             <include android:id="@+id/row_vi" layout="@layout/item_setting_row" />
             <View android:layout_width="match_parent" android:layout_height="1dp"
-                android:layout_marginStart="16dp" android:background="@color/ute_border" />
+                android:layout_marginStart="16dp" android:background="@color/ute_stroke" />
             <include android:id="@+id/row_en" layout="@layout/item_setting_row" />
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>

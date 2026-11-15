@@ -22,6 +22,7 @@ public class RegisterFragment extends Fragment {
     @Override public void onViewCreated(@NonNull View view, @Nullable Bundle state) {
         viewModel = AuthViewModel.of(this);
         binding.toolbar.setNavigationOnClickListener(v -> Navigation.findNavController(v).navigateUp());
+        PhoneField.attach(binding.tilPhone, binding.etPhone);
         binding.btnContinue.setOnClickListener(v -> submit());
     }
 

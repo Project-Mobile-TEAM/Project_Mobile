@@ -27,8 +27,8 @@
                     android:contentDescription="@string/auth_avatar_description"
                 android:textColor="@color/ute_avatar_text" android:textSize="32sp" android:textStyle="bold" />
                 <!-- Chỉ trang trí: đổi ảnh thuộc phase media. -->
-                <ImageView android:layout_width="28dp" android:layout_height="28dp" android:layout_gravity="bottom|end"
-                    android:background="@drawable/bg_avatar_badge" android:padding="6dp"
+                <ImageView android:layout_width="32dp" android:layout_height="32dp" android:layout_gravity="bottom|end"
+                    android:background="@drawable/bg_avatar_badge" android:padding="8dp"
                     android:src="@drawable/ic_camera" android:importantForAccessibility="no" />
             </FrameLayout>
             <TextView android:id="@+id/tv_change_photo" android:layout_width="wrap_content" android:layout_height="48dp"

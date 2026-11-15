@@ -2,5 +2,5 @@
 <!-- Một đoạn của thanh độ mạnh mật khẩu; màu được đặt bằng code theo mức độ mạnh. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
     <solid android:color="@color/ute_bar_off" />
-    <corners android:radius="2dp" />
+    <corners android:radius="3dp" />
 </shape>

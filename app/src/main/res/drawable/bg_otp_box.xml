@@ -11,7 +11,7 @@
     <item>
         <shape android:shape="rectangle">
             <solid android:color="@color/ute_card" />
-            <stroke android:width="1dp" android:color="@color/ute_border" />
+            <stroke android:width="1dp" android:color="@color/ute_stroke" />
             <corners android:radius="12dp" />
         </shape>
     </item>

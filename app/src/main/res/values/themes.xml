@@ -21,20 +21,22 @@
         <item name="android:fontFamily">@font/poppins</item>
         <item name="fontFamily">@font/poppins</item>
         <item name="actionMenuTextAppearance">@style/TextAppearance.UTEChat.MenuAction</item>
-        <item name="actionMenuTextColor">@color/ute_accent</item>
+        <item name="actionMenuTextColor">@color/ute_on_bar</item>
         <item name="toolbarStyle">@style/Widget.UTEChat.Toolbar</item>
         <item name="bottomNavigationStyle">@style/Widget.UTEChat.BottomNav</item>
     </style>
-    <!-- Thanh tiêu đề theo Figma: nền trắng (tối: màu thẻ), tiêu đề Poppins Medium 20sp. -->
+    <!-- Thanh tiêu đề theo Figma: nền xanh đậm, chữ và icon trắng, tiêu đề Poppins Medium 20sp. -->
     <style name="Widget.UTEChat.Toolbar" parent="Widget.Material3.Toolbar">
-        <item name="android:background">@color/ute_card</item>
+        <item name="android:background">@color/ute_bar</item>
+        <item name="titleTextColor">@color/ute_on_bar</item>
+        <item name="navigationIconTint">@color/ute_on_bar</item>
         <item name="titleTextAppearance">@style/TextAppearance.UTEChat.ToolbarTitle</item>
     </style>
     <style name="TextAppearance.UTEChat.ToolbarTitle" parent="TextAppearance.Material3.TitleLarge">
         <item name="android:textSize">20sp</item>
         <item name="android:fontFamily">@font/poppins_medium</item>
         <item name="fontFamily">@font/poppins_medium</item>
-        <item name="android:textColor">?attr/colorOnSurface</item>
+        <item name="android:textColor">@color/ute_on_bar</item>
     </style>
     <!-- Thanh tab theo Figma: nền trắng có viền trên, chỉ báo xám nhạt, mục đang chọn chữ đậm màu chính. -->
     <style name="Widget.UTEChat.BottomNav" parent="Widget.Material3.BottomNavigationView">

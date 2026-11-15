@@ -17,7 +17,7 @@
         <item name="android:fontFamily">@font/poppins</item>
         <item name="fontFamily">@font/poppins</item>
         <item name="actionMenuTextAppearance">@style/TextAppearance.UTEChat.MenuAction</item>
-        <item name="actionMenuTextColor">@color/ute_accent</item>
+        <item name="actionMenuTextColor">@color/ute_on_bar</item>
         <item name="toolbarStyle">@style/Widget.UTEChat.Toolbar</item>
         <item name="bottomNavigationStyle">@style/Widget.UTEChat.BottomNav</item>
     </style>

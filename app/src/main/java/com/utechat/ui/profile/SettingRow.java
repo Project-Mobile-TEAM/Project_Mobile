@@ -14,6 +14,8 @@ final class SettingRow {
         row.title.setText(title);
         row.iconCircle.setVisibility(icon == 0 ? View.GONE : View.VISIBLE);
         if (icon != 0) row.icon.setImageResource(icon);
+        // Không có icon (màn Ngôn ngữ) thì chữ sát lề trái thẻ như Figma, không chừa chỗ cho icon.
+        ((android.view.ViewGroup.MarginLayoutParams) row.title.getLayoutParams()).setMarginStart(icon == 0 ? 0 : (int) (16 * row.getRoot().getResources().getDisplayMetrics().density));
     }
 
     /** Hàng dẫn tới màn khác: có giá trị hiện tại (tuỳ chọn) và mũi tên. */
