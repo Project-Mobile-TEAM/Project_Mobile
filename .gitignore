@@ -23,3 +23,6 @@ local.properties
 .planning/
 AGENTS.md
 GEMINI.md
+
+# OTP demo ghi ra file khi chạy dev (backend/otp-local); không đưa mã vào Git.
+otp-local/
