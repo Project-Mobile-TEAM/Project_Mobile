@@ -8,6 +8,10 @@ import java.util.List;
 public interface AuthRepository {
     // Đăng nhập bằng mật khẩu: lỗi BAD_CREDENTIALS, LOCKED, NETWORK...; bản Fake chỉ dành Debug.
     LiveData<AuthResult<UserEntity>> login(String phoneE164, String password);
+    // Đăng nhập bằng OTP bước 1: gửi mã; số chưa đăng ký vẫn trả thành công để không lộ số có tồn tại.
+    LiveData<AuthResult<OtpChallenge>> requestLoginOtp(String phoneE164);
+    // Bước 2: xác minh mã, thành công thì thiết bị này đăng nhập; lỗi OTP_INVALID/OTP_EXPIRED/LOCKED.
+    LiveData<AuthResult<UserEntity>> verifyLoginOtp(String challengeId, String code);
     LiveData<UserEntity> getCurrentUser();
     void logout();
 

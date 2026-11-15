@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- TẠM: vòng tròn thay logo HCM-UTE. Thay bằng logo thật (xuất từ Figma) bằng cách thêm drawable-nodpi/logo_ute.png rồi xoá file này. -->
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="96dp" android:height="96dp" android:viewportWidth="96" android:viewportHeight="96">
-    <path android:fillColor="@color/ute_accent" android:pathData="M48,48m-46,0a46,46 0,1 1,92 0a46,46 0,1 1,-92 0" />
-    <path android:fillColor="@color/ute_card" android:pathData="M48,48m-36,0a36,36 0,1 1,72 0a36,36 0,1 1,-72 0" />
-    <path android:fillColor="@color/ute_error" android:pathData="M48,48m-20,0a20,20 0,1 1,40 0a20,20 0,1 1,-40 0" />
-</vector>

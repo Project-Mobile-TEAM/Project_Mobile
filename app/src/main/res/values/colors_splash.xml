@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Gradient Splash (Figma L·1); dùng chung sáng/tối vì Splash luôn nền xanh. -->
+<resources>
+    <color name="ute_splash_top">#0E7FD6</color>
+    <color name="ute_splash_bottom">#053F6E</color>
+</resources>

@@ -16,6 +16,8 @@
         <action android:id="@+id/action_register_to_otp" app:destination="@id/otpFragment" />
     </fragment>
     <fragment android:id="@+id/forgotPasswordFragment" android:name="com.utechat.ui.auth.ForgotPasswordFragment">
+        <!-- true: cùng màn nhưng là bước 1 của Đăng nhập bằng OTP. -->
+        <argument android:name="loginMode" app:argType="boolean" android:defaultValue="false" />
         <!-- Gửi OTP đặt lại mật khẩu thành công thì dùng lại màn OTP (AuthViewModel nhớ đang ở luồng đặt lại). -->
         <action android:id="@+id/action_forgot_to_otp" app:destination="@id/otpFragment" />
     </fragment>
@@ -24,6 +26,9 @@
         <action android:id="@+id/action_otp_to_complete" app:destination="@id/completeProfileFragment" />
         <!-- Luồng quên mật khẩu: OTP đúng thì sang màn tạo mật khẩu mới. -->
         <action android:id="@+id/action_otp_to_reset" app:destination="@id/resetPasswordFragment" />
+        <!-- Luồng đăng nhập bằng OTP: mã đúng là vào app; xóa luồng Auth khỏi back stack. -->
+        <action android:id="@+id/action_otp_to_main" app:destination="@id/nav_chat"
+            app:popUpTo="@id/nav_auth" app:popUpToInclusive="true" />
     </fragment>
     <fragment android:id="@+id/resetPasswordFragment" android:name="com.utechat.ui.auth.ResetPasswordFragment">
         <!-- Đặt lại xong là đăng nhập luôn trên thiết bị này; xóa luồng Auth khỏi back stack. -->

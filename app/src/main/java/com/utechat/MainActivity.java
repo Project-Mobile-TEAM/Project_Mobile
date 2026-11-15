@@ -1,10 +1,12 @@
 package com.utechat;
 
+import android.content.res.Configuration;
 import android.os.Bundle;
 import android.view.View;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.navigation.NavController;
 import androidx.navigation.NavOptions;
@@ -48,6 +50,12 @@ public class MainActivity extends AppCompatActivity {
             // Auth/Splash/detail không hiển thị tab để người dùng không đi tắt qua xác thực.
             boolean topLevel = id == R.id.chatListFragment || id == R.id.contactsListFragment || id == R.id.profileFragment;
             binding.bottomNav.setVisibility(topLevel ? View.VISIBLE : View.GONE);
+            // Vùng status bar lấy màu nền của root: Splash nối gradient xanh (icon trắng), các màn khác cùng màu thanh tiêu đề (Figma).
+            boolean splash = id == R.id.splashFragment;
+            binding.main.setBackgroundResource(splash ? R.drawable.bg_splash : R.color.ute_card);
+            boolean night = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)
+                    == Configuration.UI_MODE_NIGHT_YES;
+            WindowCompat.getInsetsController(getWindow(), binding.main).setAppearanceLightStatusBars(!splash && !night);
         });
     }
 }

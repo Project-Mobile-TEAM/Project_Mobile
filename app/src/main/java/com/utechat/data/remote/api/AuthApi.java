@@ -11,6 +11,8 @@ public interface AuthApi {
     @POST("api/auth/register/verify") Call<RegistrationTokenResponse> registerVerify(@Body VerifyRequest body);
     @POST("api/auth/register/complete") Call<AuthSuccessResponse> registerComplete(@Body RegisterCompleteRequest body);
     @POST("api/auth/login/password") Call<AuthSuccessResponse> loginPassword(@Body PasswordLoginRequest body);
+    @POST("api/auth/login/otp/request") Call<OtpChallengeResponse> loginOtpRequest(@Body PhoneDeviceRequest body);
+    @POST("api/auth/login/otp/verify") Call<AuthSuccessResponse> loginOtpVerify(@Body OtpLoginVerifyRequest body);
     @POST("api/auth/password-reset/otp") Call<OtpChallengeResponse> resetOtp(@Body PhoneDeviceRequest body);
     @POST("api/auth/password-reset/verify") Call<ResetTokenResponse> resetVerify(@Body VerifyRequest body);
     @POST("api/auth/password-reset/complete") Call<AuthSuccessResponse> resetComplete(@Body PasswordResetCompleteRequest body);

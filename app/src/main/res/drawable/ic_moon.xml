@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Mặt trăng: giao diện tối. Màu theo theme để hợp sáng/tối. -->
+<!-- Giao diện tối. Icon nét lấy từ Figma; màu theo theme để hợp sáng/tối. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24"
+    android:width="24dp" android:height="24dp" android:viewportWidth="20" android:viewportHeight="20"
     android:tint="?attr/colorOnSurface">
-    <path android:fillColor="#FF000000" android:pathData="M12,3c-4.97,0 -9,4.03 -9,9s4.03,9 9,9 9,-4.03 9,-9c0,-0.46 -0.04,-0.92 -0.1,-1.36 -0.98,1.37 -2.58,2.26 -4.4,2.26 -2.98,0 -5.4,-2.42 -5.4,-5.4 0,-1.81 0.89,-3.42 2.26,-4.4C12.92,3.04 12.46,3 12,3z" />
+    <path android:pathData="M17.5 10.6667C17.3672 12.0842 16.8337 13.4347 15.9618 14.5603C15.0899 15.6858 13.9157 16.54 12.5763 17.0228C11.2369 17.5057 9.78773 17.5973 8.39819 17.2871C7.00865 16.9768 5.73613 16.2774 4.72938 15.2706C3.72262 14.2639 3.02323 12.9914 2.71295 11.6018C2.40266 10.2123 2.49431 8.76311 2.97717 7.42373C3.46004 6.08435 4.31417 4.91008 5.43973 4.03818C6.56529 3.16627 7.91577 2.63276 9.33333 2.5C8.49083 3.62334 8.0818 5.01288 8.18134 6.41352C8.28088 7.81416 8.88231 9.13189 9.87521 10.1248C10.8681 11.1177 12.1858 11.7191 13.5865 11.8187C14.9871 11.9182 16.3767 11.5092 17.5 10.6667Z"
+        android:strokeColor="#FF000000" android:strokeWidth="1.66667"
+        android:strokeLineCap="round" android:strokeLineJoin="round" />
 </vector>

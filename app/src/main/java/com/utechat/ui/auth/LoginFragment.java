@@ -28,6 +28,11 @@ public class LoginFragment extends Fragment {
                 Navigation.findNavController(v).navigate(R.id.action_login_to_register));
         binding.btnForgot.setOnClickListener(v ->
                 Navigation.findNavController(v).navigate(R.id.action_login_to_forgot));
+        binding.btnOtpLogin.setOnClickListener(v -> {
+            Bundle args = new Bundle();
+            args.putBoolean("loginMode", true);
+            Navigation.findNavController(v).navigate(R.id.action_login_to_forgot, args);
+        });
         // Release không được mở đường tắt bỏ qua xác thực.
         binding.btnPreview.setVisibility(BuildConfig.DEBUG && BuildConfig.USE_FAKE_DATA ? View.VISIBLE : View.GONE);
         binding.btnPreview.setOnClickListener(v -> {

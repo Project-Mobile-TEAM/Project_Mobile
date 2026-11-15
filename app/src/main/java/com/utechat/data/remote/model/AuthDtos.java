@@ -25,6 +25,12 @@ public final class AuthDtos {
             this.phone = phone; this.password = password; this.deviceId = deviceId; this.deviceName = deviceName;
         }
     }
+    public static final class OtpLoginVerifyRequest {
+        final String challengeId; final String code; final String deviceName;
+        public OtpLoginVerifyRequest(String challengeId, String code, String deviceName) {
+            this.challengeId = challengeId; this.code = code; this.deviceName = deviceName;
+        }
+    }
     public static final class PasswordResetCompleteRequest {
         final String resetToken; final String newPassword; final String deviceName;
         public PasswordResetCompleteRequest(String t, String newPassword, String deviceName) {

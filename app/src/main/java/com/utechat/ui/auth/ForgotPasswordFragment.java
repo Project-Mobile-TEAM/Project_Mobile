@@ -8,7 +8,7 @@ import androidx.navigation.Navigation;
 import com.utechat.R;
 import com.utechat.databinding.FragmentForgotPasswordBinding;
 
-/** Quên mật khẩu bước 1: nhập số điện thoại để nhận OTP đặt lại mật khẩu (F-04). */
+/** Bước nhập số điện thoại: Quên mật khẩu (F-04) hoặc Đăng nhập bằng OTP khi tham số loginMode = true. */
 public class ForgotPasswordFragment extends Fragment {
     private FragmentForgotPasswordBinding binding;
     private AuthViewModel viewModel;
@@ -23,6 +23,11 @@ public class ForgotPasswordFragment extends Fragment {
         viewModel = AuthViewModel.of(this);
         binding.toolbar.setNavigationOnClickListener(v -> Navigation.findNavController(v).navigateUp());
         binding.btnSend.setOnClickListener(v -> submit());
+        if (isLoginMode()) {
+            binding.toolbar.setTitle(R.string.auth_otp_login_title);
+            binding.tvHeading.setText(R.string.auth_otp_login_heading);
+            binding.tvSubtitle.setText(R.string.auth_otp_login_subtitle);
+        }
     }
 
     private void submit() {
@@ -33,7 +38,7 @@ public class ForgotPasswordFragment extends Fragment {
         }
         binding.tilPhone.setError(null);
         binding.btnSend.setEnabled(false); // Chặn bấm lặp (server giới hạn gửi OTP).
-        viewModel.requestResetOtp(phone).observe(getViewLifecycleOwner(), result -> {
+        (isLoginMode() ? viewModel.requestLoginOtp(phone) : viewModel.requestResetOtp(phone)).observe(getViewLifecycleOwner(), result -> {
             binding.btnSend.setEnabled(true);
             if (result.isSuccess()) {
                 Navigation.findNavController(binding.getRoot()).navigate(R.id.action_forgot_to_otp);
@@ -41,6 +46,10 @@ public class ForgotPasswordFragment extends Fragment {
                 binding.tilPhone.setError(getString(AuthErrors.message(result.errorCode)));
             }
         });
+    }
+
+    private boolean isLoginMode() {
+        return getArguments() != null && getArguments().getBoolean("loginMode");
     }
 
     @Override public void onDestroyView() {

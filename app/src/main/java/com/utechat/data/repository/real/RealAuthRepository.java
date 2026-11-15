@@ -42,6 +42,14 @@ public class RealAuthRepository implements AuthRepository {
                 this::onAuthenticated);
     }
 
+    @Override public LiveData<AuthResult<OtpChallenge>> requestLoginOtp(String phoneE164) {
+        return call(api.loginOtpRequest(new PhoneDeviceRequest(phoneE164, session.getDeviceId())),
+                r -> new OtpChallenge(r.challengeId, r.demoOtp));
+    }
+    @Override public LiveData<AuthResult<UserEntity>> verifyLoginOtp(String challengeId, String code) {
+        return call(api.loginOtpVerify(new OtpLoginVerifyRequest(challengeId, code, Build.MODEL)), this::onAuthenticated);
+    }
+
     @Override public LiveData<UserEntity> getCurrentUser() { return current; }
 
     /** Báo server thu hồi token của thiết bị này rồi xoá phiên cục bộ; mất mạng thì vẫn xoá cục bộ. */

@@ -22,6 +22,38 @@
         <item name="fontFamily">@font/poppins</item>
         <item name="actionMenuTextAppearance">@style/TextAppearance.UTEChat.MenuAction</item>
         <item name="actionMenuTextColor">@color/ute_accent</item>
+        <item name="toolbarStyle">@style/Widget.UTEChat.Toolbar</item>
+        <item name="bottomNavigationStyle">@style/Widget.UTEChat.BottomNav</item>
+    </style>
+    <!-- Thanh tiêu đề theo Figma: nền trắng (tối: màu thẻ), tiêu đề Poppins Medium 20sp. -->
+    <style name="Widget.UTEChat.Toolbar" parent="Widget.Material3.Toolbar">
+        <item name="android:background">@color/ute_card</item>
+        <item name="titleTextAppearance">@style/TextAppearance.UTEChat.ToolbarTitle</item>
+    </style>
+    <style name="TextAppearance.UTEChat.ToolbarTitle" parent="TextAppearance.Material3.TitleLarge">
+        <item name="android:textSize">20sp</item>
+        <item name="android:fontFamily">@font/poppins_medium</item>
+        <item name="fontFamily">@font/poppins_medium</item>
+        <item name="android:textColor">?attr/colorOnSurface</item>
+    </style>
+    <!-- Thanh tab theo Figma: nền trắng có viền trên, chỉ báo xám nhạt, mục đang chọn chữ đậm màu chính. -->
+    <style name="Widget.UTEChat.BottomNav" parent="Widget.Material3.BottomNavigationView">
+        <item name="android:background">@drawable/bg_bottom_nav</item>
+        <item name="itemIconTint">@color/bottom_nav_item</item>
+        <item name="itemTextColor">@color/bottom_nav_item</item>
+        <item name="itemActiveIndicatorStyle">@style/Widget.UTEChat.BottomNav.Indicator</item>
+        <item name="itemTextAppearanceActive">@style/TextAppearance.UTEChat.TabActive</item>
+        <item name="itemTextAppearanceInactive">@style/TextAppearance.UTEChat.Tab</item>
+    </style>
+    <style name="Widget.UTEChat.BottomNav.Indicator" parent="Widget.Material3.BottomNavigationView.ActiveIndicator">
+        <item name="android:color">@color/ute_avatar_bg</item>
+    </style>
+    <style name="TextAppearance.UTEChat.Tab" parent="TextAppearance.Material3.LabelMedium">
+        <item name="android:textSize">12sp</item>
+    </style>
+    <style name="TextAppearance.UTEChat.TabActive" parent="TextAppearance.UTEChat.Tab">
+        <item name="android:fontFamily">@font/poppins_medium</item>
+        <item name="fontFamily">@font/poppins_medium</item>
     </style>
     <!-- Chữ "Lưu" trên thanh tiêu đề: không viết hoa toàn bộ, màu nhấn (theo Figma). -->
     <style name="TextAppearance.UTEChat.MenuAction" parent="TextAppearance.Material3.LabelLarge">

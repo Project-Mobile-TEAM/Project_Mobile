@@ -11,7 +11,7 @@
         android:background="@drawable/bg_avatar"
         app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintBottom_toBottomOf="parent">
-        <ImageView android:id="@+id/icon" android:layout_width="22dp" android:layout_height="22dp"
+        <ImageView android:id="@+id/icon" android:layout_width="20dp" android:layout_height="20dp"
             android:layout_gravity="center" android:importantForAccessibility="no" />
     </FrameLayout>
 

@@ -1,42 +1,56 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- ScrollView giữ nút truy cập được khi xoay ngang hoặc tăng cỡ chữ hệ thống. -->
+<!-- Splash theo Figma (L·1): nền gradient xanh, logo trong vòng sáng, tên app và khẩu hiệu, chân trang tên trường.
+     Vẫn kiểm tra kết nối máy chủ (Phase 2); trạng thái và nút chỉ hiện dưới khẩu hiệu. ScrollView giữ nút dùng được khi xoay ngang. -->
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent" android:layout_height="match_parent"
-    android:fillViewport="true" android:background="?attr/colorSurface">
+    android:fillViewport="true" android:background="@drawable/bg_splash">
     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:orientation="vertical" android:gravity="center_vertical" android:padding="28dp">
-        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:text="@string/app_name" android:textColor="?attr/colorPrimary"
-            android:textAppearance="?attr/textAppearanceHeadlineLarge" android:textStyle="bold" />
-        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:layout_marginTop="28dp" android:text="@string/probe_title"
-            android:textAppearance="?attr/textAppearanceHeadlineMedium" android:accessibilityHeading="true"
-            android:textColor="?attr/colorOnSurface" />
-        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:layout_marginTop="12dp" android:text="@string/probe_subtitle"
-            android:textAppearance="?attr/textAppearanceBodyLarge" android:textColor="?attr/colorOnSurfaceVariant" />
-        <!-- Trạng thái có chữ và live region, không chỉ dựa vào màu xanh/đỏ. -->
-        <TextView android:id="@+id/server_status" android:layout_width="match_parent"
-            android:layout_height="wrap_content" android:layout_marginTop="32dp" android:padding="16dp"
-            android:text="@string/probe_server_wait" android:textAppearance="?attr/textAppearanceTitleMedium"
-            android:accessibilityLiveRegion="polite" android:textColor="?attr/colorOnSurface" />
-        <TextView android:id="@+id/database_status" android:layout_width="match_parent"
-            android:layout_height="wrap_content" android:padding="16dp"
-            android:text="@string/probe_db_wait" android:textAppearance="?attr/textAppearanceTitleMedium"
-            android:accessibilityLiveRegion="polite" android:textColor="?attr/colorOnSurface" />
-        <ProgressBar android:id="@+id/progress" android:layout_width="40dp" android:layout_height="40dp"
-            android:layout_gravity="center_horizontal" android:layout_marginTop="20dp" />
+        android:orientation="vertical" android:gravity="center_horizontal" android:paddingStart="28dp"
+        android:paddingEnd="28dp" android:paddingBottom="8dp">
+        <View android:layout_width="1dp" android:layout_height="0dp" android:layout_weight="1" />
+
+        <FrameLayout android:layout_width="152dp" android:layout_height="152dp" android:background="@drawable/bg_splash_ring">
+            <ImageView android:layout_width="124dp" android:layout_height="124dp" android:layout_gravity="center"
+                android:src="@drawable/logo_ute" android:importantForAccessibility="no" />
+        </FrameLayout>
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginTop="10dp" android:text="@string/auth_brand" android:textColor="@android:color/white"
+            android:textSize="34sp" android:textStyle="bold" android:accessibilityHeading="true" />
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginTop="6dp" android:text="@string/auth_tagline" android:textColor="@android:color/white"
+            android:textSize="15sp" />
+
+        <!-- Trạng thái có chữ và live region, không chỉ dựa vào màu. -->
+        <TextView android:id="@+id/server_status" android:layout_width="wrap_content"
+            android:layout_height="wrap_content" android:layout_marginTop="28dp"
+            android:text="@string/probe_server_wait" android:textAppearance="?attr/textAppearanceBodyMedium"
+            android:accessibilityLiveRegion="polite" android:textColor="@android:color/white" />
+        <TextView android:id="@+id/database_status" android:layout_width="wrap_content"
+            android:layout_height="wrap_content" android:layout_marginTop="4dp"
+            android:text="@string/probe_db_wait" android:textAppearance="?attr/textAppearanceBodyMedium"
+            android:accessibilityLiveRegion="polite" android:textColor="@android:color/white" />
+        <ProgressBar android:id="@+id/progress" android:layout_width="32dp" android:layout_height="32dp"
+            android:layout_marginTop="16dp" android:indeterminateTint="@android:color/white" />
         <TextView android:id="@+id/status_message" android:layout_width="match_parent"
-            android:layout_height="wrap_content" android:layout_marginTop="20dp"
-            android:text="@string/probe_checking" android:textAppearance="?attr/textAppearanceBodyMedium"
-            android:accessibilityLiveRegion="polite" android:textColor="?attr/colorOnSurfaceVariant" />
-        <!-- Mỗi nút tối thiểu48dp; có lối thử lại và tiếp tục ngoại tuyến khi mạng lỗi. -->
+            android:layout_height="wrap_content" android:layout_marginTop="12dp" android:gravity="center"
+            android:text="@string/probe_checking" android:textAppearance="?attr/textAppearanceBodySmall"
+            android:accessibilityLiveRegion="polite" android:textColor="#D9FFFFFF" />
+        <!-- Mỗi nút tối thiểu 48dp; có lối thử lại và tiếp tục ngoại tuyến khi mạng lỗi. -->
         <com.google.android.material.button.MaterialButton android:id="@+id/btn_retry"
             android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="48dp"
-            android:layout_marginTop="24dp" android:text="@string/action_retry" android:visibility="gone" />
+            android:layout_marginTop="16dp" android:text="@string/action_retry" android:visibility="gone"
+            android:backgroundTint="@android:color/white" android:textColor="@color/ute_splash_top" />
         <com.google.android.material.button.MaterialButton android:id="@+id/btn_continue_offline"
-            style="?attr/borderlessButtonStyle" android:layout_width="match_parent"
-            android:layout_height="wrap_content" android:minHeight="48dp"
+            style="@style/Widget.Material3.Button.TextButton" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:minHeight="48dp" android:textColor="@android:color/white"
             android:text="@string/action_offline_continue" android:visibility="gone" />
+
+        <View android:layout_width="1dp" android:layout_height="0dp" android:layout_weight="1" />
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="@string/splash_school" android:textColor="@android:color/white"
+            android:textSize="13sp" android:fontFamily="@font/poppins_medium" />
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginTop="2dp" android:text="@string/splash_version" android:textColor="@android:color/white"
+            android:textSize="12sp" />
     </LinearLayout>
 </ScrollView>

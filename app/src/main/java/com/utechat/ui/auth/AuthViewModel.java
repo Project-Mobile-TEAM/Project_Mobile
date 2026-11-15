@@ -29,7 +29,10 @@ public class AuthViewModel extends ViewModel {
     private static final String KEY_PHONE = "phone";
     private static final String KEY_CHALLENGE_ID = "challengeId";
     private static final String KEY_OTP_SENT_AT = "otpSentAt";
-    private static final String KEY_RESET_FLOW = "resetFlow"; // true khi đang quên mật khẩu, false khi đăng ký.
+    private static final String KEY_FLOW = "flow"; // Luồng OTP đang chạy: FLOW_REGISTER, FLOW_RESET hoặc FLOW_LOGIN.
+    private static final String FLOW_REGISTER = "register";
+    private static final String FLOW_RESET = "reset";
+    private static final String FLOW_LOGIN = "login";
 
     /** Dựng ViewModel theo mẫu slide Session 4: lấy Application và SavedStateHandle từ CreationExtras. */
     public static final ViewModelProvider.Factory FACTORY = ViewModelProvider.Factory.from(
@@ -59,8 +62,10 @@ public class AuthViewModel extends ViewModel {
     @Nullable public String getPhone() { return state.get(KEY_PHONE); }
     @Nullable public String getDemoCode() { return demoCode; }
     @Nullable public String getFlowToken() { return flowToken; }
-    /** Đang ở luồng quên mật khẩu (true) hay đăng ký (false); quyết định API và màn kế tiếp sau OTP. */
-    public boolean isResetFlow() { return Boolean.TRUE.equals(state.get(KEY_RESET_FLOW)); }
+    /** Đang ở luồng quên mật khẩu; quyết định API và màn kế tiếp sau OTP. */
+    public boolean isResetFlow() { return FLOW_RESET.equals(state.get(KEY_FLOW)); }
+    /** Đang ở luồng đăng nhập bằng OTP: xác minh xong là vào app luôn. */
+    public boolean isLoginFlow() { return FLOW_LOGIN.equals(state.get(KEY_FLOW)); }
 
     /** Số mili giây còn phải chờ trước khi được gửi lại OTP; 0 nghĩa là gửi lại được. */
     public long resendRemainingMillis() {
@@ -75,26 +80,33 @@ public class AuthViewModel extends ViewModel {
 
     /** Bắt đầu đăng ký: gửi OTP tới số mới. */
     public LiveData<AuthResult<OtpChallenge>> requestOtp(String phoneE164) {
-        return sendOtp(phoneE164, false);
+        return sendOtp(phoneE164, FLOW_REGISTER);
     }
 
     /** Bắt đầu quên mật khẩu: gửi OTP đặt lại mật khẩu. */
     public LiveData<AuthResult<OtpChallenge>> requestResetOtp(String phoneE164) {
-        return sendOtp(phoneE164, true);
+        return sendOtp(phoneE164, FLOW_RESET);
+    }
+
+    /** Bắt đầu đăng nhập bằng OTP. */
+    public LiveData<AuthResult<OtpChallenge>> requestLoginOtp(String phoneE164) {
+        return sendOtp(phoneE164, FLOW_LOGIN);
     }
 
     /** "Gửi lại" ở màn OTP: gửi lại theo đúng luồng đang chạy. */
     public LiveData<AuthResult<OtpChallenge>> resendOtp() {
-        return sendOtp(getPhone(), isResetFlow());
+        String flow = state.get(KEY_FLOW);
+        return sendOtp(getPhone(), flow == null ? FLOW_REGISTER : flow);
     }
 
     // Thành công thì nhớ phiên, luồng đang chạy và bắt đầu đếm ngược 60 giây.
-    private LiveData<AuthResult<OtpChallenge>> sendOtp(String phoneE164, boolean reset) {
-        LiveData<AuthResult<OtpChallenge>> source = reset
-                ? repository.requestResetOtp(phoneE164) : repository.requestRegisterOtp(phoneE164);
+    private LiveData<AuthResult<OtpChallenge>> sendOtp(String phoneE164, String flow) {
+        LiveData<AuthResult<OtpChallenge>> source = FLOW_RESET.equals(flow) ? repository.requestResetOtp(phoneE164)
+                : FLOW_LOGIN.equals(flow) ? repository.requestLoginOtp(phoneE164)
+                : repository.requestRegisterOtp(phoneE164);
         return Transformations.map(source, result -> {
             if (result.isSuccess()) {
-                state.set(KEY_RESET_FLOW, reset);
+                state.set(KEY_FLOW, flow);
                 state.set(KEY_PHONE, phoneE164);
                 state.set(KEY_CHALLENGE_ID, result.data.challengeId);
                 state.set(KEY_OTP_SENT_AT, SystemClock.elapsedRealtime());
@@ -112,6 +124,11 @@ public class AuthViewModel extends ViewModel {
             if (result.isSuccess()) flowToken = result.data;
             return result;
         });
+    }
+
+    /** Luồng đăng nhập bằng OTP: mã đúng thì đăng nhập luôn, không có bước 3. */
+    public LiveData<AuthResult<UserEntity>> verifyLoginOtp(String code) {
+        return repository.verifyLoginOtp(state.get(KEY_CHALLENGE_ID), code);
     }
 
     public LiveData<AuthResult<UserEntity>> completeRegister(String displayName, String password) {

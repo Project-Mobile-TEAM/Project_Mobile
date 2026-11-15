@@ -50,6 +50,10 @@
     <string name="auth_error_generic">Đã có lỗi xảy ra. Vui lòng thử lại.</string>
     <!-- Quên / đặt lại mật khẩu -->
     <string name="auth_forgot_link">Quên mật khẩu?</string>
+    <string name="auth_otp_login_link">Đăng nhập bằng OTP</string>
+    <string name="auth_otp_login_title">Đăng nhập bằng OTP</string>
+    <string name="auth_otp_login_heading">Số điện thoại của bạn</string>
+    <string name="auth_otp_login_subtitle">Chúng tôi sẽ gửi mã 6 số để bạn đăng nhập không cần mật khẩu.</string>
     <string name="auth_forgot_title">Quên mật khẩu</string>
     <string name="auth_forgot_heading">Khôi phục tài khoản</string>
     <string name="auth_forgot_subtitle">Nhập số điện thoại đã đăng ký. Chúng tôi sẽ gửi mã để bạn đặt lại mật khẩu.</string>

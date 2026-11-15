@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Nền Splash theo Figma: gradient xanh UTE từ trên xuống. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <gradient android:angle="270" android:startColor="@color/ute_splash_top" android:endColor="@color/ute_splash_bottom" />
+</shape>

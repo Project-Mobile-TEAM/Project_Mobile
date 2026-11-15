@@ -18,5 +18,7 @@
         <item name="fontFamily">@font/poppins</item>
         <item name="actionMenuTextAppearance">@style/TextAppearance.UTEChat.MenuAction</item>
         <item name="actionMenuTextColor">@color/ute_accent</item>
+        <item name="toolbarStyle">@style/Widget.UTEChat.Toolbar</item>
+        <item name="bottomNavigationStyle">@style/Widget.UTEChat.BottomNav</item>
     </style>
 </resources>

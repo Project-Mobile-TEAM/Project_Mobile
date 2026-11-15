@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Mũi tên sang phải của hàng dẫn tới màn khác. Màu theo theme để hợp sáng/tối. -->
+<!-- Mũi tên sang phải của hàng dẫn tới màn khác. Icon nét lấy từ Figma; màu theo theme để hợp sáng/tối. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24"
+    android:width="24dp" android:height="24dp" android:viewportWidth="18" android:viewportHeight="18"
     android:tint="?attr/colorOnSurface">
-    <path android:fillColor="#FF000000" android:pathData="M10,6L8.59,7.41 13.17,12l-4.58,4.59L10,18l6,-6z" />
+    <path android:pathData="M6.75 4.5L11.25 9L6.75 13.5"
+        android:strokeColor="#FF000000" android:strokeWidth="1.65"
+        android:strokeLineCap="round" android:strokeLineJoin="round" />
 </vector>

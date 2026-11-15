@@ -36,6 +36,16 @@ public class FakeAuthRepository implements AuthRepository {
         return new MutableLiveData<>(found == null ? AuthResult.error("BAD_CREDENTIALS") : AuthResult.ok(found));
     }
 
+    @Override public LiveData<AuthResult<OtpChallenge>> requestLoginOtp(String phoneE164) {
+        return requestResetOtp(phoneE164); // Cùng cách tìm tài khoản theo số như quên mật khẩu.
+    }
+
+    @Override public LiveData<AuthResult<UserEntity>> verifyLoginOtp(String challengeId, String code) {
+        if (resetUser == null || !DEMO_OTP.equals(code)) return new MutableLiveData<>(AuthResult.error("OTP_INVALID"));
+        setCurrent(resetUser);
+        return new MutableLiveData<>(AuthResult.ok(resetUser));
+    }
+
     @Override public LiveData<UserEntity> getCurrentUser() { return current; }
     @Override public void logout() { setCurrent(null); }
 

@@ -50,6 +50,10 @@
     <string name="auth_error_generic">Something went wrong. Please try again.</string>
     <!-- Quên / đặt lại mật khẩu -->
     <string name="auth_forgot_link">Forgot password?</string>
+    <string name="auth_otp_login_link">Log in with OTP</string>
+    <string name="auth_otp_login_title">Log in with OTP</string>
+    <string name="auth_otp_login_heading">Your phone number</string>
+    <string name="auth_otp_login_subtitle">We’ll send a 6-digit code so you can log in without a password.</string>
     <string name="auth_forgot_title">Forgot password</string>
     <string name="auth_forgot_heading">Recover your account</string>
     <string name="auth_forgot_subtitle">Enter your registered phone number. We’ll send a code so you can reset your password.</string>

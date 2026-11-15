@@ -79,6 +79,14 @@ public class OtpFragment extends Fragment {
 
     private void confirm() {
         binding.btnConfirm.setEnabled(false);
+        if (viewModel.isLoginFlow()) {
+            viewModel.verifyLoginOtp(String.valueOf(binding.etCode.getText())).observe(getViewLifecycleOwner(), result -> {
+                binding.btnConfirm.setEnabled(true);
+                if (result.isSuccess()) Navigation.findNavController(binding.getRoot()).navigate(R.id.action_otp_to_main);
+                else showError(result.errorCode);
+            });
+            return;
+        }
         viewModel.verifyOtp(String.valueOf(binding.etCode.getText())).observe(getViewLifecycleOwner(), result -> {
             binding.btnConfirm.setEnabled(true);
             if (result.isSuccess()) {
