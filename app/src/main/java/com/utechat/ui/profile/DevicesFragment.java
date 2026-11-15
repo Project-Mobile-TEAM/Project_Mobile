@@ -7,6 +7,7 @@ import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.navigation.Navigation;
 import androidx.recyclerview.widget.LinearLayoutManager;
+import com.google.android.material.divider.MaterialDividerItemDecoration;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.snackbar.Snackbar;
 import com.utechat.R;
@@ -32,6 +33,11 @@ public class DevicesFragment extends Fragment {
         adapter = new DeviceAdapter(this::confirmRevoke);
         binding.list.setLayoutManager(new LinearLayoutManager(requireContext()));
         binding.list.setAdapter(adapter);
+        // Đường kẻ giữa các thiết bị (theo Figma), thụt vào cho thẳng với chữ.
+        MaterialDividerItemDecoration line = new MaterialDividerItemDecoration(requireContext(), LinearLayoutManager.VERTICAL);
+        line.setDividerInsetStart((int) (68 * getResources().getDisplayMetrics().density));
+        line.setLastItemDecorated(false);
+        binding.list.addItemDecoration(line);
         load();
     }
 

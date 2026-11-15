@@ -16,5 +16,7 @@
         <!-- Font Poppins toàn app, giống bản sáng. -->
         <item name="android:fontFamily">@font/poppins</item>
         <item name="fontFamily">@font/poppins</item>
+        <item name="actionMenuTextAppearance">@style/TextAppearance.UTEChat.MenuAction</item>
+        <item name="actionMenuTextColor">@color/ute_accent</item>
     </style>
 </resources>

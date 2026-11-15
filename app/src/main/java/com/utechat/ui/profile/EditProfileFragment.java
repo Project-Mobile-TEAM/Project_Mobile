@@ -27,6 +27,7 @@ public class EditProfileFragment extends Fragment {
     }
 
     @Override public void onViewCreated(@NonNull View view, @Nullable Bundle state) {
+        binding.tvChangePhoto.setOnClickListener(v -> Snackbar.make(binding.getRoot(), R.string.profile_change_photo_soon, Snackbar.LENGTH_SHORT).show());
         viewModel = new ViewModelProvider(this, ProfileViewModel.FACTORY).get(ProfileViewModel.class);
         binding.toolbar.setNavigationOnClickListener(v -> Navigation.findNavController(v).navigateUp());
         binding.toolbar.setOnMenuItemClickListener(item -> { save(); return true; });

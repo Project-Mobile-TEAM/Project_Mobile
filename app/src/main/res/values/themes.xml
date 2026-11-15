@@ -20,6 +20,13 @@
         <!-- Font Poppins toàn app (hỗ trợ dấu tiếng Việt); cần cả hai thuộc tính cho View thường và AppCompat/Material. -->
         <item name="android:fontFamily">@font/poppins</item>
         <item name="fontFamily">@font/poppins</item>
+        <item name="actionMenuTextAppearance">@style/TextAppearance.UTEChat.MenuAction</item>
+        <item name="actionMenuTextColor">@color/ute_accent</item>
+    </style>
+    <!-- Chữ "Lưu" trên thanh tiêu đề: không viết hoa toàn bộ, màu nhấn (theo Figma). -->
+    <style name="TextAppearance.UTEChat.MenuAction" parent="TextAppearance.Material3.LabelLarge">
+        <item name="textAllCaps">false</item>
+        <item name="android:textAllCaps">false</item>
     </style>
     <style name="Theme.UTEChat" parent="Base.Theme.UTEChat" />
 </resources>

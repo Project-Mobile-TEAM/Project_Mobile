@@ -20,15 +20,25 @@
         app:layout_constraintStart_toStartOf="parent" app:layout_constraintEnd_toEndOf="parent">
         <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
             android:orientation="vertical" android:padding="16dp">
-            <TextView android:id="@+id/tv_avatar" android:layout_width="96dp" android:layout_height="96dp"
-                android:layout_gravity="center_horizontal" android:layout_marginTop="8dp"
+            <FrameLayout android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal" android:layout_marginTop="8dp">
+                <TextView android:id="@+id/tv_avatar" android:layout_width="96dp" android:layout_height="96dp"
                 android:background="@drawable/bg_avatar" android:gravity="center"
-                android:contentDescription="@string/auth_avatar_description"
+                    android:contentDescription="@string/auth_avatar_description"
                 android:textColor="@color/ute_avatar_text" android:textSize="32sp" android:textStyle="bold" />
+                <!-- Chỉ trang trí: đổi ảnh thuộc phase media. -->
+                <ImageView android:layout_width="28dp" android:layout_height="28dp" android:layout_gravity="bottom|end"
+                    android:background="@drawable/bg_avatar_badge" android:padding="6dp"
+                    android:src="@drawable/ic_camera" android:importantForAccessibility="no" />
+            </FrameLayout>
+            <TextView android:id="@+id/tv_change_photo" android:layout_width="wrap_content" android:layout_height="48dp"
+                android:layout_gravity="center_horizontal" android:gravity="center" android:minWidth="48dp"
+                android:text="@string/profile_change_photo" android:textColor="@color/ute_accent"
+                android:textAppearance="?attr/textAppearanceLabelLarge" android:clickable="true" android:focusable="true" />
 
             <com.google.android.material.textfield.TextInputLayout android:id="@+id/til_name"
                 style="@style/Widget.UTEChat.InputLayout" android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:layout_marginTop="24dp" android:hint="@string/auth_hint_full_name">
+                android:layout_marginTop="8dp" android:hint="@string/auth_hint_full_name">
                 <com.google.android.material.textfield.TextInputEditText android:id="@+id/et_name"
                     android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:inputType="textPersonName|textCapWords" android:maxLength="50" android:autofillHints="name" />
@@ -43,7 +53,7 @@
                 app:helperText="@string/profile_phone_locked">
                 <com.google.android.material.textfield.TextInputEditText android:id="@+id/et_phone"
                     android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:enabled="false" android:inputType="none" />
+                    android:enabled="false" android:inputType="none" android:textColor="?attr/colorOnSurface" />
             </com.google.android.material.textfield.TextInputLayout>
         </LinearLayout>
     </ScrollView>

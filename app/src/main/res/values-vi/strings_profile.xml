@@ -16,6 +16,8 @@
     <string name="profile_logout">Đăng xuất</string>
     <string name="profile_edit_title">Sửa hồ sơ</string>
     <string name="profile_save">Lưu</string>
+    <string name="profile_change_photo">Đổi ảnh đại diện</string>
+    <string name="profile_change_photo_soon">Tính năng đổi ảnh sẽ có ở phiên bản sau.</string>
     <string name="profile_phone_locked">Không thể thay đổi số điện thoại.</string>
     <string name="profile_password_title">Đổi mật khẩu</string>
     <string name="profile_current_password">Mật khẩu hiện tại</string>

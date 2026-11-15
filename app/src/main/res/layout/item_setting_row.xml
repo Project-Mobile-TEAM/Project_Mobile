@@ -17,7 +17,8 @@
 
     <TextView android:id="@+id/title" android:layout_width="0dp" android:layout_height="wrap_content"
         android:layout_marginStart="12dp" android:layout_marginEnd="8dp"
-        android:textAppearance="?attr/textAppearanceBodyLarge" android:textColor="?attr/colorOnSurface"
+        android:textAppearance="?attr/textAppearanceBodyMedium" android:textColor="?attr/colorOnSurface"
+        android:includeFontPadding="false"
         app:layout_constraintStart_toEndOf="@id/icon_circle" app:layout_constraintEnd_toStartOf="@id/barrier_end"
         app:layout_constraintTop_toTopOf="parent" app:layout_constraintBottom_toBottomOf="parent" />
 
@@ -28,7 +29,7 @@
 
     <!-- Giá trị hiện tại (ví dụ "Tiếng Việt"), ẩn mặc định. -->
     <TextView android:id="@+id/value" android:layout_width="wrap_content" android:layout_height="wrap_content"
-        android:visibility="gone" android:textAppearance="?attr/textAppearanceBodyMedium"
+        android:visibility="gone" android:textAppearance="?attr/textAppearanceBodyMedium" android:includeFontPadding="false"
         android:textColor="?attr/colorOnSurfaceVariant"
         app:layout_constraintEnd_toStartOf="@id/chevron" app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintBottom_toBottomOf="parent" />
