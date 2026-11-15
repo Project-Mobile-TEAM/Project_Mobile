@@ -7,7 +7,10 @@ import com.utechat.data.local.entity.UserEntity;
 import com.utechat.data.remote.api.AuthApi;
 import com.utechat.data.repository.AuthRepository;
 import com.utechat.data.repository.AuthResult;
+import com.utechat.data.repository.DeviceInfo;
 import com.utechat.data.repository.OtpChallenge;
+import com.utechat.data.repository.UserProfile;
+import java.util.List;
 
 /** Khung xác thực thật cho Phase3; tuyệt đối không tự chuyển sang tài khoản giả. */
 public class RealAuthRepository implements AuthRepository {
@@ -42,6 +45,22 @@ public class RealAuthRepository implements AuthRepository {
         return new MutableLiveData<>(AuthResult.error("UNAVAILABLE"));
     }
     @Override public LiveData<AuthResult<UserEntity>> completePasswordReset(String resetToken, String newPassword) {
+        return new MutableLiveData<>(AuthResult.error("UNAVAILABLE"));
+    }
+
+    // shortcut: chưa gọi REST /me và /account/devices; trả UNAVAILABLE cho tới khi backend 03-01 có endpoint.
+    @Override public LiveData<UserProfile> getProfile() { return new MutableLiveData<>(null); }
+    @Override public LiveData<AuthResult<UserProfile>> updateProfile(String displayName,
+            boolean allowMessagesFromNonContacts, boolean discoverable) {
+        return new MutableLiveData<>(AuthResult.error("UNAVAILABLE"));
+    }
+    @Override public LiveData<AuthResult<Boolean>> changePassword(String oldPassword, String newPassword) {
+        return new MutableLiveData<>(AuthResult.error("UNAVAILABLE"));
+    }
+    @Override public LiveData<AuthResult<List<DeviceInfo>>> getDevices() {
+        return new MutableLiveData<>(AuthResult.error("UNAVAILABLE"));
+    }
+    @Override public LiveData<AuthResult<Boolean>> revokeDevice(String deviceId) {
         return new MutableLiveData<>(AuthResult.error("UNAVAILABLE"));
     }
 }

@@ -16,4 +16,5 @@
     <color name="ute_success">#4CC38A</color>
     <color name="ute_warning">#F5A04A</color>
     <color name="ute_bar_off">#2A2B2F</color>
+    <color name="ute_error_bg">#3A1A1B</color>
 </resources>

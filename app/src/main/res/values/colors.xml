@@ -26,4 +26,6 @@
     <color name="ute_success">#1E8E4E</color>
     <color name="ute_warning">#E8820C</color>
     <color name="ute_bar_off">#E6E7EA</color>
+    <!-- Nền nhạt cho nút "Thu hồi" (chữ dùng ute_error). -->
+    <color name="ute_error_bg">#FDE7E8</color>
 </resources>

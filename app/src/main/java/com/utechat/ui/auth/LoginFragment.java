@@ -7,6 +7,7 @@ import androidx.fragment.app.Fragment;
 import androidx.navigation.Navigation;
 import com.utechat.BuildConfig;
 import com.utechat.R;
+import com.utechat.data.repository.fake.FakeAuthRepository;
 import com.utechat.databinding.FragmentLoginBinding;
 
 /** Màn đăng nhập bằng số điện thoại + mật khẩu (F-02). */
@@ -29,8 +30,11 @@ public class LoginFragment extends Fragment {
                 Navigation.findNavController(v).navigate(R.id.action_login_to_forgot));
         // Release không được mở đường tắt bỏ qua xác thực.
         binding.btnPreview.setVisibility(BuildConfig.DEBUG && BuildConfig.USE_FAKE_DATA ? View.VISIBLE : View.GONE);
-        binding.btnPreview.setOnClickListener(v ->
-                Navigation.findNavController(v).navigate(R.id.action_login_to_main));
+        binding.btnPreview.setOnClickListener(v -> {
+            // Đăng nhập tài khoản demo (Alice) để các tab sau có hồ sơ; chỉ chạy được khi Fake bật (Debug).
+            viewModel.login("+84901111111", FakeAuthRepository.DEMO_PASSWORD);
+            Navigation.findNavController(v).navigate(R.id.action_login_to_main);
+        });
     }
 
     private void submit() {

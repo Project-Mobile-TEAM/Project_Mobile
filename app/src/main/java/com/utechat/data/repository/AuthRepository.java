@@ -2,6 +2,7 @@ package com.utechat.data.repository;
 
 import androidx.lifecycle.LiveData;
 import com.utechat.data.local.entity.*;
+import java.util.List;
 
 /** Ranh giới AuthRepository: UI không phụ thuộc cách lưu SQLite hoặc gọi REST. */
 public interface AuthRepository {
@@ -23,4 +24,15 @@ public interface AuthRepository {
     LiveData<AuthResult<String>> verifyResetOtp(String challengeId, String code);
     // Bước 3: đặt mật khẩu mới; thành công thì thiết bị hiện tại được đăng nhập.
     LiveData<AuthResult<UserEntity>> completePasswordReset(String resetToken, String newPassword);
+
+    // Hồ sơ của chính mình (GET /me); giá trị null khi chưa đăng nhập.
+    LiveData<UserProfile> getProfile();
+    // Sửa tên và cờ riêng tư (PATCH /me).
+    LiveData<AuthResult<UserProfile>> updateProfile(String displayName, boolean allowMessagesFromNonContacts, boolean discoverable);
+    // Đổi mật khẩu (POST /me/password); lỗi BAD_CREDENTIALS nếu mật khẩu hiện tại sai.
+    LiveData<AuthResult<Boolean>> changePassword(String oldPassword, String newPassword);
+    // Danh sách thiết bị đang đăng nhập (GET /account/devices).
+    LiveData<AuthResult<List<DeviceInfo>>> getDevices();
+    // Thu hồi một thiết bị khác (DELETE /account/devices/{id}).
+    LiveData<AuthResult<Boolean>> revokeDevice(String deviceId);
 }

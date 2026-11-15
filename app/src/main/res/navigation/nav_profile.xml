@@ -3,5 +3,16 @@
 <navigation xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/nav_profile" app:startDestination="@id/profileFragment">
     <fragment android:id="@+id/profileFragment" android:name="com.utechat.ui.profile.ProfileFragment">
+        <!-- Từ tab Hồ sơ đi tới từng màn con; bấm Back thì quay về tab. -->
+        <action android:id="@+id/action_profile_to_edit" app:destination="@id/editProfileFragment" />
+        <action android:id="@+id/action_profile_to_password" app:destination="@id/changePasswordFragment" />
+        <action android:id="@+id/action_profile_to_language" app:destination="@id/languageFragment" />
+        <action android:id="@+id/action_profile_to_theme" app:destination="@id/themeFragment" />
+        <action android:id="@+id/action_profile_to_devices" app:destination="@id/devicesFragment" />
     </fragment>
+    <fragment android:id="@+id/editProfileFragment" android:name="com.utechat.ui.profile.EditProfileFragment" />
+    <fragment android:id="@+id/changePasswordFragment" android:name="com.utechat.ui.profile.ChangePasswordFragment" />
+    <fragment android:id="@+id/languageFragment" android:name="com.utechat.ui.profile.LanguageFragment" />
+    <fragment android:id="@+id/themeFragment" android:name="com.utechat.ui.profile.ThemeFragment" />
+    <fragment android:id="@+id/devicesFragment" android:name="com.utechat.ui.profile.DevicesFragment" />
 </navigation>

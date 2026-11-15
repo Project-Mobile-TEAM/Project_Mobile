@@ -16,6 +16,8 @@ public class MainActivity extends AppCompatActivity {
     private ActivityMainBinding binding; // ViewBinding thay findViewById và kiểm tra ID khi build.
 
     @Override protected void onCreate(Bundle savedInstanceState) {
+        // Áp dụng chế độ sáng/tối người dùng đã chọn (DayNight không tự nhớ giữa các lần mở app).
+        com.utechat.ui.profile.AppSettings.applySavedTheme(this);
         super.onCreate(savedInstanceState);
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());

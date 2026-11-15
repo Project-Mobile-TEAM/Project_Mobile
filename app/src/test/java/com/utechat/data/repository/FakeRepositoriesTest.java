@@ -42,6 +42,28 @@ public class FakeRepositoriesTest {
         assertEquals(DemoData.ALICE, auth.getCurrentUser().getValue().getId());
     }
 
+    @Test public void profileDevicesAndPasswordFollowTheSession() {
+        FakeAuthRepository auth = new FakeAuthRepository();
+        assertNull(auth.getProfile().getValue()); // Chưa đăng nhập thì chưa có hồ sơ.
+        auth.login("+84901111111", "x");
+        UserProfile me = auth.getProfile().getValue();
+        assertEquals(DemoData.ALICE, me.id);
+        // Sửa tên và cờ riêng tư phản ánh ngay vào hồ sơ.
+        assertEquals("Alice A", auth.updateProfile("Alice A", false, false).getValue().data.displayName);
+        assertFalse(auth.getProfile().getValue().discoverable);
+        // Đổi mật khẩu: sai mật khẩu hiện tại bị từ chối, đúng thì mật khẩu mới có hiệu lực.
+        assertEquals("BAD_CREDENTIALS", auth.changePassword("sai", "abcd1234").getValue().errorCode);
+        assertTrue(auth.changePassword(FakeAuthRepository.DEMO_PASSWORD, "abcd1234").getValue().isSuccess());
+        assertEquals("BAD_CREDENTIALS", auth.changePassword(FakeAuthRepository.DEMO_PASSWORD, "zzzz1234").getValue().errorCode);
+        // Thiết bị: có 3, thu hồi được thiết bị khác nhưng không thu hồi được thiết bị hiện tại.
+        assertEquals(3, auth.getDevices().getValue().data.size());
+        assertEquals("NOT_FOUND", auth.revokeDevice("d1").getValue().errorCode);
+        assertTrue(auth.revokeDevice("d2").getValue().isSuccess());
+        assertEquals(2, auth.getDevices().getValue().data.size());
+        auth.logout();
+        assertNull(auth.getProfile().getValue());
+    }
+
     @Test public void contactsRespectDirectionAndPrivacyFixture() {
         FakeContactsRepository contacts = new FakeContactsRepository();
         assertEquals(2, contacts.getFriends(DemoData.ALICE).getValue().size());

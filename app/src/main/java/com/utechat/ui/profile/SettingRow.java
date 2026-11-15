@@ -1,0 +1,40 @@
+package com.utechat.ui.profile;
+
+import android.view.View;
+import androidx.annotation.DrawableRes;
+import androidx.annotation.Nullable;
+import com.utechat.databinding.ItemSettingRowBinding;
+
+/** Cấu hình một hàng cài đặt dùng chung (item_setting_row): icon + tiêu đề + một thành phần bên phải. */
+final class SettingRow {
+    private SettingRow() { }
+
+    /** Đặt icon và tiêu đề; icon = 0 thì ẩn vòng tròn icon. */
+    static void base(ItemSettingRowBinding row, @DrawableRes int icon, CharSequence title) {
+        row.title.setText(title);
+        row.iconCircle.setVisibility(icon == 0 ? View.GONE : View.VISIBLE);
+        if (icon != 0) row.icon.setImageResource(icon);
+    }
+
+    /** Hàng dẫn tới màn khác: có giá trị hiện tại (tuỳ chọn) và mũi tên. */
+    static void chevron(ItemSettingRowBinding row, @Nullable CharSequence value, View.OnClickListener onClick) {
+        row.value.setVisibility(value == null ? View.GONE : View.VISIBLE);
+        row.value.setText(value);
+        row.chevron.setVisibility(View.VISIBLE);
+        row.getRoot().setOnClickListener(onClick);
+    }
+
+    /** Hàng có công tắc; bấm cả hàng cũng đổi công tắc để vùng chạm đủ lớn. */
+    static void toggle(ItemSettingRowBinding row, boolean checked) {
+        row.toggle.setVisibility(View.VISIBLE);
+        row.toggle.setChecked(checked);
+        row.getRoot().setOnClickListener(v -> row.toggle.toggle());
+    }
+
+    /** Hàng chọn một (radio): bấm hàng thì gọi onSelect; trạng thái chọn do màn hình tự cập nhật qua setChecked. */
+    static void radio(ItemSettingRowBinding row, boolean checked, View.OnClickListener onSelect) {
+        row.radio.setVisibility(View.VISIBLE);
+        row.radio.setChecked(checked);
+        row.getRoot().setOnClickListener(onSelect);
+    }
+}

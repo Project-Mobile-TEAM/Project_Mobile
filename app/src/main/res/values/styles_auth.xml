@@ -39,6 +39,18 @@
         <item name="android:gravity">center_vertical</item>
         <item name="android:textAppearance">?attr/textAppearanceBodyMedium</item>
     </style>
+    <!-- Thẻ bo 16dp viền mảnh 1dp, không đổ bóng (nhóm các hàng cài đặt). -->
+    <style name="Widget.UTEChat.Card" parent="Widget.Material3.CardView.Outlined">
+        <item name="cardBackgroundColor">@color/ute_card</item>
+        <item name="cardCornerRadius">16dp</item>
+        <item name="strokeColor">@color/ute_border</item>
+        <item name="strokeWidth">1dp</item>
+        <item name="cardElevation">0dp</item>
+    </style>
+    <!-- Nhãn nhóm nhỏ màu nhấn phía trên thẻ ("Quyền riêng tư", "Ứng dụng"). -->
+    <style name="TextAppearance.UTEChat.Section" parent="TextAppearance.Material3.LabelLarge">
+        <item name="android:textColor">?attr/colorPrimary</item>
+    </style>
     <!-- Tiêu đề lớn của màn (ví dụ "Số điện thoại của bạn"). -->
     <style name="TextAppearance.UTEChat.Heading" parent="TextAppearance.Material3.HeadlineSmall">
         <item name="android:textSize">26sp</item>
