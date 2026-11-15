@@ -11,7 +11,7 @@ import androidx.navigation.fragment.NavHostFragment;
 import androidx.navigation.ui.NavigationUI;
 import com.utechat.databinding.ActivityMainBinding;
 
-/** Activity duy nhất; điều hướng Fragment và xử lý vùng an toàn của Android SDK35. */
+/** Activity duy nhất; điều hướng Fragment và xử lý vùng an toàn của Android SDK36. */
 public class MainActivity extends AppCompatActivity {
     private ActivityMainBinding binding; // ViewBinding thay findViewById và kiểm tra ID khi build.
 
@@ -21,7 +21,8 @@ public class MainActivity extends AppCompatActivity {
         setContentView(binding.getRoot());
         // Tránh nội dung nằm dưới status bar/gesture bar khi hệ thống bật edge-to-edge.
         ViewCompat.setOnApplyWindowInsetsListener(binding.main, (view, insets) -> {
-            Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
+            // Cộng cả bàn phím (ime) để nút ở đáy màn auth không bị bàn phím che khi edge-to-edge.
+            Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.ime());
             view.setPadding(bars.left, bars.top, bars.right, bars.bottom);
             return insets;
         });

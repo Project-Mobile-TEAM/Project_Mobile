@@ -19,7 +19,7 @@
 
 Mọi sơ đồ dùng **Mermaid**, xem trực tiếp trên GitHub hoặc trong VS Code (cần tiện ích Mermaid).
 
-**Bám tài liệu giảng dạy:** phần **app Android** dùng đúng công nghệ và mẫu code của slide (Java, View Binding, một Activity + Navigation + Safe Args, MVVM với LiveData, `AppExecutors`, Room, Retrofit + OkHttp + Gson, WebSocket OkHttp, WorkManager `send-messages`, Keystore, Espresso/Mockito/Fake, `minSdk 26`, `compileSdk 35`, `targetSdk 35`, package `com.utechat`). Chi tiết ở `COURSE_ALIGNMENT.md`, ADR-023 và ADR-024. Hai tính năng sáng tạo V1 (WebRTC, ML Kit) đi qua cùng các lớp đó.
+**Bám tài liệu giảng dạy:** phần **app Android** dùng đúng công nghệ và mẫu code của slide (Java, View Binding, một Activity + Navigation + Safe Args, MVVM với LiveData, `AppExecutors`, Room, Retrofit + OkHttp + Gson, WebSocket OkHttp, WorkManager `send-messages`, Keystore, Espresso/Mockito/Fake, `minSdk 26`, `compileSdk 36`, `targetSdk 36`, package `com.utechat`). Chi tiết ở `COURSE_ALIGNMENT.md`, ADR-023 và ADR-024. Hai tính năng sáng tạo V1 (WebRTC, ML Kit) đi qua cùng các lớp đó.
 
 ## 2. Phạm vi
 

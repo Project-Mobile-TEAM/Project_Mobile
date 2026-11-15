@@ -1,11 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Material3 DayNight tự chuyển sáng/tối theo hệ thống; không dùng màu nền trắng cố định. -->
+<!-- Material3 DayNight tự chuyển sáng/tối theo hệ thống; màu lấy từ @color/ute_* nên một theme dùng cho cả hai chế độ. -->
 <resources>
     <style name="Base.Theme.UTEChat" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Giữ biểu tượng hệ thống tương phản với nền sáng/tối của app SDK35. -->
+        <!-- Biểu tượng thanh trạng thái: tối trên nền sáng (bản tối ghi đè ở values-night). -->
         <item name="android:windowLightStatusBar">true</item>
-        <item name="colorPrimary">#245FCB</item>
-        <item name="colorOnPrimary">#FFFFFF</item>
+        <!-- Màu nhấn chính. -->
+        <item name="colorPrimary">@color/ute_accent</item>
+        <item name="colorOnPrimary">@color/ute_on_accent</item>
+        <!-- Nền màn hình và bề mặt: các layout dùng ?attr/colorSurface nên nền khớp thiết kế. -->
+        <item name="android:colorBackground">@color/ute_background</item>
+        <item name="colorSurface">@color/ute_background</item>
+        <item name="colorOnSurface">@color/ute_text</item>
+        <item name="colorOnSurfaceVariant">@color/ute_text_secondary</item>
+        <!-- Viền thẻ và đường kẻ mảnh. -->
+        <item name="colorOutline">@color/ute_border</item>
+        <item name="colorOutlineVariant">@color/ute_border</item>
+        <!-- Màu lỗi: viền và chữ báo lỗi của ô nhập. -->
+        <item name="colorError">@color/ute_error</item>
+        <!-- Font Poppins toàn app (hỗ trợ dấu tiếng Việt); cần cả hai thuộc tính cho View thường và AppCompat/Material. -->
+        <item name="android:fontFamily">@font/poppins</item>
+        <item name="fontFamily">@font/poppins</item>
     </style>
     <style name="Theme.UTEChat" parent="Base.Theme.UTEChat" />
 </resources>

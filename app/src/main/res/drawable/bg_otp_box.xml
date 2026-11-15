@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ô nhập một chữ số OTP: viền xanh dày hơn khi là ô đang chờ nhập (state_selected). -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_selected="true">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/ute_card" />
+            <stroke android:width="2dp" android:color="@color/ute_accent" />
+            <corners android:radius="12dp" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@color/ute_card" />
+            <stroke android:width="1dp" android:color="@color/ute_border" />
+            <corners android:radius="12dp" />
+        </shape>
+    </item>
+</selector>

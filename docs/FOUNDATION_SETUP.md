@@ -26,7 +26,7 @@ Backend không tự chạy migration trên6543; dùng hướng dẫn Flyway sess
 
 ## Android
 
-Java17, minSdk26, compile/target35, package com.utechat, XML Views/ViewBinding.
+Java17, minSdk26, compile/target36, package com.utechat, XML Views/ViewBinding.
 AGP và Gradle Wrapper hiện có được giữ nguyên; Gradle daemon có thể cần JDK mới hơn Java source.
 
 ```powershell

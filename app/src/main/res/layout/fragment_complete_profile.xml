@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Đăng ký bước 3: tên hiển thị và mật khẩu. Gốc ConstraintLayout phẳng. Avatar chỉ hiện chữ cái đầu (chưa có chọn ảnh). -->
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:background="?attr/colorSurface">
+
+    <com.google.android.material.appbar.MaterialToolbar android:id="@+id/toolbar"
+        android:layout_width="0dp" android:layout_height="?attr/actionBarSize"
+        app:layout_constraintTop_toTopOf="parent" app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:navigationIcon="@drawable/ic_arrow_back" app:navigationContentDescription="@string/auth_back"
+        app:title="@string/auth_profile_title" />
+    <View android:id="@+id/divider" android:layout_width="0dp" android:layout_height="1dp"
+        android:background="@color/ute_border" app:layout_constraintTop_toBottomOf="@id/toolbar"
+        app:layout_constraintStart_toStartOf="parent" app:layout_constraintEnd_toEndOf="parent" />
+
+    <ScrollView android:layout_width="0dp" android:layout_height="0dp" android:fillViewport="true"
+        app:layout_constraintTop_toBottomOf="@id/divider" app:layout_constraintBottom_toTopOf="@id/btn_create"
+        app:layout_constraintStart_toStartOf="parent" app:layout_constraintEnd_toEndOf="parent">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="vertical" android:padding="16dp">
+            <TextView android:id="@+id/tv_avatar" android:layout_width="96dp" android:layout_height="96dp"
+                android:layout_gravity="center_horizontal" android:layout_marginTop="8dp"
+                android:background="@drawable/bg_avatar" android:gravity="center"
+                android:contentDescription="@string/auth_avatar_description"
+                android:textColor="@color/ute_avatar_text" android:textSize="32sp" android:textStyle="bold" />
+
+            <com.google.android.material.textfield.TextInputLayout android:id="@+id/til_name"
+                style="@style/Widget.UTEChat.InputLayout" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="24dp" android:hint="@string/auth_hint_full_name">
+                <com.google.android.material.textfield.TextInputEditText android:id="@+id/et_name"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:inputType="textPersonName|textCapWords" android:maxLength="50" android:autofillHints="name" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <com.google.android.material.textfield.TextInputLayout android:id="@+id/til_password"
+                style="@style/Widget.UTEChat.InputLayout" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="12dp" android:hint="@string/auth_hint_password"
+                app:endIconMode="password_toggle" app:helperText="@string/auth_password_helper">
+                <com.google.android.material.textfield.TextInputEditText android:id="@+id/et_password"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:inputType="textPassword" android:autofillHints="newPassword" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <com.google.android.material.textfield.TextInputLayout android:id="@+id/til_confirm"
+                style="@style/Widget.UTEChat.InputLayout" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="12dp" android:hint="@string/auth_hint_confirm_password"
+                app:endIconMode="password_toggle">
+                <com.google.android.material.textfield.TextInputEditText android:id="@+id/et_confirm"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:inputType="textPassword" android:autofillHints="newPassword" />
+            </com.google.android.material.textfield.TextInputLayout>
+        </LinearLayout>
+    </ScrollView>
+
+    <com.google.android.material.button.MaterialButton android:id="@+id/btn_create"
+        style="@style/Widget.UTEChat.PrimaryButton" android:layout_width="0dp" android:layout_height="wrap_content"
+        android:layout_margin="16dp" android:text="@string/auth_create_account"
+        app:layout_constraintBottom_toBottomOf="parent" app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+</androidx.constraintlayout.widget.ConstraintLayout>

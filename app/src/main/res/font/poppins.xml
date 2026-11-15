@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Họ font Poppins (giấy phép OFL): ánh xạ độ đậm chữ sang từng file ttf để textStyle/fontWeight tự chọn đúng. -->
+<font-family xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Chữ thường (400). -->
+    <font android:fontStyle="normal" android:fontWeight="400" android:font="@font/poppins_regular" />
+    <!-- Chữ nhấn nhẹ (500). -->
+    <font android:fontStyle="normal" android:fontWeight="500" android:font="@font/poppins_medium" />
+    <!-- Tiêu đề, nút (600); dùng cho cả bold vì thiết kế không có bản 700. -->
+    <font android:fontStyle="normal" android:fontWeight="600" android:font="@font/poppins_semibold" />
+    <font android:fontStyle="normal" android:fontWeight="700" android:font="@font/poppins_semibold" />
+</font-family>

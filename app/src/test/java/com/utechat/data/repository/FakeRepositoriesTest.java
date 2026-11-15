@@ -19,6 +19,17 @@ public class FakeRepositoriesTest {
         assertEquals(5, DemoData.users().size());
     }
 
+    @Test public void registerFlowRejectsTakenPhoneAndBadOtp() {
+        FakeAuthRepository auth = new FakeAuthRepository();
+        assertEquals("PHONE_TAKEN", auth.requestRegisterOtp("+84901111111").getValue().errorCode);
+        OtpChallenge challenge = auth.requestRegisterOtp("+84912345678").getValue().data;
+        assertEquals(FakeAuthRepository.DEMO_OTP, challenge.demoCode);
+        assertEquals("OTP_INVALID", auth.verifyRegisterOtp(challenge.challengeId, "000000").getValue().errorCode);
+        String token = auth.verifyRegisterOtp(challenge.challengeId, FakeAuthRepository.DEMO_OTP).getValue().data;
+        assertEquals("+84912345678", auth.completeRegister(token, "Khang", "abcd1234").getValue().data.getPhone());
+        assertEquals("Khang", auth.getCurrentUser().getValue().getDisplayName());
+    }
+
     @Test public void contactsRespectDirectionAndPrivacyFixture() {
         FakeContactsRepository contacts = new FakeContactsRepository();
         assertEquals(2, contacts.getFriends(DemoData.ALICE).getValue().size());

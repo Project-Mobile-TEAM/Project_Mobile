@@ -2,12 +2,18 @@ package com.utechat.data.repository;
 
 import androidx.lifecycle.LiveData;
 import com.utechat.data.local.entity.*;
-import java.util.List;
 
 /** Ranh giới AuthRepository: UI không phụ thuộc cách lưu SQLite hoặc gọi REST. */
 public interface AuthRepository {
-    // Đăng nhập và quan sát phiên hiện tại; bản Fake chỉ dành Debug.
+    // Đăng nhập: giá trị null nghĩa là sai thông tin; bản Fake chỉ dành Debug.
     LiveData<UserEntity> login(String phoneE164, String password);
     LiveData<UserEntity> getCurrentUser();
     void logout();
+
+    // Đăng ký bước 1 (F-01): gửi OTP tới số E.164; lỗi PHONE_TAKEN nếu số đã có tài khoản.
+    LiveData<AuthResult<OtpChallenge>> requestRegisterOtp(String phoneE164);
+    // Đăng ký bước 2: xác minh OTP, trả registrationToken dùng một lần; lỗi OTP_INVALID/OTP_EXPIRED.
+    LiveData<AuthResult<String>> verifyRegisterOtp(String challengeId, String code);
+    // Đăng ký bước 3: tạo tài khoản bằng registrationToken, tên hiển thị và mật khẩu.
+    LiveData<AuthResult<UserEntity>> completeRegister(String registrationToken, String displayName, String password);
 }

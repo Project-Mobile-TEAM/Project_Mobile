@@ -1,7 +1,51 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Chuỗi auth do nhóm phụ trách module này quản lý; bản tiếng Việt. -->
 <resources>
-    <string name="title_login">Chào mừng đến UTEChat</string>
-    <string name="auth_subtitle">Kết nối với những người bạn quan tâm.</string>
+    <!-- Đăng nhập -->
+    <string name="auth_brand">UTE-chat</string>
+    <string name="auth_tagline">Kết nối sinh viên HCM-UTE</string>
+    <string name="auth_hint_phone">Số điện thoại</string>
+    <string name="auth_hint_password">Mật khẩu</string>
+    <string name="auth_login">Đăng nhập</string>
+    <string name="auth_no_account">Chưa có tài khoản?</string>
+    <string name="auth_register">Đăng ký</string>
     <string name="preview_button">Xem giao diện mẫu</string>
+    <!-- Đăng ký, số điện thoại -->
+    <string name="auth_register_title">Đăng ký</string>
+    <string name="auth_register_heading">Số điện thoại của bạn</string>
+    <string name="auth_register_subtitle">Chúng tôi sẽ gửi mã xác nhận gồm 6 số đến số này.</string>
+    <string name="auth_phone_helper">Ví dụ: +84912345678</string>
+    <string name="auth_register_terms">Bằng việc tiếp tục, bạn đồng ý với Điều khoản và Chính sách quyền riêng tư của UTEchat.</string>
+    <string name="auth_continue">Tiếp tục</string>
+    <!-- Xác minh OTP -->
+    <string name="auth_otp_title">Xác minh</string>
+    <string name="auth_otp_heading">Nhập mã xác nhận</string>
+    <string name="auth_otp_subtitle">Mã 6 số đã được gửi đến %1$s.</string>
+    <string name="auth_otp_input">Mã xác nhận</string>
+    <string name="auth_otp_no_code">Chưa nhận được mã?</string>
+    <string name="auth_otp_resend_in">Gửi lại sau %1$s</string>
+    <string name="auth_otp_resend">Gửi lại</string>
+    <string name="auth_otp_demo_code">Mã demo: %1$s</string>
+    <string name="auth_confirm">Xác nhận</string>
+    <!-- Hoàn tất hồ sơ -->
+    <string name="auth_profile_title">Hoàn tất hồ sơ</string>
+    <string name="auth_hint_full_name">Họ và tên</string>
+    <string name="auth_hint_confirm_password">Nhập lại mật khẩu</string>
+    <string name="auth_password_helper">Tối thiểu 8 ký tự, gồm chữ và số.</string>
+    <string name="auth_create_account">Tạo tài khoản</string>
+    <string name="auth_avatar_description">Ảnh đại diện</string>
+    <string name="auth_back">Quay lại</string>
+    <!-- Lỗi -->
+    <string name="auth_error_phone_invalid">Nhập số điện thoại di động Việt Nam hợp lệ.</string>
+    <string name="auth_error_password_required">Nhập mật khẩu.</string>
+    <string name="auth_error_password_weak">Dùng ít nhất 8 ký tự, gồm chữ và số.</string>
+    <string name="auth_error_password_mismatch">Mật khẩu nhập lại không khớp.</string>
+    <string name="auth_error_name_invalid">Nhập tên từ 1 đến 50 ký tự.</string>
+    <string name="auth_error_bad_credentials">Sai số điện thoại hoặc mật khẩu.</string>
+    <string name="auth_error_phone_taken">Số này đã có tài khoản.</string>
+    <string name="auth_error_otp_invalid">Mã xác nhận không đúng.</string>
+    <string name="auth_error_otp_expired">Mã đã hết hạn. Hãy yêu cầu mã mới.</string>
+    <string name="auth_error_otp_attempts">Nhập sai quá nhiều lần. Hãy yêu cầu mã mới.</string>
+    <string name="auth_error_otp_rate_limit">Yêu cầu quá nhiều lần. Vui lòng thử lại sau.</string>
+    <string name="auth_error_generic">Đã có lỗi xảy ra. Vui lòng thử lại.</string>
 </resources>

@@ -6,6 +6,8 @@ import com.utechat.data.local.dao.UserDao;
 import com.utechat.data.local.entity.UserEntity;
 import com.utechat.data.remote.api.AuthApi;
 import com.utechat.data.repository.AuthRepository;
+import com.utechat.data.repository.AuthResult;
+import com.utechat.data.repository.OtpChallenge;
 
 /** Khung xác thực thật cho Phase3; tuyệt đối không tự chuyển sang tài khoản giả. */
 public class RealAuthRepository implements AuthRepository {
@@ -14,10 +16,22 @@ public class RealAuthRepository implements AuthRepository {
     private final MutableLiveData<UserEntity> current = new MutableLiveData<>(null);
 
     public RealAuthRepository(UserDao users, AuthApi api) { this.users = users; this.api = api; }
+
+    // shortcut: chưa gọi REST (backend 03-01 chưa có); trả lỗi UNAVAILABLE thay vì báo thành công giả.
     @Override public LiveData<UserEntity> login(String phoneE164, String password) {
-        // shortcut: Phase3 triển khai OTP/JWT; hiện từ chối thay vì báo đăng nhập thành công giả.
-        throw new UnsupportedOperationException("Xác thực thật được triển khai ở Phase 3");
+        return new MutableLiveData<>(null);
     }
     @Override public LiveData<UserEntity> getCurrentUser() { return current; }
     @Override public void logout() { current.setValue(null); }
+
+    @Override public LiveData<AuthResult<OtpChallenge>> requestRegisterOtp(String phoneE164) {
+        return new MutableLiveData<>(AuthResult.error("UNAVAILABLE"));
+    }
+    @Override public LiveData<AuthResult<String>> verifyRegisterOtp(String challengeId, String code) {
+        return new MutableLiveData<>(AuthResult.error("UNAVAILABLE"));
+    }
+    @Override public LiveData<AuthResult<UserEntity>> completeRegister(String registrationToken,
+            String displayName, String password) {
+        return new MutableLiveData<>(AuthResult.error("UNAVAILABLE"));
+    }
 }
