@@ -16,12 +16,12 @@
     {
       "number": "3",
       "name": "Authentication & Profile Management",
-      "status": "in_progress"
+      "status": "pending"
     },
     {
       "number": "4",
       "name": "Contacts & Friendships",
-      "status": "pending"
+      "status": "in_progress"
     },
     {
       "number": "5",
@@ -42,7 +42,7 @@
   "next": {
     "command": "/gsd-progress --next",
     "label": "Advance to the next step",
-    "reason": "Phase 3 of 7 · 0% · executing"
+    "reason": "Phase 4 of 7 · 0% · executing"
   },
-  "updated_at": "2026-11-11T06:45:14.754Z"
+  "updated_at": "2026-11-16T17:48:42.126Z"
 }
