@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Bản tối: ô đang gõ viền sáng như Figma. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true" android:color="@color/ute_text" />
+    <item android:color="@color/ute_stroke" />
+</selector>

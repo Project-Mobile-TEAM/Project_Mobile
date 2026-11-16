@@ -143,7 +143,7 @@ flowchart LR
 ### ADR-023 — Kiến trúc Android bám sát slide bài giảng
 **Status:** ACCEPTED
 **Quyết định:**
-- **Công nghệ:** Java, Views + XML, View Binding, `minSdk 26`, `compileSdk 35`, `targetSdk 35`, Gradle Kotlin DSL với Version Catalog (`gradle/libs.versions.toml`). Package chính thức: `com.utechat`.
+- **Công nghệ:** Java, Views + XML, View Binding, `minSdk 26`, `compileSdk 36`, `targetSdk 36`, Gradle Kotlin DSL với Version Catalog (`gradle/libs.versions.toml`). Package chính thức: `com.utechat`.
 - **Màn hình:** Single Activity (`MainActivity`) chứa `NavHostFragment`, điều hướng bằng Navigation Component, Safe Args chỉ truyền định danh ID, thanh điều hướng dưới `BottomNavigationView`.
 - **Tầng kiến trúc:** UI (Fragment, ViewModel) và Data (Repository, Room, Retrofit). Không dùng Hilt/Dagger, không dùng Coroutine/Flow; bất đồng bộ dùng `AppExecutors` và `LiveData`.
 

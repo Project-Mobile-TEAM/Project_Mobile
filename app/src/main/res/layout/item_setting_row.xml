@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Một hàng cài đặt dùng chung: icon tròn + tiêu đề + (giá trị, mũi tên | công tắc | radio). SettingRow chọn thành phần bên phải. -->
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:minHeight="68dp" android:paddingStart="16dp" android:paddingEnd="16dp"
+    android:paddingTop="14dp" android:paddingBottom="14dp"
+    android:background="?attr/selectableItemBackground" android:clickable="true" android:focusable="true">
+
+    <FrameLayout android:id="@+id/icon_circle" android:layout_width="40dp" android:layout_height="40dp"
+        android:background="@drawable/bg_avatar"
+        app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent">
+        <ImageView android:id="@+id/icon" android:layout_width="20dp" android:layout_height="20dp"
+            android:layout_gravity="center" android:importantForAccessibility="no" />
+    </FrameLayout>
+
+    <TextView android:id="@+id/title" android:layout_width="0dp" android:layout_height="wrap_content"
+        android:layout_marginStart="16dp" android:layout_marginEnd="8dp"
+        android:textAppearance="?attr/textAppearanceBodyLarge" android:textColor="?attr/colorOnSurface"
+        android:includeFontPadding="false"
+        app:layout_constraintStart_toEndOf="@id/icon_circle" app:layout_constraintEnd_toStartOf="@id/barrier_end"
+        app:layout_constraintTop_toTopOf="parent" app:layout_constraintBottom_toBottomOf="parent" />
+
+    <!-- Rào chắn phía bên phải: tiêu đề dừng trước thành phần bên phải đang hiện (view GONE không tính). -->
+    <androidx.constraintlayout.widget.Barrier android:id="@+id/barrier_end"
+        android:layout_width="wrap_content" android:layout_height="wrap_content"
+        app:barrierDirection="start" app:constraint_referenced_ids="value,chevron,toggle,radio" />
+
+    <!-- Giá trị hiện tại (ví dụ "Tiếng Việt"), ẩn mặc định. -->
+    <TextView android:id="@+id/value" android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:visibility="gone" android:textAppearance="?attr/textAppearanceBodyMedium" android:includeFontPadding="false"
+        android:textColor="?attr/colorOnSurfaceVariant"
+        app:layout_constraintEnd_toStartOf="@id/chevron" app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent" />
+
+    <ImageView android:id="@+id/chevron" android:layout_width="18dp" android:layout_height="18dp"
+        android:visibility="gone" android:src="@drawable/ic_chevron_right"
+        android:importantForAccessibility="no"
+        app:layout_constraintEnd_toEndOf="parent" app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent" />
+
+    <!-- Công tắc và radio chỉ để hiển thị trạng thái; bấm cả hàng để đổi nên không tự nhận chạm. saveEnabled=false vì nhiều hàng dùng chung id, tránh Android khôi phục nhầm trạng thái và code luôn tự gán lại. -->
+    <com.google.android.material.materialswitch.MaterialSwitch android:id="@+id/toggle"
+        android:layout_width="wrap_content" android:layout_height="wrap_content" android:visibility="gone"
+        android:clickable="false" android:focusable="false" android:saveEnabled="false" android:minHeight="32dp"
+        app:layout_constraintEnd_toEndOf="parent" app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent" />
+
+    <com.google.android.material.radiobutton.MaterialRadioButton android:id="@+id/radio"
+        android:layout_width="wrap_content" android:layout_height="wrap_content" android:visibility="gone"
+        android:clickable="false" android:focusable="false" android:saveEnabled="false"
+        android:minWidth="0dp" android:minHeight="0dp" android:padding="0dp"
+        app:layout_constraintEnd_toEndOf="parent" app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent" />
+</androidx.constraintlayout.widget.ConstraintLayout>

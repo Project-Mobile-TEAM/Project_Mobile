@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Style dùng chung cho các màn auth/profile theo Figma; các nhóm khác có thể dùng lại. -->
+<resources>
+    <!-- Ô nhập viền bo 14dp, nền thẻ; viền tự đổi sang màu nhấn khi focus. -->
+    <style name="Widget.UTEChat.InputLayout" parent="Widget.Material3.TextInputLayout.OutlinedBox">
+        <item name="boxBackgroundColor">@color/ute_card</item>
+        <item name="boxCornerRadiusTopStart">12dp</item>
+        <item name="boxCornerRadiusTopEnd">12dp</item>
+        <item name="boxCornerRadiusBottomStart">12dp</item>
+        <item name="boxCornerRadiusBottomEnd">12dp</item>
+        <item name="boxStrokeColor">@color/box_stroke</item>
+        <item name="boxStrokeWidth">1dp</item>
+        <item name="boxStrokeWidthFocused">2dp</item>
+        <item name="hintTextAppearance">@style/TextAppearance.UTEChat.FieldLabel</item>
+        <item name="helperTextTextAppearance">@style/TextAppearance.UTEChat.FieldHelper</item>
+        <item name="android:textColorHint">?attr/colorOnSurfaceVariant</item>
+    </style>
+    <style name="TextAppearance.UTEChat.FieldLabel" parent="TextAppearance.Material3.BodySmall">
+        <item name="android:textSize">12sp</item>
+        <item name="android:fontFamily">@font/poppins_medium</item>
+        <item name="fontFamily">@font/poppins_medium</item>
+    </style>
+    <style name="TextAppearance.UTEChat.FieldHelper" parent="TextAppearance.Material3.BodySmall">
+        <item name="android:textSize">12sp</item>
+        <item name="android:textColor">?attr/colorOnSurfaceVariant</item>
+    </style>
+    <!-- Nút chính hình viên thuốc, cao 52dp, không viết hoa. -->
+    <style name="Widget.UTEChat.PrimaryButton" parent="Widget.Material3.Button">
+        <item name="android:minHeight">48dp</item>
+        <item name="cornerRadius">24dp</item>
+        <item name="android:fontFamily">@font/poppins_medium</item>
+        <item name="android:textSize">15sp</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:letterSpacing">0</item>
+    </style>
+    <!-- Một ô số OTP: chia đều chiều ngang (weight 1), nền đổi viền khi là ô đang chờ nhập. -->
+    <style name="Widget.UTEChat.OtpBox" parent="">
+        <item name="android:layout_width">50dp</item>
+        <item name="android:layout_height">match_parent</item>
+        <item name="android:layout_marginStart">4dp</item>
+        <item name="android:layout_marginEnd">4dp</item>
+        <item name="android:background">@drawable/bg_otp_box</item>
+        <item name="android:gravity">center</item>
+        <item name="android:textSize">26sp</item>
+        <item name="android:fontFamily">@font/poppins_medium</item>
+        <item name="android:textColor">?attr/colorOnSurface</item>
+        <item name="android:importantForAccessibility">no</item>
+    </style>
+    <!-- Một dòng tiêu chí mật khẩu: icon tích/X bên trái chữ. -->
+    <style name="Widget.UTEChat.Rule" parent="">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">10dp</item>
+        <item name="android:drawablePadding">10dp</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:textAppearance">?attr/textAppearanceBodyMedium</item>
+    </style>
+    <!-- Thẻ bo 16dp viền mảnh 1dp, không đổ bóng (nhóm các hàng cài đặt). -->
+    <style name="Widget.UTEChat.Card" parent="Widget.Material3.CardView.Outlined">
+        <item name="cardBackgroundColor">@color/ute_card</item>
+        <item name="cardCornerRadius">16dp</item>
+        <item name="strokeColor">@color/ute_border</item>
+        <item name="strokeWidth">1dp</item>
+        <item name="cardElevation">0dp</item>
+    </style>
+    <!-- Nhãn nhóm nhỏ màu nhấn phía trên thẻ ("Quyền riêng tư", "Ứng dụng"). -->
+    <style name="TextAppearance.UTEChat.Section" parent="TextAppearance.Material3.LabelLarge">
+        <item name="android:textSize">13sp</item>
+        <item name="android:fontFamily">@font/poppins_medium</item>
+        <item name="android:textColor">?attr/colorPrimary</item>
+    </style>
+    <!-- Tiêu đề lớn của màn (ví dụ "Số điện thoại của bạn"). -->
+    <style name="TextAppearance.UTEChat.Heading" parent="TextAppearance.Material3.HeadlineSmall">
+        <item name="android:textSize">26sp</item>
+        <item name="lineHeight">32dp</item>
+        <item name="android:fontFamily">@font/poppins_medium</item>
+        <item name="fontFamily">@font/poppins_medium</item>
+        <item name="android:textColor">?attr/colorOnSurface</item>
+    </style>
+    <!--
+      Hộp thoại chung: nền thẻ trắng (tối: màu thẻ), tiêu đề Poppins Medium 20sp, nội dung 14sp giãn dòng.
+      Một hành động chính duy nhất: nút đặc bo tròn; hành động phụ là nút chữ màu xám để không tranh chú ý.
+    -->
+    <style name="ThemeOverlay.UTEChat.Dialog" parent="ThemeOverlay.Material3.MaterialAlertDialog">
+        <item name="colorSurfaceContainerHigh">@color/ute_card</item>
+        <item name="colorSurface">@color/ute_card</item>
+        <!-- Tắt lớp phủ ám màu theo độ cao, nếu không nền bị ám theo màu chính (xanh, hoặc hồng ở hộp thoại đỏ). -->
+        <item name="elevationOverlayEnabled">false</item>
+        <item name="materialAlertDialogTitleTextStyle">@style/UTEChat.Dialog.Title</item>
+        <item name="materialAlertDialogBodyTextStyle">@style/UTEChat.Dialog.Body</item>
+        <item name="buttonBarPositiveButtonStyle">@style/UTEChat.Dialog.Button.Primary</item>
+        <item name="buttonBarNegativeButtonStyle">@style/UTEChat.Dialog.Button</item>
+    </style>
+    <!-- Hộp thoại huỷ hoại dữ liệu (xoá tài khoản, thu hồi thiết bị): nút chính màu đỏ. -->
+    <style name="ThemeOverlay.UTEChat.Dialog.Destructive">
+        <item name="colorPrimary">@color/ute_error</item>
+        <item name="colorOnPrimary">@color/ute_on_accent_fixed</item>
+    </style>
+    <style name="UTEChat.Dialog.Title" parent="MaterialAlertDialog.Material3.Title.Text">
+        <item name="android:textSize">20sp</item>
+        <item name="android:lineSpacingExtra">2sp</item>
+        <item name="android:fontFamily">@font/poppins_medium</item>
+        <item name="android:textColor">@color/ute_text</item>
+    </style>
+    <style name="UTEChat.Dialog.Body" parent="MaterialAlertDialog.Material3.Body.Text">
+        <item name="android:textSize">14sp</item>
+        <item name="android:lineSpacingExtra">4sp</item>
+        <item name="android:fontFamily">@font/poppins_regular</item>
+        <item name="android:textColor">@color/ute_text_secondary</item>
+    </style>
+    <style name="UTEChat.Dialog.Button" parent="Widget.Material3.Button.TextButton.Dialog">
+        <item name="android:textSize">14sp</item>
+        <item name="android:fontFamily">@font/poppins_medium</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:textColor">@color/ute_text_secondary</item>
+        <item name="android:minHeight">44dp</item>
+    </style>
+    <style name="UTEChat.Dialog.Button.Primary" parent="Widget.Material3.Button">
+        <item name="android:textSize">14sp</item>
+        <item name="android:fontFamily">@font/poppins_medium</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:minHeight">44dp</item>
+        <item name="android:paddingStart">20dp</item>
+        <item name="android:paddingEnd">20dp</item>
+        <item name="android:layout_marginStart">8dp</item>
+        <item name="cornerRadius">22dp</item>
+    </style>
+    <!-- Đăng nhập (Figma cập nhật): nhãn 13sp xám nằm trên ô, cách ô 7dp. -->
+    <style name="Widget.UTEChat.FieldLabelAbove" parent="">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginStart">20dp</item>
+        <item name="android:layout_marginBottom">7dp</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:fontFamily">@font/poppins_regular</item>
+        <item name="android:textColor">?attr/colorOnSurfaceVariant</item>
+    </style>
+    <!-- Ô nhập không có nhãn nổi (nhãn đã nằm phía trên), lề 20dp. -->
+    <style name="Widget.UTEChat.InputLayout.LabelAbove">
+        <item name="hintEnabled">false</item>
+        <item name="android:layout_marginStart">20dp</item>
+        <item name="android:layout_marginEnd">20dp</item>
+    </style>
+    <!-- Chữ trong ô: đệm 14dp trên dưới để ô cao đúng 50dp như Figma. -->
+    <style name="Widget.UTEChat.EditCompact" parent="">
+        <item name="android:paddingTop">14dp</item>
+        <item name="android:paddingBottom">14dp</item>
+    </style>
+    <!-- Liên kết chữ dưới nút chính: 15sp Medium màu nhấn, đệm ngang 10dp để hai liên kết cách nhau 20dp. -->
+    <style name="Widget.UTEChat.LinkButton" parent="Widget.Material3.Button.TextButton">
+        <item name="android:textSize">15sp</item>
+        <item name="android:fontFamily">@font/poppins_medium</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:paddingStart">10dp</item>
+        <item name="android:paddingEnd">10dp</item>
+    </style>
+</resources>

@@ -49,16 +49,19 @@
 | `POST /auth/password-reset/complete` | `resetToken`, `newPassword`, `deviceName` | `state` (`COMPLETE`), `token` | `WEAK_PASSWORD` |
 | `POST /auth/logout` | — | 204 | — |
 
+> **Bổ sung đã cài đặt (Phase 3):** (1) Các endpoint gửi OTP trả thêm `demoOtp` (6 số) **chỉ khi** server ở chế độ demo (profile `dev`), kèm việc ghi mã vào file `otp-local/<số>.txt`; ở production trường này vắng mặt. (2) `POST /me/password` và `DELETE /me` khi mật khẩu sai trả **HTTP 400** với `code = BAD_CREDENTIALS` (không phải 401, để app không nhầm với hết phiên và tự đăng xuất). (3) `registrationToken`/`resetToken` dùng lại hoặc hết hạn trả 400 `OTP_EXPIRED`. (4) Xác minh OTP đăng nhập chưa áp khoá `LOCKED`; giới hạn bằng 5 lần sai mỗi mã và 5 mã mỗi giờ mỗi số.
+>
 > **Ghi chú xác thực V1:** Đăng nhập mật khẩu và OTP trong V1 chỉ trả về `state: COMPLETE` kèm JWT token hoặc trả mã lỗi (`BAD_CREDENTIALS`, `LOCKED`, v.v.). Khi đặt lại mật khẩu thành công qua OTP, server tự động thu hồi token của toàn bộ các thiết bị khác (`token_valid_after = now`).
 
 ### 2.2 Tài khoản và Quyền riêng tư
 
 | Method và đường dẫn | Body chính | Trả về | Mô tả |
 |---|---|---|---|
-| `GET /me` | — | `user` | Lấy thông tin cá nhân gồm: `id`, `phone`, `displayName`, `avatarUrl`, `discoverable`, `allowMessagesFromNonContacts` |
+| `GET /me` | — | `user` | Lấy thông tin cá nhân gồm: `id`, `phone`, `displayName`, `avatarUrl`, `discoverable`, `allowMessagesFromNonContacts`, `deletionScheduledAt` (null, hoặc thời điểm ISO-8601 bị xoá vĩnh viễn) |
 | `PATCH /me` | `displayName`, `avatarMediaUrl`, `discoverable`, `allowMessagesFromNonContacts` | `user` | Cập nhật hồ sơ và cài đặt quyền riêng tư nhắn tin người lạ |
 | `POST /me/password` | `oldPassword`, `newPassword` | 204 | Đổi mật khẩu (thu hồi token của mọi thiết bị khác) |
-| `DELETE /me` | `password` | 204 | Xoá mềm tài khoản (giải phóng SĐT, xoá toàn bộ dòng liên quan trong `contacts`, thu hồi mọi thiết bị) |
+| `DELETE /me` | `password` | 204 | Yêu cầu xoá tài khoản: thu hồi mọi thiết bị ngay, sau **15 ngày** không huỷ thì xoá mềm vĩnh viễn (giải phóng SĐT, xoá toàn bộ dòng liên quan trong `contacts`) |
+| `POST /me/cancel-deletion` | — | 204 | Huỷ yêu cầu xoá khi đăng nhập lại trong 15 ngày chờ |
 | `GET /account/devices` | — | `[{id, name, platform, lastSeenAt, current}]` | Xem danh sách thiết bị đang đăng nhập |
 | `DELETE /account/devices/{id}` | — | 204 | Thu hồi thiết bị (hữu ích khi mất máy) |
 

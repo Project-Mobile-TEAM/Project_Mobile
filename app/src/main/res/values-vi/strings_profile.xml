@@ -1,6 +1,44 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Chuỗi profile do nhóm phụ trách module này quản lý; bản tiếng Việt. -->
 <resources>
-    <string name="title_profile">Trang cá nhân</string>
-    <string name="profile_placeholder">Tài khoản, quyền riêng tư và tùy chọn của bạn.</string>
+    <string name="title_profile">Hồ sơ</string>
+    <string name="profile_section_privacy">Quyền riêng tư</string>
+    <string name="profile_section_app">Ứng dụng</string>
+    <string name="profile_section_security">Bảo mật</string>
+    <string name="profile_allow_strangers">Nhận tin nhắn từ người lạ</string>
+    <string name="profile_discoverable">Cho phép tìm qua SĐT</string>
+    <string name="profile_language">Ngôn ngữ</string>
+    <string name="profile_theme">Giao diện</string>
+    <string name="profile_theme_light">Sáng</string>
+    <string name="profile_theme_dark">Tối</string>
+    <string name="profile_theme_system">Theo hệ thống</string>
+    <string name="profile_notifications">Thông báo</string>
+    <string name="profile_logout">Đăng xuất</string>
+    <string name="profile_edit_title">Sửa hồ sơ</string>
+    <string name="profile_save">Lưu</string>
+    <string name="profile_change_photo">Đổi ảnh đại diện</string>
+    <string name="profile_change_photo_soon">Tính năng đổi ảnh sẽ có ở phiên bản sau.</string>
+    <string name="profile_phone_locked">Không thể thay đổi số điện thoại.</string>
+    <string name="profile_password_title">Đổi mật khẩu</string>
+    <string name="profile_current_password">Mật khẩu hiện tại</string>
+    <string name="profile_password_notice">Sau khi đổi, các thiết bị khác sẽ bị đăng xuất.</string>
+    <string name="profile_password_submit">Cập nhật mật khẩu</string>
+    <string name="profile_password_changed">Đã cập nhật mật khẩu.</string>
+    <string name="profile_error_current_password">Mật khẩu hiện tại chưa đúng.</string>
+    <string name="profile_devices_title">Thiết bị đã đăng nhập</string>
+    <string name="profile_devices_hint">Thu hồi thiết bị nếu bạn bị mất máy hoặc không nhận ra thiết bị.</string>
+    <string name="profile_device_current">Thiết bị này · %1$s · đang hoạt động</string>
+    <string name="profile_device_last_seen">%1$s · %2$s</string>
+    <string name="profile_revoke">Thu hồi</string>
+    <string name="profile_revoke_title">Thu hồi thiết bị này?</string>
+    <string name="profile_revoke_message">%1$s sẽ bị đăng xuất ngay và phải đăng nhập lại để tiếp tục sử dụng.</string>
+    <string name="profile_cancel">Hủy</string>
+    <string name="profile_delete_account">Xóa tài khoản</string>
+    <string name="profile_delete_title">Xóa tài khoản của bạn?</string>
+    <string name="profile_delete_message">Bạn sẽ bị đăng xuất khỏi mọi thiết bị và tài khoản tạm thời bị vô hiệu hóa.\n\nĐổi ý? Chỉ cần đăng nhập lại trong vòng 15 ngày. Sau thời hạn này, tài khoản cùng bạn bè và lời mời sẽ bị xóa vĩnh viễn.</string>
+    <string name="profile_delete_confirm">Xóa tài khoản</string>
+    <string name="deletion_pending_title">Tài khoản đang chờ xóa</string>
+    <string name="deletion_pending_message">Bạn đã yêu cầu xóa tài khoản này. Tài khoản sẽ bị xóa vĩnh viễn vào ngày %1$s.\n\nGiữ lại tài khoản để tiếp tục trò chuyện với bạn bè như trước.</string>
+    <string name="deletion_pending_keep">Giữ tài khoản</string>
+    <string name="deletion_canceled">Tài khoản của bạn đã được giữ lại. Chào mừng bạn quay lại!</string>
 </resources>

@@ -1,14 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Chuỗi common do nhóm phụ trách module này quản lý; bản tiếng Anh mặc định. -->
 <resources>
-    <string name="app_name">UTEChat</string>
+    <string name="app_name">UTE-chat</string>
     <string name="tab_chat">Chats</string>
-    <string name="tab_contacts">Contacts</string>
+    <string name="tab_contacts">Friends</string>
     <string name="tab_profile">Profile</string>
+    <string name="splash_school">HCMC University of Technology and Education</string>
+    <!-- shortcut: số phiên bản viết tay, đổi khi tăng versionName. -->
+    <string name="splash_version">Version 1.0</string>
     <string name="action_retry">Try again</string>
     <string name="action_offline_continue">Continue offline</string>
-    <string name="probe_title">Connecting you</string>
-    <string name="probe_subtitle">A moment to check your connection.</string>
     <string name="probe_checking">Checking your connection…</string>
     <string name="probe_ready">You’re connected</string>
     <string name="probe_network_error">Unable to reach the server. Check your network or continue offline.</string>

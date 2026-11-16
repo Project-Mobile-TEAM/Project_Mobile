@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Vector tab chat; nhãn đọc màn hình lấy từ title của menu. -->
-<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
-    <path android:fillColor="#FF000000" android:pathData="M4,4H20V16H8L4,20V4M6,6V15.2L7.2,14H18V6H6M8,8H16V10H8V8M8,11H14V13H8V11" />
+<!-- Tab Tin nhắn; nhãn đọc màn hình lấy từ title của menu. Icon nét lấy từ Figma; màu theo theme để hợp sáng/tối. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+    <path android:pathData="M21 11.5C21.003 12.6555 20.7675 13.7991 20.3083 14.8594C19.8492 15.9197 19.1762 16.8739 18.3315 17.6623C17.4868 18.4507 16.4885 19.0564 15.3991 19.4414C14.3097 19.8264 13.1525 19.9825 12 19.9C10.7576 19.8847 9.53192 19.6123 8.4 19.1L3 21L4.9 15.6C4.43121 14.4861 4.20828 13.2842 4.24645 12.0763C4.28462 10.8684 4.58299 9.6829 5.12117 8.60083C5.65935 7.51876 6.42469 6.56556 7.36492 5.80631C8.30516 5.04705 9.39816 4.49962 10.5693 4.20138C11.7404 3.90314 12.9621 3.86111 14.151 4.07818C15.3399 4.29524 16.4679 4.76628 17.4581 5.45913C18.4483 6.15199 19.2773 7.05035 19.8885 8.09288C20.4998 9.13541 20.8789 10.2976 21 11.5Z"
+        android:strokeColor="#FF000000" android:strokeWidth="1.8"
+        android:strokeLineCap="round" android:strokeLineJoin="round" />
 </vector>

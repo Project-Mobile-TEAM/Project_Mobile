@@ -9,12 +9,15 @@ require(backendBaseUrl.endsWith("/")) { "backendBaseUrl phải kết thúc bằn
 
 android {
     namespace = "com.utechat"
-    compileSdk = 35
+    compileSdk = 36
+
+    // Mockito (ByteBuddy) chưa chính thức hỗ trợ JDK 25 dùng chạy Gradle; cờ này cho phép mock lớp final như SessionManager.
+    testOptions.unitTests.all { it.systemProperty("net.bytebuddy.experimental", "true") }
 
     defaultConfig {
         applicationId = "com.utechat"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -31,8 +34,8 @@ android {
 
     buildTypes {
         getByName("debug") {
-            // Chỉ Debug có hồ sơ giả để phát triển UI khi backend chưa có module nghiệp vụ.
-            buildConfigField("boolean", "USE_FAKE_DATA", "true")
+            // Chỉ Debug có hồ sơ giả; chạy backend thật bằng: gradlew installDebug -PuseFakeData=false
+            buildConfigField("boolean", "USE_FAKE_DATA", providers.gradleProperty("useFakeData").orElse("true").get())
         }
         getByName("release") {
             buildConfigField("boolean", "USE_FAKE_DATA", "false")

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Giao diện sáng. Icon nét lấy từ Figma; màu theo theme để hợp sáng/tối. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp" android:viewportWidth="20" android:viewportHeight="20"
+    android:tint="?attr/colorOnSurface">
+    <path android:pathData="M13.3333 10C13.3333 11.8409 11.8409 13.3333 10 13.3333C8.15905 13.3333 6.66667 11.8409 6.66667 10C6.66667 8.15905 8.15905 6.66667 10 6.66667C11.8409 6.66667 13.3333 8.15905 13.3333 10Z"
+        android:strokeColor="#FF000000" android:strokeWidth="1.66667"
+        android:strokeLineCap="round" android:strokeLineJoin="round" />
+    <path android:pathData="M10 1.66667V3.33333M10 16.6667V18.3333M4.08333 4.08333L5.25 5.25M14.75 14.75L15.9167 15.9167M1.66667 10H3.33333M16.6667 10H18.3333M4.08333 15.9167L5.25 14.75M14.75 5.25L15.9167 4.08333"
+        android:strokeColor="#FF000000" android:strokeWidth="1.66667"
+        android:strokeLineCap="round" android:strokeLineJoin="round" />
+</vector>

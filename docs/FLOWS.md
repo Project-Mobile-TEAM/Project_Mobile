@@ -121,7 +121,7 @@ sequenceDiagram
 - **Xem hồ sơ:** `GET /me` trả về thông tin cá nhân và cài đặt `allowMessagesFromNonContacts`.
 - **Sửa hồ sơ & quyền riêng tư:** `PATCH /me` cập nhật tên hiển thị, avatar URL, trạng thái khám phá `discoverable`, và cờ `allowMessagesFromNonContacts` (cho phép/chặn người lạ nhắn tin).
 - **Đổi mật khẩu:** `POST /me/password` (nhập mật khẩu cũ và mới; thành công thu hồi token của mọi thiết bị khác).
-- **Xoá tài khoản (Soft delete):** `DELETE /me` (nhập mật khẩu xác nhận). Server thu hồi mọi thiết bị, gỡ khỏi mọi nhóm, **xoá sạch toàn bộ dòng liên quan trong bảng `contacts` hai chiều** (`DELETE FROM contacts WHERE owner_id = :id OR contact_user_id = :id;`), giải phóng số điện thoại (`phone_e164 = NULL`) và đặt `status = DELETED`.
+- **Xoá tài khoản (chờ 15 ngày rồi Soft delete):** `DELETE /me` (nhập mật khẩu xác nhận). Server thu hồi mọi thiết bị ngay và đặt `deletion_scheduled_at = now() + 15 ngày`. **Đăng nhập lại trong 15 ngày** thì `user.deletionScheduledAt` khác null; app hiện thông báo "Tài khoản đang chờ xóa" (kiểu Facebook) với hai lựa chọn: Giữ tài khoản (`POST /me/cancel-deletion`) hoặc Đăng xuất. Hết 15 ngày, job mỗi giờ (và mọi lần tra tài khoản theo SĐT) mới thực hiện xoá mềm vĩnh viễn như sau: gỡ khỏi mọi nhóm, **xoá sạch toàn bộ dòng liên quan trong bảng `contacts` hai chiều** (`DELETE FROM contacts WHERE owner_id = :id OR contact_user_id = :id;`), giải phóng số điện thoại (`phone_e164 = NULL`) và đặt `status = DELETED`.
 
 ---
 
@@ -462,7 +462,8 @@ Kiểm soát tần suất thử sai theo `(scope_type, scope_key_hash, purpose)`
 - `PHONE`: Khóa toàn tài khoản theo SĐT khi tổng số lần sai vượt ngưỡng lớn (20 lần/giờ) nhằm ngăn chặn kẻ tấn công đổi thiết bị liên tục.
 - `DEVICE`: Khóa theo thiết bị.
 
-### 11.5 Xóa tài khoản (Soft Delete)
+### 11.5 Xóa tài khoản (chờ 15 ngày, rồi Soft Delete)
+`DELETE /me` chỉ đăng xuất mọi thiết bị và hẹn ngày xoá sau 15 ngày; đăng nhập lại trong thời gian này được hỏi giữ tài khoản (`POST /me/cancel-deletion`). Hết hạn thì:
 Xóa mềm tài khoản thu hồi mọi thiết bị, gỡ khỏi các nhóm, **xóa sạch toàn bộ mọi dòng liên quan trong bảng `contacts` hai chiều** (kể cả dòng bạn bè và dòng block-only), giải phóng số điện thoại (`phone_e164 = NULL`) và đặt `status = DELETED`.
 
 ### 11.6 Xem OTP demo

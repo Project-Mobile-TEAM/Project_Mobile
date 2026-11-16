@@ -18,3 +18,6 @@ local.properties
 
 # Kết quả Maven được sinh lại khi build; không đưa artifact vào Git.
 /backend/target/
+
+# OTP demo ghi ra file khi chạy dev (backend/otp-local); không đưa mã vào Git.
+otp-local/

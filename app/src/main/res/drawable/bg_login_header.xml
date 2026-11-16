@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Khối đầu màn Đăng nhập: nền xanh, bo góc dưới 28dp (Figma). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="@color/ute_bar" />
+    <corners android:bottomLeftRadius="28dp" android:bottomRightRadius="28dp" />
+</shape>

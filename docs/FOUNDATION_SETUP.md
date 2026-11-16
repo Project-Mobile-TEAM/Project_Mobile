@@ -26,7 +26,7 @@ Backend không tự chạy migration trên6543; dùng hướng dẫn Flyway sess
 
 ## Android
 
-Java17, minSdk26, compile/target35, package com.utechat, XML Views/ViewBinding.
+Java17, minSdk26, compile/target36, package com.utechat, XML Views/ViewBinding.
 AGP và Gradle Wrapper hiện có được giữ nguyên; Gradle daemon có thể cần JDK mới hơn Java source.
 
 ```powershell
@@ -45,6 +45,24 @@ URL phải kết thúc bằng dấu /. Debug cho phép HTTP để thử emulator
 Release chặn cleartext và tắt Fake; khi triển khai thật phải cấu hình backendBaseUrl HTTPS.
 Quy tắc bắt buộc cho các phase tiếp theo: [DEPLOYMENT_SECURITY.md](DEPLOYMENT_SECURITY.md). Hiện chưa có gate build kiểm URL HTTPS hoặc cấu hình prod/Nginx/chứng chỉ; assembleRelease thành công chưa chứng minh bản hosted hoạt động.
 Log HTTP Debug chỉ ở BASIC, không ghi body/header xác thực.
+
+## Chạy app với backend thật (Phase 3)
+
+Mặc định Debug dùng dữ liệu giả (`USE_FAKE_DATA=true`). Để gọi backend thật:
+
+```powershell
+.\gradlew.bat installDebug -PuseFakeData=false
+```
+
+Chưa có Supabase/.env thì chạy backend trên PostgreSQL nhúng (dữ liệu mất khi tắt), từ thư mục `backend`:
+
+```powershell
+.\mvnw.cmd test-compile
+.\mvnw.cmd -q dependency:build-classpath "-Dmdep.outputFile=cp.txt" "-Dmdep.includeScope=test"
+java -cp "target\test-classes;target\classes;$(Get-Content cp.txt -Raw)" com.utechat.backend.LocalDevServer
+```
+
+OTP demo hiện trong response (`demoOtp`) và được ghi vào `backend/otp-local/<số>.txt`. JWT lưu trong Android Keystore (`SessionManager`); server trả 401 thì app tự về màn Đăng nhập.
 
 ## Luồng kiểm tra
 
@@ -107,3 +125,13 @@ Nếu gặp lỗi này, dừng Gradle daemon và dùng PowerShell xóa đúng th
 Đây là output sinh tự động; không xóa `app/schemas`, source hoặc dữ liệu cấu hình.
 AndroidX Test JUnit 1.3.0 / Espresso 3.7.0 được dùng để chạy được trên emulator API 37 có sẵn;
 compileSdk/targetSdk của ứng dụng vẫn là 35. Chưa kiểm thử trên thiết bị thật hoặc API 26.
+
+## Host backend lên server (Phase 3)
+
+Đóng gói `.\mvnw.cmd -DskipTests package` rồi chạy `java -jar target/backend-1.0.0.jar` với biến môi trường:
+
+| Biến | Ý nghĩa |
+|---|---|
+| `SPRING_PROFILES_ACTIVE=demo` | OTP demo (trả `demoOtp`, ghi `otp-local/`), chưa có cổng SMS thật. |
+| `JWT_SECRET` | Bắt buộc với `demo`: chuỗi ngẫu nhiên từ 32 ký tự. |
+| `SPRING_DATASOURCE_URL`, `_USERNAME`, `_PASSWORD` | Supabase pooler 6543 (xem SUPABASE_SETUP.md). |

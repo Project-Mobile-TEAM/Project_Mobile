@@ -1,5 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Vector tab contacts; nhãn đọc màn hình lấy từ title của menu. -->
-<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
-    <path android:fillColor="#FF000000" android:pathData="M16,21V19C16,16.8 12.4,15 8,15S0,16.8 0,19V21H16M8,13A4,4 0,1 0,8,5A4,4 0,0 0,8,13M20,8V5H18V8H15V10H18V13H20V10H23V8H20" />
+<!-- Tab Bạn bè. Icon nét lấy từ Figma; màu theo theme để hợp sáng/tối. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+    <path android:pathData="M17 21V19C17 17.9391 16.5786 16.9217 15.8284 16.1716C15.0783 15.4214 14.0609 15 13 15H5C3.93913 15 2.92172 15.4214 2.17157 16.1716C1.42143 16.9217 1 17.9391 1 19V21"
+        android:strokeColor="#FF000000" android:strokeWidth="1.8"
+        android:strokeLineCap="round" android:strokeLineJoin="round" />
+    <path android:pathData="M13 7C13 9.20914 11.2091 11 9 11C6.79086 11 5 9.20914 5 7C5 4.79086 6.79086 3 9 3C11.2091 3 13 4.79086 13 7Z"
+        android:strokeColor="#FF000000" android:strokeWidth="1.8"
+        android:strokeLineCap="round" android:strokeLineJoin="round" />
+    <path android:pathData="M23 21V19C23.006 18.1086 22.7141 17.2407 22.1706 16.5342C21.6271 15.8276 20.8631 15.3228 20 15.1M16 3.1C16.8837 3.3014 17.6729 3.79698 18.2381 4.50553C18.8033 5.21409 19.1112 6.09361 19.1112 7C19.1112 7.90639 18.8033 8.78591 18.2381 9.49447C17.6729 10.203 16.8837 10.6986 16 10.9"
+        android:strokeColor="#FF000000" android:strokeWidth="1.8"
+        android:strokeLineCap="round" android:strokeLineJoin="round" />
 </vector>

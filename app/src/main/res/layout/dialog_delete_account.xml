@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Hộp thoại Xoá tài khoản: nhập lại mật khẩu hiện tại để xác nhận (F-08). -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:paddingStart="24dp" android:paddingEnd="24dp" android:paddingTop="16dp">
+    <com.google.android.material.textfield.TextInputLayout android:id="@+id/til_password"
+        style="@style/Widget.UTEChat.InputLayout" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:hint="@string/profile_current_password" app:endIconMode="password_toggle" app:endIconDrawable="@drawable/ic_password_toggle">
+        <com.google.android.material.textfield.TextInputEditText android:id="@+id/et_password"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:inputType="textPassword" android:autofillHints="password" />
+    </com.google.android.material.textfield.TextInputLayout>
+</FrameLayout>

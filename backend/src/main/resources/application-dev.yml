@@ -3,3 +3,8 @@ server:
   port: 8080
 # URL thực tế lấy từ .env: cổng 6543, sslmode=require và prepareThreshold=0.
 # Không dùng transaction pooler này để chạy Flyway; migration dùng session5432.
+# Chỉ dùng khi phát triển cục bộ: bí mật ký JWT mặc định (>= 32 ký tự) và OTP demo trả trong response.
+jwt:
+  secret: ${JWT_SECRET:utechat-dev-only-jwt-secret-change-me-0123456789}
+app:
+  demo-mode: true

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ô vuông bo 8dp chứa icon của hàng cài đặt ở màn Hồ sơ (Figma cập nhật). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/ute_avatar_bg" />
+    <corners android:radius="8dp" />
+</shape>

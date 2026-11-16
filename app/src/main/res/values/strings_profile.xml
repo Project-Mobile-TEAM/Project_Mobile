@@ -1,6 +1,47 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Chuỗi profile do nhóm phụ trách module này quản lý; bản tiếng Anh mặc định. -->
 <resources>
-    <string name="title_profile">Your profile</string>
-    <string name="profile_placeholder">Your account, privacy and preferences.</string>
+    <string name="title_profile">Profile</string>
+    <string name="profile_section_privacy">Privacy</string>
+    <string name="profile_section_app">App</string>
+    <string name="profile_section_security">Security</string>
+    <string name="profile_allow_strangers">Receive messages from strangers</string>
+    <string name="profile_discoverable">Allow finding me by phone number</string>
+    <string name="profile_language">Language</string>
+    <!-- Tên ngôn ngữ giữ nguyên bằng chính ngôn ngữ đó ở mọi bản dịch. -->
+    <string name="profile_language_vi" translatable="false">Tiếng Việt</string>
+    <string name="profile_language_en" translatable="false">English</string>
+    <string name="profile_theme">Appearance</string>
+    <string name="profile_theme_light">Light</string>
+    <string name="profile_theme_dark">Dark</string>
+    <string name="profile_theme_system">System default</string>
+    <string name="profile_notifications">Notifications</string>
+    <string name="profile_logout">Log out</string>
+    <string name="profile_edit_title">Edit profile</string>
+    <string name="profile_save">Save</string>
+    <string name="profile_change_photo">Change photo</string>
+    <string name="profile_change_photo_soon">Changing your photo is coming soon.</string>
+    <string name="profile_phone_locked">Your phone number can’t be changed.</string>
+    <string name="profile_password_title">Change password</string>
+    <string name="profile_current_password">Current password</string>
+    <string name="profile_password_notice">After changing, your other devices will be logged out.</string>
+    <string name="profile_password_submit">Update password</string>
+    <string name="profile_password_changed">Password updated.</string>
+    <string name="profile_error_current_password">Your current password is incorrect.</string>
+    <string name="profile_devices_title">Logged-in devices</string>
+    <string name="profile_devices_hint">Revoke a device if you lose it or don’t recognize it.</string>
+    <string name="profile_device_current">This device · %1$s · active</string>
+    <string name="profile_device_last_seen">%1$s · %2$s</string>
+    <string name="profile_revoke">Revoke</string>
+    <string name="profile_revoke_title">Revoke this device?</string>
+    <string name="profile_revoke_message">%1$s will be logged out right away and must log in again to keep using UTE-chat.</string>
+    <string name="profile_cancel">Cancel</string>
+    <string name="profile_delete_account">Delete account</string>
+    <string name="profile_delete_title">Delete your account?</string>
+    <string name="profile_delete_message">You will be logged out on every device and your account will be deactivated.\n\nChanged your mind? Just log in again within 15 days. After that, your account, friends and requests are deleted for good.</string>
+    <string name="profile_delete_confirm">Delete account</string>
+    <string name="deletion_pending_title">Your account is scheduled for deletion</string>
+    <string name="deletion_pending_message">You asked to delete this account. It will be permanently deleted on %1$s.\n\nKeep your account to go on chatting with your friends as before.</string>
+    <string name="deletion_pending_keep">Keep my account</string>
+    <string name="deletion_canceled">Your account has been kept. Welcome back!</string>
 </resources>

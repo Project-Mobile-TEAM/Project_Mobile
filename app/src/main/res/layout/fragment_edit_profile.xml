@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sửa hồ sơ: chỉ đổi được tên; số điện thoại khoá. "Lưu" nằm ở thanh tiêu đề. Chưa có đổi ảnh (thuộc phase media). -->
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:background="?attr/colorSurface">
+
+    <com.google.android.material.appbar.MaterialToolbar android:id="@+id/toolbar"
+        android:layout_width="0dp" android:layout_height="?attr/actionBarSize"
+        app:layout_constraintTop_toTopOf="parent" app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:navigationIcon="@drawable/ic_arrow_back" app:navigationContentDescription="@string/auth_back"
+        app:title="@string/profile_edit_title" app:menu="@menu/menu_save" />
+    <View android:id="@+id/divider" android:layout_width="0dp" android:layout_height="1dp"
+        android:background="@color/ute_border" app:layout_constraintTop_toBottomOf="@id/toolbar"
+        app:layout_constraintStart_toStartOf="parent" app:layout_constraintEnd_toEndOf="parent" />
+
+    <ScrollView android:layout_width="0dp" android:layout_height="0dp" android:fillViewport="true"
+        app:layout_constraintTop_toBottomOf="@id/divider" app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent" app:layout_constraintEnd_toEndOf="parent">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="vertical" android:padding="16dp">
+            <FrameLayout android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal" android:layout_marginTop="8dp">
+                <TextView android:id="@+id/tv_avatar" android:layout_width="96dp" android:layout_height="96dp"
+                android:background="@drawable/bg_avatar" android:gravity="center"
+                    android:contentDescription="@string/auth_avatar_description"
+                android:textColor="@color/ute_avatar_text" android:textSize="32sp" android:textStyle="bold" />
+                <!-- Chỉ trang trí: đổi ảnh thuộc phase media. -->
+                <ImageView android:layout_width="32dp" android:layout_height="32dp" android:layout_gravity="bottom|end"
+                    android:background="@drawable/bg_avatar_badge" android:padding="8dp"
+                    android:src="@drawable/ic_camera" android:importantForAccessibility="no" />
+            </FrameLayout>
+            <TextView android:id="@+id/tv_change_photo" android:layout_width="wrap_content" android:layout_height="48dp"
+                android:layout_gravity="center_horizontal" android:gravity="center" android:minWidth="48dp"
+                android:text="@string/profile_change_photo" android:textColor="@color/ute_accent"
+                android:textAppearance="?attr/textAppearanceLabelLarge" android:clickable="true" android:focusable="true" />
+
+            <com.google.android.material.textfield.TextInputLayout android:id="@+id/til_name"
+                style="@style/Widget.UTEChat.InputLayout" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="8dp" android:hint="@string/auth_hint_full_name">
+                <com.google.android.material.textfield.TextInputEditText android:id="@+id/et_name"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:inputType="textPersonName|textCapWords" android:maxLength="50" android:autofillHints="name" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <!-- Số điện thoại chỉ để xem: tắt nhập, ổ khoá ở cuối ô. -->
+            <com.google.android.material.textfield.TextInputLayout android:id="@+id/til_phone"
+                style="@style/Widget.UTEChat.InputLayout" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="12dp" android:hint="@string/auth_hint_phone"
+                app:endIconMode="custom" app:endIconDrawable="@drawable/ic_lock"
+                app:endIconContentDescription="@string/profile_phone_locked"
+                app:helperText="@string/profile_phone_locked">
+                <com.google.android.material.textfield.TextInputEditText android:id="@+id/et_phone"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:enabled="false" android:inputType="none" android:textColor="?attr/colorOnSurface" />
+            </com.google.android.material.textfield.TextInputLayout>
+        </LinearLayout>
+    </ScrollView>
+</androidx.constraintlayout.widget.ConstraintLayout>

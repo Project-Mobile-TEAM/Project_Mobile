@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Dấu X: tiêu chí mật khẩu chưa đạt. Icon nét lấy từ Figma; màu theo theme để hợp sáng/tối. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="18dp" android:height="18dp" android:viewportWidth="18" android:viewportHeight="18">
+    <path android:pathData="M13.5 4.5L9 9M9 9L4.5 13.5M9 9L4.5 4.5M9 9L13.5 13.5"
+        android:strokeColor="@color/ute_text_secondary" android:strokeWidth="1.8"
+        android:strokeLineCap="round" android:strokeLineJoin="round" />
+</vector>

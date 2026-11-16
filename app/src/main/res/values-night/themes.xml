@@ -1,10 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Primary sáng hơn trên nền tối để chữ và nút giữ độ tương phản. -->
+<!-- Chế độ tối: màu đã đổi tự động qua values-night/colors.xml, ở đây chỉ đảo màu biểu tượng thanh trạng thái. -->
 <resources>
     <style name="Base.Theme.UTEChat" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Giữ biểu tượng hệ thống tương phản với nền sáng/tối của app SDK35. -->
+        <item name="materialAlertDialogTheme">@style/ThemeOverlay.UTEChat.Dialog</item>
+        <!-- Biểu tượng sáng trên nền tối. -->
         <item name="android:windowLightStatusBar">false</item>
-        <item name="colorPrimary">#ADC6FF</item>
-        <item name="colorOnPrimary">#003064</item>
+        <item name="colorPrimary">@color/ute_accent</item>
+        <item name="colorOnPrimary">@color/ute_on_accent</item>
+        <item name="android:colorBackground">@color/ute_background</item>
+        <item name="colorSurface">@color/ute_background</item>
+        <item name="colorOnSurface">@color/ute_text</item>
+        <item name="colorOnSurfaceVariant">@color/ute_text_secondary</item>
+        <item name="colorOutline">@color/ute_border</item>
+        <item name="colorOutlineVariant">@color/ute_border</item>
+        <item name="colorError">@color/ute_error</item>
+        <!-- Font Poppins toàn app, giống bản sáng. -->
+        <item name="android:fontFamily">@font/poppins</item>
+        <item name="fontFamily">@font/poppins</item>
+        <item name="actionMenuTextAppearance">@style/TextAppearance.UTEChat.MenuAction</item>
+        <item name="actionMenuTextColor">@color/ute_on_bar</item>
+        <item name="toolbarStyle">@style/Widget.UTEChat.Toolbar</item>
+        <item name="bottomNavigationStyle">@style/Widget.UTEChat.BottomNav</item>
     </style>
 </resources>

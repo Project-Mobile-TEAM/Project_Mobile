@@ -1,5 +1,36 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Bảng màu dùng chung theo thiết kế Figma (giao diện SÁNG); bản tối nằm ở values-night/colors.xml cùng tên. -->
 <resources>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
+    <!-- Màu xanh nhấn: nút chính, bong bóng chat gửi đi, liên kết, viền ô nhập khi focus. -->
+    <color name="ute_accent">#0A6EBD</color>
+    <!-- Chữ/biểu tượng đặt trên nền xanh nhấn. -->
+    <color name="ute_on_accent">#FFFFFF</color>
+    <!-- Nền màn hình. -->
+    <color name="ute_background">#F6F6F7</color>
+    <!-- Nền thẻ (card), dialog, bottom sheet. -->
+    <color name="ute_card">#FFFFFF</color>
+    <!-- Viền mảnh 1px của thẻ và đường kẻ header. -->
+    <color name="ute_border">#E6E7EA</color>
+    <!-- Chữ chính và chữ phụ. -->
+    <color name="ute_text">#111111</color>
+    <color name="ute_text_secondary">#6B6F76</color>
+    <!-- Màu đỏ cho badge, thông báo lỗi, nút kết thúc cuộc gọi. -->
+    <!-- Thanh tiêu đề xanh đậm (Figma cập nhật): dùng chung sáng/tối. -->
+    <color name="ute_bar">#0A6099</color>
+    <color name="ute_on_bar">#FFFFFF</color>
+    <color name="ute_on_accent_fixed">#FFFFFF</color>
+    <color name="ute_stroke">#DEDEDE</color>
+    <color name="ute_error">#E31E24</color>
+    <!-- Avatar xám chung (không tô màu theo từng người). -->
+    <color name="ute_avatar_bg">#EDEEF0</color>
+    <color name="ute_avatar_text">#3A3D42</color>
+    <!-- Màu trạng thái cho thanh độ mạnh mật khẩu: xanh lá = đạt/mạnh, cam = trung bình, xám = chưa đạt. -->
+    <color name="ute_success">#1E8E4E</color>
+    <color name="ute_warning">#E8890C</color>
+    <color name="ute_bar_off">#DEDEDE</color>
+    <!-- Nền nhạt cho nút "Thu hồi" (chữ dùng ute_error). -->
+    <color name="ute_error_bg">#FDE7E8</color>
 </resources>
