@@ -5,11 +5,12 @@
     android:layout_width="match_parent" android:layout_height="match_parent"
     android:background="?attr/colorSurface">
 
-    <TextView android:id="@+id/tv_title" android:layout_width="0dp" android:layout_height="wrap_content" android:minHeight="82dp"
+    <TextView android:id="@+id/tv_title" android:layout_width="0dp" android:layout_height="wrap_content" android:minHeight="60dp"
         android:gravity="center_vertical" android:paddingStart="16dp" android:paddingEnd="16dp"
         android:text="@string/title_profile" android:textAppearance="@style/TextAppearance.UTEChat.Heading"
-        android:textSize="22sp" android:textColor="@color/ute_on_bar" android:background="@color/ute_bar"
-        android:paddingBottom="26dp" android:accessibilityHeading="true"
+        android:textSize="28sp" android:fontFamily="@font/poppins" android:textStyle="bold"
+        android:textColor="@color/ute_on_bar" android:background="@color/ute_bar"
+        android:paddingBottom="8dp" android:accessibilityHeading="true"
         app:layout_constraintTop_toTopOf="parent" app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
@@ -21,7 +22,8 @@
         app:layout_constraintTop_toBottomOf="@id/title_divider" app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent" app:layout_constraintEnd_toEndOf="parent">
         <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:orientation="vertical" android:padding="16dp">
+            android:orientation="vertical" android:paddingStart="16dp" android:paddingEnd="16dp"
+            android:paddingTop="20dp" android:paddingBottom="16dp">
 
             <!-- Thẻ thông tin cá nhân: bấm để sửa hồ sơ. -->
             <com.google.android.material.card.MaterialCardView style="@style/Widget.UTEChat.Card"
@@ -54,7 +56,7 @@
             </com.google.android.material.card.MaterialCardView>
 
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                android:layout_marginStart="12dp" android:layout_marginTop="16dp" android:layout_marginBottom="8dp"
+                android:layout_marginStart="12dp" android:layout_marginTop="24dp" android:layout_marginBottom="8dp"
                 android:text="@string/profile_section_privacy" android:textAppearance="@style/TextAppearance.UTEChat.Section" />
             <com.google.android.material.card.MaterialCardView style="@style/Widget.UTEChat.Card"
                 android:layout_width="match_parent" android:layout_height="wrap_content">
@@ -68,7 +70,7 @@
             </com.google.android.material.card.MaterialCardView>
 
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                android:layout_marginStart="12dp" android:layout_marginTop="16dp" android:layout_marginBottom="8dp"
+                android:layout_marginStart="12dp" android:layout_marginTop="24dp" android:layout_marginBottom="8dp"
                 android:text="@string/profile_section_app" android:textAppearance="@style/TextAppearance.UTEChat.Section" />
             <com.google.android.material.card.MaterialCardView style="@style/Widget.UTEChat.Card"
                 android:layout_width="match_parent" android:layout_height="wrap_content">
@@ -85,7 +87,7 @@
             </com.google.android.material.card.MaterialCardView>
 
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                android:layout_marginStart="12dp" android:layout_marginTop="16dp" android:layout_marginBottom="8dp"
+                android:layout_marginStart="12dp" android:layout_marginTop="24dp" android:layout_marginBottom="8dp"
                 android:text="@string/profile_section_security" android:textAppearance="@style/TextAppearance.UTEChat.Section" />
             <com.google.android.material.card.MaterialCardView style="@style/Widget.UTEChat.Card"
                 android:layout_width="match_parent" android:layout_height="wrap_content">

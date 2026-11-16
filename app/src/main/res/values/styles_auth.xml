@@ -125,4 +125,33 @@
         <item name="android:layout_marginStart">8dp</item>
         <item name="cornerRadius">22dp</item>
     </style>
+    <!-- Đăng nhập (Figma cập nhật): nhãn 13sp xám nằm trên ô, cách ô 7dp. -->
+    <style name="Widget.UTEChat.FieldLabelAbove" parent="">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginStart">20dp</item>
+        <item name="android:layout_marginBottom">7dp</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:fontFamily">@font/poppins_regular</item>
+        <item name="android:textColor">?attr/colorOnSurfaceVariant</item>
+    </style>
+    <!-- Ô nhập không có nhãn nổi (nhãn đã nằm phía trên), lề 20dp. -->
+    <style name="Widget.UTEChat.InputLayout.LabelAbove">
+        <item name="hintEnabled">false</item>
+        <item name="android:layout_marginStart">20dp</item>
+        <item name="android:layout_marginEnd">20dp</item>
+    </style>
+    <!-- Chữ trong ô: đệm 14dp trên dưới để ô cao đúng 50dp như Figma. -->
+    <style name="Widget.UTEChat.EditCompact" parent="">
+        <item name="android:paddingTop">14dp</item>
+        <item name="android:paddingBottom">14dp</item>
+    </style>
+    <!-- Liên kết chữ dưới nút chính: 15sp Medium màu nhấn, đệm ngang 10dp để hai liên kết cách nhau 20dp. -->
+    <style name="Widget.UTEChat.LinkButton" parent="Widget.Material3.Button.TextButton">
+        <item name="android:textSize">15sp</item>
+        <item name="android:fontFamily">@font/poppins_medium</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:paddingStart">10dp</item>
+        <item name="android:paddingEnd">10dp</item>
+    </style>
 </resources>

@@ -56,6 +56,11 @@ public class ProfileFragment extends Fragment {
         SettingRow.base(binding.rowDevices, R.drawable.ic_phone, getString(R.string.profile_devices_title));
         SettingRow.chevron(binding.rowDevices, null, v -> go(R.id.action_profile_to_devices));
 
+        for (com.utechat.databinding.ItemSettingRowBinding row : new com.utechat.databinding.ItemSettingRowBinding[]{
+                binding.rowStrangers, binding.rowDiscoverable, binding.rowLanguage, binding.rowTheme,
+                binding.rowNotifications, binding.rowPassword, binding.rowDevices}) {
+            SettingRow.compact(row);
+        }
         binding.cardMe.setOnClickListener(v -> go(R.id.action_profile_to_edit));
         binding.btnLogout.setOnClickListener(v -> logout());
         binding.btnDeleteAccount.setOnClickListener(v -> confirmDelete());

@@ -1,5 +1,7 @@
 package com.utechat.ui.profile;
 
+import com.utechat.R;
+
 import android.view.View;
 import androidx.annotation.DrawableRes;
 import androidx.annotation.Nullable;
@@ -16,6 +18,18 @@ final class SettingRow {
         if (icon != 0) row.icon.setImageResource(icon);
         // Không có icon (màn Ngôn ngữ) thì chữ sát lề trái thẻ như Figma, không chừa chỗ cho icon.
         ((android.view.ViewGroup.MarginLayoutParams) row.title.getLayoutParams()).setMarginStart(icon == 0 ? 0 : (int) (16 * row.getRoot().getResources().getDisplayMetrics().density));
+    }
+
+    /** Hàng gọn của màn Hồ sơ (Figma cập nhật): icon trong ô vuông bo 30dp, cách chữ 12dp, đệm dọc 10dp. */
+    static void compact(ItemSettingRowBinding row) {
+        float d = row.getRoot().getResources().getDisplayMetrics().density;
+        androidx.constraintlayout.widget.ConstraintLayout root = row.getRoot();
+        root.setMinHeight((int) (52 * d)); // ConstraintLayout có minHeight riêng, setMinimumHeight không có tác dụng.
+        root.setPadding(root.getPaddingLeft(), (int) (10 * d), root.getPaddingRight(), (int) (10 * d));
+        row.iconCircle.setBackgroundResource(R.drawable.bg_icon_tile);
+        row.iconCircle.getLayoutParams().width = (int) (30 * d);
+        row.iconCircle.getLayoutParams().height = (int) (30 * d);
+        ((android.view.ViewGroup.MarginLayoutParams) row.title.getLayoutParams()).setMarginStart((int) (12 * d));
     }
 
     /** Hàng dẫn tới màn khác: có giá trị hiện tại (tuỳ chọn) và mũi tên. */

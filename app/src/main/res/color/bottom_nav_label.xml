@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Nhãn tab (Figma cập nhật): đang chọn màu nhấn xanh, còn lại xám. Icon vẫn dùng bottom_nav_item. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_checked="true" android:color="@color/ute_accent" />
+    <item android:color="@color/ute_text_secondary" />
+</selector>
