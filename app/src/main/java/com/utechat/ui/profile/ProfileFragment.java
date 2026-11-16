@@ -8,9 +8,12 @@ import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.navigation.NavOptions;
 import androidx.navigation.Navigation;
+import androidx.appcompat.app.AlertDialog;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.snackbar.Snackbar;
 import com.utechat.R;
 import com.utechat.data.repository.UserProfile;
+import com.utechat.databinding.DialogDeleteAccountBinding;
 import com.utechat.databinding.FragmentProfileBinding;
 import com.utechat.ui.auth.AuthErrors;
 import com.utechat.ui.auth.AuthValidator;
@@ -55,6 +58,7 @@ public class ProfileFragment extends Fragment {
 
         binding.cardMe.setOnClickListener(v -> go(R.id.action_profile_to_edit));
         binding.btnLogout.setOnClickListener(v -> logout());
+        binding.btnDeleteAccount.setOnClickListener(v -> confirmDelete());
         viewModel.getProfile().observe(getViewLifecycleOwner(), this::render);
     }
 
@@ -91,9 +95,33 @@ public class ProfileFragment extends Fragment {
         });
     }
 
+    /** Xoá tài khoản (F-08): hỏi lại mật khẩu; sai mật khẩu thì báo lỗi ngay trong hộp thoại, không đóng nó. */
+    private void confirmDelete() {
+        DialogDeleteAccountBinding form = DialogDeleteAccountBinding.inflate(getLayoutInflater());
+        AlertDialog dialog = new MaterialAlertDialogBuilder(requireContext())
+                .setTitle(R.string.profile_delete_account).setMessage(R.string.profile_delete_message)
+                .setView(form.getRoot()).setNegativeButton(R.string.profile_cancel, null)
+                .setPositiveButton(R.string.profile_delete_confirm, null).show();
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            String password = String.valueOf(form.etPassword.getText());
+            if (password.isEmpty()) { form.tilPassword.setError(getString(R.string.auth_error_password_required)); return; }
+            v.setEnabled(false); // Chặn bấm hai lần khi đang gửi.
+            viewModel.deleteAccount(password).observe(getViewLifecycleOwner(), result -> {
+                v.setEnabled(true);
+                if (result.isSuccess()) { dialog.dismiss(); goToLogin(); }
+                else form.tilPassword.setError(getString("BAD_CREDENTIALS".equals(result.errorCode)
+                        ? R.string.profile_error_current_password : AuthErrors.message(result.errorCode)));
+            });
+        });
+    }
+
     /** Đăng xuất (F-06): xoá phiên rồi về màn Đăng nhập, bỏ toàn bộ back stack của app. */
     private void logout() {
         viewModel.logout();
+        goToLogin();
+    }
+
+    private void goToLogin() {
         Navigation.findNavController(binding.getRoot()).navigate(R.id.nav_auth, null,
                 new NavOptions.Builder().setPopUpTo(R.id.nav_graph, true).build());
     }

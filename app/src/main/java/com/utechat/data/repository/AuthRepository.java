@@ -35,6 +35,8 @@ public interface AuthRepository {
     LiveData<AuthResult<UserProfile>> updateProfile(String displayName, boolean allowMessagesFromNonContacts, boolean discoverable);
     // Đổi mật khẩu (POST /me/password); lỗi BAD_CREDENTIALS nếu mật khẩu hiện tại sai.
     LiveData<AuthResult<Boolean>> changePassword(String oldPassword, String newPassword);
+    // Xoá tài khoản (DELETE /me, F-08) sau khi nhập lại mật khẩu; thành công thì phiên cục bộ bị xoá.
+    LiveData<AuthResult<Boolean>> deleteAccount(String password);
     // Danh sách thiết bị đang đăng nhập (GET /account/devices).
     LiveData<AuthResult<List<DeviceInfo>>> getDevices();
     // Thu hồi một thiết bị khác (DELETE /account/devices/{id}).

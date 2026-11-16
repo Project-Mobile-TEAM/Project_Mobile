@@ -36,4 +36,7 @@
     <string name="profile_revoke_title">Revoke this device?</string>
     <string name="profile_revoke_message">%1$s will be logged out immediately.</string>
     <string name="profile_cancel">Cancel</string>
+    <string name="profile_delete_account">Delete account</string>
+    <string name="profile_delete_message">Your phone number is released, friends and pending requests are removed and every device is signed out. This cannot be undone. Enter your password to confirm.</string>
+    <string name="profile_delete_confirm">Delete</string>
 </resources>

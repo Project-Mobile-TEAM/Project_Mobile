@@ -16,10 +16,13 @@ public interface AuthApi {
     @POST("api/auth/password-reset/otp") Call<OtpChallengeResponse> resetOtp(@Body PhoneDeviceRequest body);
     @POST("api/auth/password-reset/verify") Call<ResetTokenResponse> resetVerify(@Body VerifyRequest body);
     @POST("api/auth/password-reset/complete") Call<AuthSuccessResponse> resetComplete(@Body PasswordResetCompleteRequest body);
-    @POST("api/auth/logout") Call<Void> logout();
+    // Gửi token cũ tường minh: phiên cục bộ đã bị xoá ngay khi bấm Đăng xuất nên interceptor không còn token để gắn.
+    @POST("api/auth/logout") Call<Void> logout(@Header("Authorization") String bearer);
 
     @GET("api/me") Call<UserDto> me();
     @PATCH("api/me") Call<UserDto> updateMe(@Body UpdateProfileRequest body);
+    // DELETE có body (mật khẩu xác nhận) nên phải dùng @HTTP thay cho @DELETE.
+    @HTTP(method = "DELETE", path = "api/me", hasBody = true) Call<Void> deleteMe(@Body DeleteAccountRequest body);
     @POST("api/me/password") Call<Void> changePassword(@Body ChangePasswordRequest body);
     @GET("api/account/devices") Call<List<DeviceDto>> devices();
     @DELETE("api/account/devices/{id}") Call<Void> revokeDevice(@Path("id") String id);

@@ -11,6 +11,9 @@ android {
     namespace = "com.utechat"
     compileSdk = 36
 
+    // Mockito (ByteBuddy) chưa chính thức hỗ trợ JDK 25 dùng chạy Gradle; cờ này cho phép mock lớp final như SessionManager.
+    testOptions.unitTests.all { it.systemProperty("net.bytebuddy.experimental", "true") }
+
     defaultConfig {
         applicationId = "com.utechat"
         minSdk = 26

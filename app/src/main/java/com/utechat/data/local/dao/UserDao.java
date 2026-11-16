@@ -12,5 +12,7 @@ public interface UserDao {
     // Upsert cập nhật tại chỗ, tránh REPLACE xóa dòng rồi gây tác dụng phụ khóa ngoại.
     @Upsert void insert(UserEntity user);
     @Query("SELECT * FROM user_cache WHERE id = :id") LiveData<UserEntity> getUserById(String id);
+    // Đọc đồng bộ trên luồng đĩa: hồ sơ của mình khi mở app offline.
+    @Query("SELECT * FROM user_cache WHERE id = :id") UserEntity findById(String id);
     @Query("SELECT * FROM user_cache WHERE phone = :phone") LiveData<UserEntity> getUserByPhone(String phone);
 }

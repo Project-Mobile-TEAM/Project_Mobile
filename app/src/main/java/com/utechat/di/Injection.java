@@ -23,7 +23,7 @@ public final class Injection {
             AppDatabase db = AppDatabase.getInstance(context);
             // Đăng xuất xoá cache Room trên luồng đĩa riêng (không truy cập DAO trên luồng chính).
             auth = useFake() ? new FakeAuthRepository() : new RealAuthRepository(ApiClient.getRetrofit().create(AuthApi.class),
-                    SessionManager.get(), () -> DISK.execute(db::clearAllTables));
+                    SessionManager.get(), db.userDao(), DISK, () -> DISK.execute(db::clearAllTables));
         }
         return auth;
     }

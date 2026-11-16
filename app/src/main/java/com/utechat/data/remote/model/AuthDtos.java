@@ -49,6 +49,11 @@ public final class AuthDtos {
     }
 
     // ---- Phản hồi
+    public static final class DeleteAccountRequest {
+        public final String password;
+        public DeleteAccountRequest(String password) { this.password = password; }
+    }
+
     public static final class OtpChallengeResponse { public String challengeId; public int expiresInSeconds; public String demoOtp; }
     public static final class RegistrationTokenResponse { public String registrationToken; }
     public static final class ResetTokenResponse { public String resetToken; }

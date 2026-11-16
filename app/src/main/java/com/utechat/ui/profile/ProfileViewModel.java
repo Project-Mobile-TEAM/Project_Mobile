@@ -41,5 +41,7 @@ public class ProfileViewModel extends ViewModel {
 
     public LiveData<AuthResult<Boolean>> revokeDevice(String deviceId) { return repository.revokeDevice(deviceId); }
 
+    public LiveData<AuthResult<Boolean>> deleteAccount(String password) { return repository.deleteAccount(password); }
+
     public void logout() { repository.logout(); }
 }

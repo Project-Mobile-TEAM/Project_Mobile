@@ -125,6 +125,12 @@ public class FakeAuthRepository implements AuthRepository {
         return new MutableLiveData<>(AuthResult.ok(true));
     }
 
+    @Override public LiveData<AuthResult<Boolean>> deleteAccount(String password) {
+        if (!this.password.equals(password)) return new MutableLiveData<>(AuthResult.error("BAD_CREDENTIALS"));
+        setCurrent(null);
+        return new MutableLiveData<>(AuthResult.ok(true));
+    }
+
     @Override public LiveData<AuthResult<List<DeviceInfo>>> getDevices() {
         return new MutableLiveData<>(AuthResult.ok(new ArrayList<>(devices))); // Bản sao để DiffUtil thấy thay đổi.
     }

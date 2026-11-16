@@ -24,6 +24,8 @@ public final class SessionManager {
     private static final String ALIAS = "utechat_session_key";
     private static final String KEY_TOKEN = "token";
     private static final String KEY_DEVICE = "device_id";
+    private static final String KEY_ME = "me_id";
+    private static final String KEY_DISCOVERABLE = "me_discoverable";
     private static final int IV_LENGTH = 12; // Độ dài IV chuẩn của GCM.
     private static SessionManager instance;
 
@@ -73,9 +75,23 @@ public final class SessionManager {
         tokenLoaded = true;
     }
 
+    /** Nhớ id của mình (khoá đọc hồ sơ cache trong Room) và cờ discoverable mà bảng user_cache không có. */
+    public void saveMe(String userId, boolean discoverable) {
+        prefs.edit().putString(KEY_ME, userId).putBoolean(KEY_DISCOVERABLE, discoverable).apply();
+    }
+    @Nullable public String getMeId() { return prefs.getString(KEY_ME, null); }
+    public boolean isMeDiscoverable() { return prefs.getBoolean(KEY_DISCOVERABLE, true); }
+
+    /** Chỉ xoá khi token đang lưu vẫn là token bị 401; phiên mới đăng nhập sau đó không bị xoá nhầm. */
+    public synchronized boolean clearIfCurrent(String expired) {
+        if (!expired.equals(getToken())) return false;
+        clear();
+        return true;
+    }
+
     /** Đăng xuất hoặc phiên hết hạn: xoá token (deviceId giữ nguyên để cùng một máy luôn là một thiết bị). */
     public synchronized void clear() {
-        prefs.edit().remove(KEY_TOKEN).apply();
+        prefs.edit().remove(KEY_TOKEN).remove(KEY_ME).remove(KEY_DISCOVERABLE).apply();
         token = null;
         tokenLoaded = true;
     }

@@ -33,4 +33,7 @@
     <string name="profile_revoke_title">Thu hồi thiết bị này?</string>
     <string name="profile_revoke_message">%1$s sẽ bị đăng xuất ngay.</string>
     <string name="profile_cancel">Hủy</string>
+    <string name="profile_delete_account">Xóa tài khoản</string>
+    <string name="profile_delete_message">Số điện thoại sẽ được giải phóng, bạn bè và lời mời bị xóa, mọi thiết bị bị đăng xuất. Không thể hoàn tác. Nhập mật khẩu để xác nhận.</string>
+    <string name="profile_delete_confirm">Xóa</string>
 </resources>
