@@ -61,6 +61,7 @@ public final class AuthDtos {
     public static final class UserDto {
         public String id; public String phone; public String displayName; public String avatarUrl;
         public boolean discoverable; public boolean allowMessagesFromNonContacts;
+        public String deletionScheduledAt; // Khác null: tài khoản đang trong 15 ngày chờ xoá.
     }
     public static final class DeviceDto { public String id; public String name; public String platform; public String lastSeenAt; public boolean current; }
 

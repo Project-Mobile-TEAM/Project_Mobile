@@ -23,6 +23,7 @@ public class FakeAuthRepository implements AuthRepository {
     private final MutableLiveData<UserProfile> profile = new MutableLiveData<>(null);
     private String password = DEMO_PASSWORD; // Mật khẩu hiện tại giả; đổi được qua changePassword.
     private final List<DeviceInfo> devices = new ArrayList<>();
+    private final java.util.Map<String, String> pendingDeletion = new java.util.HashMap<>(); // SĐT -> ngày bị xoá (ISO).
     private UserEntity resetUser; // Tài khoản đang đặt lại mật khẩu; null nếu số chưa đăng ký.
 
     @Override public LiveData<AuthResult<UserEntity>> login(String phoneE164, String password) {
@@ -97,8 +98,8 @@ public class FakeAuthRepository implements AuthRepository {
     private void setCurrent(UserEntity user) {
         current.setValue(user);
         password = DEMO_PASSWORD;
-        profile.setValue(user == null ? null : new UserProfile(user.getId(), user.getPhone(),
-                user.getDisplayName(), user.getAvatarUrl(), true, user.getAllowMessagesFromNonContacts()));
+        profile.setValue(user == null ? null : new UserProfile(user.getId(), user.getPhone(), user.getDisplayName(),
+                user.getAvatarUrl(), true, user.getAllowMessagesFromNonContacts(), pendingDeletion.get(user.getPhone())));
         devices.clear();
         if (user != null) {
             long now = System.currentTimeMillis();
@@ -127,7 +128,17 @@ public class FakeAuthRepository implements AuthRepository {
 
     @Override public LiveData<AuthResult<Boolean>> deleteAccount(String password) {
         if (!this.password.equals(password)) return new MutableLiveData<>(AuthResult.error("BAD_CREDENTIALS"));
+        UserEntity me = current.getValue();
+        if (me != null) pendingDeletion.put(me.getPhone(), java.time.Instant.now().plus(java.time.Duration.ofDays(15)).toString());
         setCurrent(null);
+        return new MutableLiveData<>(AuthResult.ok(true));
+    }
+
+    @Override public LiveData<AuthResult<Boolean>> cancelDeletion() {
+        UserProfile p = profile.getValue();
+        if (p == null) return new MutableLiveData<>(AuthResult.error("SESSION_EXPIRED"));
+        pendingDeletion.remove(p.phone);
+        profile.setValue(p.withoutDeletion());
         return new MutableLiveData<>(AuthResult.ok(true));
     }
 

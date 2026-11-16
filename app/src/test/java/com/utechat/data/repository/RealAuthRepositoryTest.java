@@ -134,4 +134,23 @@ public class RealAuthRepositoryTest {
         assertNull(token.get());
         assertEquals(1, cacheCleared);
     }
+
+    @SuppressWarnings("unchecked")
+    @Test public void loginDuringGracePeriodShowsDeletionDateUntilCanceled() {
+        Call<UserDto> me = mock(Call.class);
+        when(api.me()).thenReturn(me);
+        repo.getProfile();
+        UserDto dto = new UserDto();
+        dto.id = "u1";
+        dto.displayName = "Alice";
+        dto.deletionScheduledAt = "2026-12-01T00:00:00Z";
+        enqueued(me).onResponse(me, Response.success(dto));
+        assertEquals("2026-12-01T00:00:00Z", repo.getProfile().getValue().deletionScheduledAt);
+
+        Call<Void> cancel = mock(Call.class);
+        when(api.cancelDeletion()).thenReturn(cancel);
+        repo.cancelDeletion().observeForever(r -> { });
+        enqueued(cancel).onResponse(cancel, Response.success(null));
+        assertNull(repo.getProfile().getValue().deletionScheduledAt);
+    }
 }

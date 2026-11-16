@@ -23,6 +23,7 @@ public interface AuthApi {
     @PATCH("api/me") Call<UserDto> updateMe(@Body UpdateProfileRequest body);
     // DELETE có body (mật khẩu xác nhận) nên phải dùng @HTTP thay cho @DELETE.
     @HTTP(method = "DELETE", path = "api/me", hasBody = true) Call<Void> deleteMe(@Body DeleteAccountRequest body);
+    @POST("api/me/cancel-deletion") Call<Void> cancelDeletion();
     @POST("api/me/password") Call<Void> changePassword(@Body ChangePasswordRequest body);
     @GET("api/account/devices") Call<List<DeviceDto>> devices();
     @DELETE("api/account/devices/{id}") Call<Void> revokeDevice(@Path("id") String id);

@@ -37,6 +37,10 @@
     <string name="profile_revoke_message">%1$s will be logged out immediately.</string>
     <string name="profile_cancel">Cancel</string>
     <string name="profile_delete_account">Delete account</string>
-    <string name="profile_delete_message">Your phone number is released, friends and pending requests are removed and every device is signed out. This cannot be undone. Enter your password to confirm.</string>
+    <string name="profile_delete_message">Your account will be deactivated and signed out on every device.\n\nIf you do not log in again within 15 days, it will be permanently deleted.</string>
     <string name="profile_delete_confirm">Delete</string>
+    <string name="deletion_pending_title">Your account is scheduled for deletion</string>
+    <string name="deletion_pending_message">This account will be permanently deleted on %1$s.\n\nDo you want to keep it?</string>
+    <string name="deletion_pending_keep">Keep my account</string>
+    <string name="deletion_canceled">Account deletion canceled. Welcome back!</string>
 </resources>

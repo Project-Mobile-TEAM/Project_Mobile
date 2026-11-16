@@ -2,6 +2,7 @@
 <!-- Material3 DayNight tự chuyển sáng/tối theo hệ thống; màu lấy từ @color/ute_* nên một theme dùng cho cả hai chế độ. -->
 <resources>
     <style name="Base.Theme.UTEChat" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="materialAlertDialogTheme">@style/ThemeOverlay.UTEChat.Dialog</item>
         <!-- Biểu tượng thanh trạng thái: tối trên nền sáng (bản tối ghi đè ở values-night). -->
         <item name="android:windowLightStatusBar">true</item>
         <!-- Màu nhấn chính. -->

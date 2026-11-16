@@ -40,6 +40,7 @@ class AuthApiTest {
             PG = EmbeddedPostgres.builder().start();
             try (Connection c = PG.getPostgresDatabase().getConnection()) {
                 ScriptUtils.executeSqlScript(c, new FileSystemResource("src/main/resources/db/migration/V1__initial_schema.sql"));
+                ScriptUtils.executeSqlScript(c, new FileSystemResource("src/main/resources/db/migration/V3__account_deletion_grace.sql"));
             }
             OTP_DIR = Files.createTempDirectory("otp-local-test");
         } catch (Exception e) {
@@ -242,12 +243,27 @@ class AuthApiTest {
         assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM sync_events WHERE entity_id = ? AND event_type = 'DEVICE_REVOKED'", Integer.class, idB));
     }
 
-    @Test void deleteAccountReleasesThePhoneAndRevokesEverything() throws Exception {
+    @Test void deleteAccountWaits15DaysAndCanBeCanceledByLoggingInAgain() throws Exception {
         String phone = "+84911000014";
         String t = register(phone, "device-0014", "abcd1234");
         assertEquals("BAD_CREDENTIALS", code(call(delete("/api/me"), Map.of("password", "sai"), t, 400)));
         call(delete("/api/me"), Map.of("password", "abcd1234"), t, 204);
-        doGet("/api/me", t, 401);
+        doGet("/api/me", t, 401); // Mọi thiết bị bị đăng xuất ngay.
+
+        // Trong 15 ngày: vẫn đăng nhập được, hồ sơ báo ngày bị xoá; số điện thoại chưa được giải phóng.
+        JsonNode again = doPost("/api/auth/login/password", Map.of("phone", phone, "password", "abcd1234",
+                "deviceId", "device-0014", "deviceName", "X"), null, 200);
+        String due = again.get("user").get("deletionScheduledAt").asText();
+        long days = java.time.Duration.between(java.time.Instant.now(), java.time.Instant.parse(due)).toDays();
+        assertTrue(days >= 14 && days <= 15, due);
+        assertEquals("PHONE_TAKEN", code(doPost("/api/auth/register/otp", Map.of("phone", phone, "deviceId", "device-0214"), null, 409)));
+        String t2 = again.get("token").asText();
+        doPost("/api/me/cancel-deletion", null, t2, 204);
+        assertTrue(doGet("/api/me", t2, 200).get("deletionScheduledAt").isNull());
+
+        // Yêu cầu xoá lại rồi giả lập đã qua 15 ngày: bị xoá vĩnh viễn, số được giải phóng.
+        call(delete("/api/me"), Map.of("password", "abcd1234"), t2, 204);
+        jdbc.update("UPDATE users SET deletion_scheduled_at = now() - interval '1 minute' WHERE phone_e164 = ?", phone);
         doPost("/api/auth/login/password", Map.of("phone", phone, "password", "abcd1234", "deviceId", "device-0014", "deviceName", "X"), null, 401);
         assertEquals("DELETED", jdbc.queryForObject("SELECT status FROM users WHERE display_name = 'Tài khoản đã xóa' ORDER BY deleted_at DESC LIMIT 1", String.class));
         register(phone, "device-0114", "abcd1234"); // Số được giải phóng nên đăng ký lại được.

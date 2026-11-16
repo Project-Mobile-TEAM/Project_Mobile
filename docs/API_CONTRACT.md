@@ -57,10 +57,11 @@
 
 | Method và đường dẫn | Body chính | Trả về | Mô tả |
 |---|---|---|---|
-| `GET /me` | — | `user` | Lấy thông tin cá nhân gồm: `id`, `phone`, `displayName`, `avatarUrl`, `discoverable`, `allowMessagesFromNonContacts` |
+| `GET /me` | — | `user` | Lấy thông tin cá nhân gồm: `id`, `phone`, `displayName`, `avatarUrl`, `discoverable`, `allowMessagesFromNonContacts`, `deletionScheduledAt` (null, hoặc thời điểm ISO-8601 bị xoá vĩnh viễn) |
 | `PATCH /me` | `displayName`, `avatarMediaUrl`, `discoverable`, `allowMessagesFromNonContacts` | `user` | Cập nhật hồ sơ và cài đặt quyền riêng tư nhắn tin người lạ |
 | `POST /me/password` | `oldPassword`, `newPassword` | 204 | Đổi mật khẩu (thu hồi token của mọi thiết bị khác) |
-| `DELETE /me` | `password` | 204 | Xoá mềm tài khoản (giải phóng SĐT, xoá toàn bộ dòng liên quan trong `contacts`, thu hồi mọi thiết bị) |
+| `DELETE /me` | `password` | 204 | Yêu cầu xoá tài khoản: thu hồi mọi thiết bị ngay, sau **15 ngày** không huỷ thì xoá mềm vĩnh viễn (giải phóng SĐT, xoá toàn bộ dòng liên quan trong `contacts`) |
+| `POST /me/cancel-deletion` | — | 204 | Huỷ yêu cầu xoá khi đăng nhập lại trong 15 ngày chờ |
 | `GET /account/devices` | — | `[{id, name, platform, lastSeenAt, current}]` | Xem danh sách thiết bị đang đăng nhập |
 | `DELETE /account/devices/{id}` | — | 204 | Thu hồi thiết bị (hữu ích khi mất máy) |
 

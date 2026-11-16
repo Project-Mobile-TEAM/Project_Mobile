@@ -7,9 +7,11 @@ import java.util.HashMap;
 import java.util.Map;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /** Điểm vào của backend; nạp cấu hình cục bộ trước khi Spring tạo DataSource. */
 @SpringBootApplication
+@EnableScheduling // Job xoá vĩnh viễn tài khoản hết 15 ngày chờ (AccountService).
 public class BackendApplication {
     public static void main(String[] args) {
         // Chạy từ root repo hoặc backend/ đều tìm thấy cùng một .env, không in giá trị.

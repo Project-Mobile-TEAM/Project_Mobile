@@ -115,7 +115,8 @@ flyway migrate
 flyway info
 ```
 
-V1 tạo core; V2 (số thứ tự migration, không phải phạm vi sản phẩm V2) tạo outbox và seed demo.
+V1 tạo core; V2 (số thứ tự migration, không phải phạm vi sản phẩm V2) tạo outbox và seed demo;
+V3 thêm cột `users.deletion_scheduled_at` cho xoá tài khoản chờ 15 ngày (Phase 3, F-08).
 Giữ nguyên locations của một database sau lần migrate đầu. Không chạy Flyway clean trên
 database dùng chung. Không sửa migration đã áp dụng; thêm migration mới.
 Hiện chưa có `pom.xml`/backend executable: `mvn flyway:migrate` chưa được cấu hình,

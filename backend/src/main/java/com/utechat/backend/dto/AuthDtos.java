@@ -26,8 +26,9 @@ public final class AuthDtos {
     public record PasswordResetCompleteRequest(String resetToken, String newPassword, String deviceName) { }
 
     // ---- Tài khoản (F-05, F-08)
+    /** deletionScheduledAt: null, hoặc thời điểm ISO-8601 tài khoản sẽ bị xoá vĩnh viễn (đang trong 15 ngày chờ). */
     public record UserDto(String id, String phone, String displayName, String avatarUrl,
-                          boolean discoverable, boolean allowMessagesFromNonContacts) { }
+                          boolean discoverable, boolean allowMessagesFromNonContacts, String deletionScheduledAt) { }
     /** Trường nào null thì giữ nguyên giá trị cũ. */
     public record UpdateProfileRequest(String displayName, String avatarMediaUrl,
                                        Boolean discoverable, Boolean allowMessagesFromNonContacts) { }

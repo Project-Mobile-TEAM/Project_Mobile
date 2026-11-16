@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class AccountService {
     private static final int MIN_PASSWORD = 8;
+    public static final int DELETION_GRACE_DAYS = 15;
     private final JdbcTemplate jdbc;
     private final PasswordEncoder encoder;
 
@@ -29,10 +31,13 @@ public class AccountService {
 
     public UserDto getProfile(UUID userId) {
         List<UserDto> rows = jdbc.query(
-                "SELECT id, phone_e164, display_name, avatar_url, discoverable, allow_messages_from_non_contacts "
-                        + "FROM users WHERE id = ? AND status = 'ACTIVE'",
-                (rs, i) -> new UserDto(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4),
-                        rs.getBoolean(5), rs.getBoolean(6)), userId);
+                "SELECT id, phone_e164, display_name, avatar_url, discoverable, allow_messages_from_non_contacts, "
+                        + "deletion_scheduled_at FROM users WHERE id = ? AND status = 'ACTIVE'",
+                (rs, i) -> {
+                    Timestamp due = rs.getTimestamp(7);
+                    return new UserDto(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4),
+                            rs.getBoolean(5), rs.getBoolean(6), due == null ? null : due.toInstant().toString());
+                }, userId);
         if (rows.isEmpty()) throw new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "User not found");
         return rows.get(0);
     }
@@ -88,12 +93,39 @@ public class AccountService {
     }
 
     /**
-     * Xoá mềm (F-08): giải phóng số điện thoại, ẩn tên/ảnh, xoá quan hệ bạn bè hai chiều và lời mời,
-     * thu hồi mọi thiết bị và rời mọi hội thoại, trong MỘT transaction.
+     * Yêu cầu xoá tài khoản (F-08), giống Facebook: tài khoản chờ 15 ngày rồi mới bị xoá vĩnh viễn. Ngay bây giờ chỉ
+     * đăng xuất mọi thiết bị; đăng nhập lại trong 15 ngày thì app hỏi có huỷ yêu cầu xoá không.
      */
     @Transactional
-    public void deleteAccount(UUID userId, String password) {
+    public void scheduleDeletion(UUID userId, String password) {
         requirePassword(userId, password);
+        jdbc.update("UPDATE users SET deletion_scheduled_at = now() + make_interval(days => ?) WHERE id = ?",
+                DELETION_GRACE_DAYS, userId);
+        jdbc.update("UPDATE user_devices SET revoked_at = now(), token_valid_after = ? WHERE user_id = ?", now(), userId);
+    }
+
+    /** Chủ tài khoản đăng nhập lại trong thời gian chờ và chọn giữ tài khoản. */
+    public void cancelDeletion(UUID userId) {
+        jdbc.update("UPDATE users SET deletion_scheduled_at = NULL WHERE id = ?", userId);
+    }
+
+    /**
+     * Xoá vĩnh viễn các tài khoản đã hết 15 ngày chờ. Chạy định kỳ mỗi giờ, và được gọi thêm trước mỗi lần tra tài
+     * khoản theo số điện thoại để không ai đăng nhập lọt hoặc bị báo "số đã đăng ký" trong khoảng giữa hai lần chạy.
+     */
+    @Scheduled(fixedDelay = 3_600_000)
+    @Transactional
+    public void purgeExpiredDeletions() {
+        List<UUID> due = jdbc.query("SELECT id FROM users WHERE status = 'ACTIVE' AND deletion_scheduled_at <= now()",
+                (rs, i) -> rs.getObject(1, UUID.class));
+        for (UUID userId : due) purge(userId);
+    }
+
+    /**
+     * Xoá mềm: giải phóng số điện thoại, ẩn tên/ảnh, xoá quan hệ bạn bè hai chiều và lời mời,
+     * thu hồi mọi thiết bị và rời mọi hội thoại, trong cùng transaction của người gọi.
+     */
+    private void purge(UUID userId) {
         jdbc.update("UPDATE users SET status = 'DELETED', phone_e164 = NULL, display_name = 'Tài khoản đã xóa', "
                 + "avatar_url = NULL, deleted_at = now() WHERE id = ?", userId);
         jdbc.update("DELETE FROM contacts WHERE owner_id = ? OR contact_user_id = ?", userId, userId);

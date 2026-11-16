@@ -85,6 +85,7 @@ public class AuthService {
         phone = phone(phone);
         String deviceHash = deviceHash(deviceId);
         throttle.check("PASSWORD_LOGIN", phone, deviceHash);
+        account.purgeExpiredDeletions();
         List<Object[]> rows = jdbc.query("SELECT id, password_hash FROM users WHERE phone_e164 = ? AND status = 'ACTIVE'",
                 (rs, i) -> new Object[]{rs.getObject(1, UUID.class), rs.getString(2)}, phone);
         boolean ok = password != null && encoder.matches(password, rows.isEmpty() ? dummyHash : (String) rows.get(0)[1]);
@@ -203,6 +204,7 @@ public class AuthService {
     private static Timestamp now() { return Timestamp.from(Instant.now()); }
 
     private UUID findActiveUserId(String phone) {
+        account.purgeExpiredDeletions(); // Tài khoản hết hạn chờ xoá không được tính là còn hoạt động.
         List<UUID> ids = jdbc.query("SELECT id FROM users WHERE phone_e164 = ? AND status = 'ACTIVE'",
                 (rs, i) -> rs.getObject(1, UUID.class), phone);
         return ids.isEmpty() ? null : ids.get(0);

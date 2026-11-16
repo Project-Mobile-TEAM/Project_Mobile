@@ -77,4 +77,26 @@
         <item name="fontFamily">@font/poppins_medium</item>
         <item name="android:textColor">?attr/colorOnSurface</item>
     </style>
+    <!-- Hộp thoại chung: tiêu đề Poppins Medium 20sp, nội dung 14sp giãn dòng dễ đọc, nút chữ Medium không viết hoa. -->
+    <style name="ThemeOverlay.UTEChat.Dialog" parent="ThemeOverlay.Material3.MaterialAlertDialog">
+        <item name="materialAlertDialogTitleTextStyle">@style/UTEChat.Dialog.Title</item>
+        <item name="materialAlertDialogBodyTextStyle">@style/UTEChat.Dialog.Body</item>
+        <item name="buttonBarPositiveButtonStyle">@style/UTEChat.Dialog.Button</item>
+        <item name="buttonBarNegativeButtonStyle">@style/UTEChat.Dialog.Button</item>
+    </style>
+    <style name="UTEChat.Dialog.Title" parent="MaterialAlertDialog.Material3.Title.Text">
+        <item name="android:textSize">20sp</item>
+        <item name="android:fontFamily">@font/poppins_medium</item>
+        <item name="android:textColor">@color/ute_text</item>
+    </style>
+    <style name="UTEChat.Dialog.Body" parent="MaterialAlertDialog.Material3.Body.Text">
+        <item name="android:textSize">14sp</item>
+        <item name="android:lineSpacingExtra">4sp</item>
+        <item name="android:fontFamily">@font/poppins_regular</item>
+        <item name="android:textColor">@color/ute_text_secondary</item>
+    </style>
+    <style name="UTEChat.Dialog.Button" parent="Widget.Material3.Button.TextButton.Dialog">
+        <item name="android:fontFamily">@font/poppins_medium</item>
+        <item name="android:textAllCaps">false</item>
+    </style>
 </resources>

@@ -2,6 +2,7 @@
 <!-- Chế độ tối: màu đã đổi tự động qua values-night/colors.xml, ở đây chỉ đảo màu biểu tượng thanh trạng thái. -->
 <resources>
     <style name="Base.Theme.UTEChat" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="materialAlertDialogTheme">@style/ThemeOverlay.UTEChat.Dialog</item>
         <!-- Biểu tượng sáng trên nền tối. -->
         <item name="android:windowLightStatusBar">false</item>
         <item name="colorPrimary">@color/ute_accent</item>

@@ -34,6 +34,10 @@
     <string name="profile_revoke_message">%1$s sẽ bị đăng xuất ngay.</string>
     <string name="profile_cancel">Hủy</string>
     <string name="profile_delete_account">Xóa tài khoản</string>
-    <string name="profile_delete_message">Số điện thoại sẽ được giải phóng, bạn bè và lời mời bị xóa, mọi thiết bị bị đăng xuất. Không thể hoàn tác. Nhập mật khẩu để xác nhận.</string>
+    <string name="profile_delete_message">Tài khoản sẽ bị vô hiệu hóa và đăng xuất khỏi mọi thiết bị.\n\nNếu không đăng nhập lại trong 15 ngày, tài khoản sẽ bị xóa vĩnh viễn.</string>
     <string name="profile_delete_confirm">Xóa</string>
+    <string name="deletion_pending_title">Tài khoản đang chờ xóa</string>
+    <string name="deletion_pending_message">Tài khoản sẽ bị xóa vĩnh viễn vào ngày %1$s.\n\nBạn có muốn giữ lại tài khoản không?</string>
+    <string name="deletion_pending_keep">Giữ tài khoản</string>
+    <string name="deletion_canceled">Đã hủy yêu cầu xóa tài khoản. Chào mừng bạn quay lại!</string>
 </resources>

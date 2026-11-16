@@ -145,6 +145,14 @@ public class RealAuthRepository implements AuthRepository {
         return call(api.deleteMe(new DeleteAccountRequest(password)), v -> { clearLocal(); return true; });
     }
 
+    @Override public LiveData<AuthResult<Boolean>> cancelDeletion() {
+        return call(api.cancelDeletion(), v -> {
+            UserProfile p = profile.getValue();
+            if (p != null) profile.setValue(p.withoutDeletion());
+            return true;
+        });
+    }
+
     @Override public LiveData<AuthResult<Boolean>> changePassword(String oldPassword, String newPassword) {
         return call(api.changePassword(new ChangePasswordRequest(oldPassword, newPassword)), v -> true);
     }
@@ -184,7 +192,7 @@ public class RealAuthRepository implements AuthRepository {
         session.saveMe(dto.id, dto.discoverable);
         disk.execute(() -> userDao.insert(user));
         profile.setValue(new UserProfile(dto.id, dto.phone, dto.displayName, dto.avatarUrl,
-                dto.discoverable, dto.allowMessagesFromNonContacts));
+                dto.discoverable, dto.allowMessagesFromNonContacts, dto.deletionScheduledAt));
     }
 
     private boolean sameSession(String token) { return Objects.equals(token, session.getToken()); }

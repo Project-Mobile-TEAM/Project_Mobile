@@ -39,7 +39,14 @@ public class AccountController {
     @DeleteMapping("/me")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteMe(@AuthenticationPrincipal AuthenticatedActor actor, @RequestBody DeleteAccountRequest r) {
-        account.deleteAccount(actor.userId(), r.password());
+        account.scheduleDeletion(actor.userId(), r.password());
+    }
+
+    /** Huỷ yêu cầu xoá khi đăng nhập lại trong 15 ngày chờ. */
+    @PostMapping("/me/cancel-deletion")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void cancelDeletion(@AuthenticationPrincipal AuthenticatedActor actor) {
+        account.cancelDeletion(actor.userId());
     }
 
     @GetMapping("/account/devices")
