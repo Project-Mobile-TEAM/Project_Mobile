@@ -98,8 +98,8 @@ public class ProfileFragment extends Fragment {
     /** Xoá tài khoản (F-08): hỏi lại mật khẩu; sai mật khẩu thì báo lỗi ngay trong hộp thoại, không đóng nó. */
     private void confirmDelete() {
         DialogDeleteAccountBinding form = DialogDeleteAccountBinding.inflate(getLayoutInflater());
-        AlertDialog dialog = new MaterialAlertDialogBuilder(requireContext())
-                .setTitle(R.string.profile_delete_account).setMessage(R.string.profile_delete_message)
+        AlertDialog dialog = new MaterialAlertDialogBuilder(requireContext(), R.style.ThemeOverlay_UTEChat_Dialog_Destructive)
+                .setTitle(R.string.profile_delete_title).setMessage(R.string.profile_delete_message)
                 .setView(form.getRoot()).setNegativeButton(R.string.profile_cancel, null)
                 .setPositiveButton(R.string.profile_delete_confirm, null).show();
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {

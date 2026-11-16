@@ -34,13 +34,14 @@
     <string name="profile_device_last_seen">%1$s · %2$s</string>
     <string name="profile_revoke">Revoke</string>
     <string name="profile_revoke_title">Revoke this device?</string>
-    <string name="profile_revoke_message">%1$s will be logged out immediately.</string>
+    <string name="profile_revoke_message">%1$s will be logged out right away and must log in again to keep using UTE-chat.</string>
     <string name="profile_cancel">Cancel</string>
     <string name="profile_delete_account">Delete account</string>
-    <string name="profile_delete_message">Your account will be deactivated and signed out on every device.\n\nIf you do not log in again within 15 days, it will be permanently deleted.</string>
-    <string name="profile_delete_confirm">Delete</string>
+    <string name="profile_delete_title">Delete your account?</string>
+    <string name="profile_delete_message">You will be logged out on every device and your account will be deactivated.\n\nChanged your mind? Just log in again within 15 days. After that, your account, friends and requests are deleted for good.</string>
+    <string name="profile_delete_confirm">Delete account</string>
     <string name="deletion_pending_title">Your account is scheduled for deletion</string>
-    <string name="deletion_pending_message">This account will be permanently deleted on %1$s.\n\nDo you want to keep it?</string>
+    <string name="deletion_pending_message">You asked to delete this account. It will be permanently deleted on %1$s.\n\nKeep your account to go on chatting with your friends as before.</string>
     <string name="deletion_pending_keep">Keep my account</string>
-    <string name="deletion_canceled">Account deletion canceled. Welcome back!</string>
+    <string name="deletion_canceled">Your account has been kept. Welcome back!</string>
 </resources>

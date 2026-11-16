@@ -31,13 +31,14 @@
     <string name="profile_device_last_seen">%1$s · %2$s</string>
     <string name="profile_revoke">Thu hồi</string>
     <string name="profile_revoke_title">Thu hồi thiết bị này?</string>
-    <string name="profile_revoke_message">%1$s sẽ bị đăng xuất ngay.</string>
+    <string name="profile_revoke_message">%1$s sẽ bị đăng xuất ngay và phải đăng nhập lại để tiếp tục sử dụng.</string>
     <string name="profile_cancel">Hủy</string>
     <string name="profile_delete_account">Xóa tài khoản</string>
-    <string name="profile_delete_message">Tài khoản sẽ bị vô hiệu hóa và đăng xuất khỏi mọi thiết bị.\n\nNếu không đăng nhập lại trong 15 ngày, tài khoản sẽ bị xóa vĩnh viễn.</string>
-    <string name="profile_delete_confirm">Xóa</string>
+    <string name="profile_delete_title">Xóa tài khoản của bạn?</string>
+    <string name="profile_delete_message">Bạn sẽ bị đăng xuất khỏi mọi thiết bị và tài khoản tạm thời bị vô hiệu hóa.\n\nĐổi ý? Chỉ cần đăng nhập lại trong vòng 15 ngày. Sau thời hạn này, tài khoản cùng bạn bè và lời mời sẽ bị xóa vĩnh viễn.</string>
+    <string name="profile_delete_confirm">Xóa tài khoản</string>
     <string name="deletion_pending_title">Tài khoản đang chờ xóa</string>
-    <string name="deletion_pending_message">Tài khoản sẽ bị xóa vĩnh viễn vào ngày %1$s.\n\nBạn có muốn giữ lại tài khoản không?</string>
+    <string name="deletion_pending_message">Bạn đã yêu cầu xóa tài khoản này. Tài khoản sẽ bị xóa vĩnh viễn vào ngày %1$s.\n\nGiữ lại tài khoản để tiếp tục trò chuyện với bạn bè như trước.</string>
     <string name="deletion_pending_keep">Giữ tài khoản</string>
-    <string name="deletion_canceled">Đã hủy yêu cầu xóa tài khoản. Chào mừng bạn quay lại!</string>
+    <string name="deletion_canceled">Tài khoản của bạn đã được giữ lại. Chào mừng bạn quay lại!</string>
 </resources>

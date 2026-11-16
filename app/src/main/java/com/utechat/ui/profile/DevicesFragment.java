@@ -50,7 +50,7 @@ public class DevicesFragment extends Fragment {
 
     /** Hỏi xác nhận trước khi thu hồi vì thiết bị đó sẽ bị đăng xuất ngay. */
     private void confirmRevoke(DeviceInfo device) {
-        new MaterialAlertDialogBuilder(requireContext())
+        new MaterialAlertDialogBuilder(requireContext(), R.style.ThemeOverlay_UTEChat_Dialog_Destructive)
                 .setTitle(R.string.profile_revoke_title)
                 .setMessage(getString(R.string.profile_revoke_message, device.name))
                 .setNegativeButton(R.string.profile_cancel, null)

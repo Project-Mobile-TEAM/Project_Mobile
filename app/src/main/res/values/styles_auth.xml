@@ -77,15 +77,28 @@
         <item name="fontFamily">@font/poppins_medium</item>
         <item name="android:textColor">?attr/colorOnSurface</item>
     </style>
-    <!-- Hộp thoại chung: tiêu đề Poppins Medium 20sp, nội dung 14sp giãn dòng dễ đọc, nút chữ Medium không viết hoa. -->
+    <!--
+      Hộp thoại chung: nền thẻ trắng (tối: màu thẻ), tiêu đề Poppins Medium 20sp, nội dung 14sp giãn dòng.
+      Một hành động chính duy nhất: nút đặc bo tròn; hành động phụ là nút chữ màu xám để không tranh chú ý.
+    -->
     <style name="ThemeOverlay.UTEChat.Dialog" parent="ThemeOverlay.Material3.MaterialAlertDialog">
+        <item name="colorSurfaceContainerHigh">@color/ute_card</item>
+        <item name="colorSurface">@color/ute_card</item>
+        <!-- Tắt lớp phủ ám màu theo độ cao, nếu không nền bị ám theo màu chính (xanh, hoặc hồng ở hộp thoại đỏ). -->
+        <item name="elevationOverlayEnabled">false</item>
         <item name="materialAlertDialogTitleTextStyle">@style/UTEChat.Dialog.Title</item>
         <item name="materialAlertDialogBodyTextStyle">@style/UTEChat.Dialog.Body</item>
-        <item name="buttonBarPositiveButtonStyle">@style/UTEChat.Dialog.Button</item>
+        <item name="buttonBarPositiveButtonStyle">@style/UTEChat.Dialog.Button.Primary</item>
         <item name="buttonBarNegativeButtonStyle">@style/UTEChat.Dialog.Button</item>
+    </style>
+    <!-- Hộp thoại huỷ hoại dữ liệu (xoá tài khoản, thu hồi thiết bị): nút chính màu đỏ. -->
+    <style name="ThemeOverlay.UTEChat.Dialog.Destructive">
+        <item name="colorPrimary">@color/ute_error</item>
+        <item name="colorOnPrimary">@color/ute_on_accent_fixed</item>
     </style>
     <style name="UTEChat.Dialog.Title" parent="MaterialAlertDialog.Material3.Title.Text">
         <item name="android:textSize">20sp</item>
+        <item name="android:lineSpacingExtra">2sp</item>
         <item name="android:fontFamily">@font/poppins_medium</item>
         <item name="android:textColor">@color/ute_text</item>
     </style>
@@ -96,7 +109,20 @@
         <item name="android:textColor">@color/ute_text_secondary</item>
     </style>
     <style name="UTEChat.Dialog.Button" parent="Widget.Material3.Button.TextButton.Dialog">
+        <item name="android:textSize">14sp</item>
         <item name="android:fontFamily">@font/poppins_medium</item>
         <item name="android:textAllCaps">false</item>
+        <item name="android:textColor">@color/ute_text_secondary</item>
+        <item name="android:minHeight">44dp</item>
+    </style>
+    <style name="UTEChat.Dialog.Button.Primary" parent="Widget.Material3.Button">
+        <item name="android:textSize">14sp</item>
+        <item name="android:fontFamily">@font/poppins_medium</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:minHeight">44dp</item>
+        <item name="android:paddingStart">20dp</item>
+        <item name="android:paddingEnd">20dp</item>
+        <item name="android:layout_marginStart">8dp</item>
+        <item name="cornerRadius">22dp</item>
     </style>
 </resources>
