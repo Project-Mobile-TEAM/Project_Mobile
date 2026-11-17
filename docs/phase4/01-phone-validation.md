@@ -1,8 +1,8 @@
-# Phase 4 — Đợt 01: Chuẩn hóa số điện thoại
+# Phase 4 — Báo cáo tiến độ: chuẩn hóa SĐT và giới hạn tra cứu
 
-Ngày thực hiện: 17/11/2026.
+Ngày thực hiện: 17/11/2026. Đây là file báo cáo chung duy nhất, được cập nhật sau từng đợt nhỏ.
 
-## Phạm vi đã hoàn thành
+## Đợt 01 — Chuẩn hóa SĐT: đã kiểm thử
 
 Tiện ích `ContactsValidator.normalize(String)` phục vụ bước nhập số khi tìm người:
 
@@ -60,7 +60,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Tests failed' }
 - Chưa có màn tìm kiếm hoặc API được tích hợp trong đợt 01; tiện ích này sẽ được gọi từ phần tìm người ở một đợt sau.
 - Chưa build APK, chưa chạy emulator và chưa kiểm thử toàn bộ ứng dụng.
 
-## Tình trạng đưa lên GitHub
+## Lịch sử kết nối GitHub ở đợt 01
 
 - Đã kiểm tra trước khi ghi: chưa có nhánh remote `phase4_NP`.
 - GitHub connector đọc được repository nhưng từ chối tạo Git tree và tạo nhánh bằng HTTP 403: `Resource not accessible by integration`.
@@ -68,6 +68,67 @@ if ($LASTEXITCODE -ne 0) { throw 'Tests failed' }
 - Chưa tạo được nhánh remote và chưa push. Đã chuẩn bị commit local chỉ chứa ba tệp của đợt 01.
 - Cần cấp quyền ghi nội dung repository cho kết nối GitHub hoặc khôi phục kết nối Git trực tiếp để bàn giao tiếp. Không cần viết lại tính năng.
 
-## Điểm dừng
+## Điểm dừng đợt 01
 
 Đợt 01 hoàn thành ở mức tiện ích đã kiểm thử. Dừng tại đây để người dùng xem tiến độ; chưa triển khai thêm tính năng tiếp theo trong đợt này.
+
+## Đợt 02 — Giới hạn tần suất tra cứu: đã kiểm thử
+
+### Đã thêm
+
+| Tệp | Nội dung |
+|---|---|
+| `backend/src/main/java/com/utechat/backend/config/TimeConfig.java` | Cung cấp Clock UTC cho Spring, thay được bằng đồng hồ giả trong test |
+| `backend/src/main/java/com/utechat/backend/service/LookupRateLimiter.java` | Tối đa 10 lượt được ghi nhận trong cửa sổ trượt 60 giây cho mỗi UUID người dùng |
+| `backend/src/test/java/com/utechat/backend/contacts/LookupRateLimiterTest.java` | 8 kiểm thử JUnit 5, gồm Spring wiring và yêu cầu đồng thời |
+
+`checkAndRecord(userId)` cho phép 10 lượt đầu; lượt thứ 11 ném `ApiException` với HTTP 429, mã `RATE_LIMITED` và `details.retryAfterSeconds` làm tròn lên. Lượt bị từ chối không được ghi thêm nên không kéo dài thời gian chờ. Các lượt hết hạn và bucket rỗng được dọn khi có request mới.
+
+Kiểm tra và ghi lượt được đồng bộ dưới cùng một khóa để yêu cầu đồng thời không vượt giới hạn. Dùng lại `ApiException` và dependency sẵn có; không thêm thư viện hoặc thay cấu hình build. Ngưỡng 10 lượt và 60 giây cố định theo yêu cầu V1.
+
+### Kết quả kiểm tra thực tế
+
+| Ca kiểm thử | Kết quả |
+|---|---|
+| Cho phép 10 lượt, từ chối lượt 11 với đúng HTTP, mã lỗi và thời gian chờ | Đạt |
+| Tài khoản khác vẫn có đủ lượt riêng | Đạt |
+| Giải phóng lượt đúng mốc 60.000 ms | Đạt |
+| Cửa sổ trượt giữ nguyên các lượt chưa hết hạn | Đạt |
+| Thời gian chờ có phần lẻ được làm tròn lên | Đạt |
+| Gọi tiếp khi bị giới hạn không kéo dài thời gian chờ | Đạt |
+| 20 luồng cùng tài khoản có đúng 10 lượt được chấp nhận | Đạt |
+| Spring tạo được service singleton với Clock UTC | Đạt |
+
+- Biên dịch Java với `javac --release 17 -encoding UTF-8`: đạt.
+- Chạy trực tiếp test thực tế `LookupRateLimiterTest` bằng JUnit Platform Launcher 1.10.3 và Jupiter 5.10.3: **8 tests successful, 0 failed**.
+- Spring context test sử dụng Spring Framework 6.1.12 đã có trong cache. Đây không phải full application context của Spring Boot 3.3.5.
+- Chạy lại 28 ca `ContactsValidatorTest` của đợt 01: **OK (28 tests)**.
+- Tổng cộng **36 ca đạt** ở hai phần đã tách riêng. Không suy ra toàn bộ ứng dụng đã pass.
+- Runner JUnit tạm và output biên dịch nằm ngoài source, không thêm vào commit.
+
+Lệnh chuẩn để chạy lại test backend khi Maven có đầy đủ dependency, từ thư mục `backend`:
+
+```powershell
+.\mvnw.cmd test "-Dtest=LookupRateLimiterTest"
+```
+
+Lệnh Maven chưa được xác nhận chạy thành công do giới hạn môi trường tải dependency ở phiên này. Kết quả đạt ở trên là từ chạy JUnit trực tiếp với các JAR đã có sẵn.
+
+### Giới hạn và điểm dừng đợt 02
+
+- Chưa nối bộ giới hạn vào API `/api/users/lookup`: đợt này hoàn thiện thành phần giới hạn và kiểm thử riêng, chưa có endpoint mới trên nhánh bàn giao.
+- Bộ đếm ở bộ nhớ một instance backend và reset khi khởi động lại. Khi chạy nhiều instance phải dùng kho bộ đếm chung.
+- Khóa đồng bộ và bước dọn toàn bộ bucket phù hợp phạm vi V1 nhỏ; chưa đo hiệu năng tải lớn.
+- Chưa chạy bộ test backend đầy đủ, build APK, emulator hoặc kiểm thử Android với backend thật.
+- Mọi nội dung đợt 02 được ghi nối tiếp vào file này; không tạo báo cáo `.md` khác.
+- Chỉ đưa phần đợt 01 và 02 đã kiểm thử lên nhánh bàn giao. Phần còn lại ở `TeamProject` chưa được đưa vào.
+- Dừng sau khi bàn giao đợt 02 để người dùng xem tiến độ; không tự chuyển sang API tìm người trong cùng lượt.
+
+### Kết quả công bố sau khi kết nối lại GitHub
+
+- Kiểm tra lại nhánh remote: chưa có `phase4_NP`.
+- Tạo Git tree chứa đúng sáu tệp của đợt 01 và 02 vẫn bị từ chối: HTTP 403, `Resource not accessible by integration`.
+- Tạo nhánh `phase4_NP` từ snapshot `planning` cũng bị từ chối với cùng lỗi 403.
+- Git trực tiếp vẫn báo `Could not resolve host: github.com`.
+- Vì vậy, đợt 02 được lưu bằng commit local trên nhánh `phase4_NP`; chưa có nhánh remote và chưa push thành công.
+- Cần khôi phục quyền ghi repository của kết nối GitHub hoặc đường Git trực tiếp trước khi công bố. Tất cả kết quả kiểm thử ở trên vẫn được giữ, không cần viết lại tính năng.
