@@ -72,14 +72,14 @@
 | `GET /users/lookup?phone=` | — | `{id, displayName, avatarUrl, isContact, hasPendingRequest}` | Tìm kiếm người dùng chính xác theo SĐT E.164 (10 lượt/phút) |
 | `POST /contact-requests` | `addresseeId` | `request` (201) | Gửi lời mời kết bạn (chuyển sang `PENDING`). Nếu đã có lời mời chờ ở chiều ngược lại, trả 409 `REQUEST_ALREADY_PENDING` hoặc trả lời mời hiện có |
 | `GET /contact-requests` | — (hỗ trợ `?status=PENDING&type=incoming` hoặc `outgoing`) | `[{id, requester, addressee, status, createdAt}]` | Lấy danh sách lời mời kết bạn |
-| `POST /contact-requests/{id}/accept` | — | `request` (200) | Chấp nhận lời mời: chuyển sang `ACCEPTED`, tạo đồng thời 2 dòng `contacts` (`blocked = false`) trong cùng 1 transaction, sinh `sync_events` cho cả 2 bên |
+| `POST /contact-requests/{id}/accept` | — | `request` (200) | Chấp nhận lời mời: chuyển sang `ACCEPTED`, tạo đồng thời 2 dòng `contacts` (`is_friend = true, blocked = false`) trong cùng 1 transaction, sinh `sync_events` cho cả 2 bên |
 | `POST /contact-requests/{id}/reject` | — | `request` (200) | Từ chối lời mời: chuyển sang `REJECTED`, sinh `sync_events` và thông báo cho cả 2 bên |
 | `DELETE /contact-requests/{id}` | — | 204 | Hủy lời mời đã gửi: chuyển sang `CANCELED`, sinh `sync_events` cho cả 2 bên |
-| `GET /contacts` | — | `[{id, phone, displayName, avatarUrl, blocked: false, createdAt}]` | Lấy danh sách bạn bè chính thức (`blocked = false`) |
+| `GET /contacts` | — | `[{id, phone, displayName, avatarUrl, blocked: false, createdAt}]` | Lấy danh sách bạn bè chính thức (`is_friend = true AND blocked = false` ở chiều người xem) |
 | `GET /contacts/blocked` | — | `[{id, phone, displayName, avatarUrl, blocked: true, createdAt}]` | Lấy danh sách người dùng đang bị chặn để hiển thị và bỏ chặn |
-| `DELETE /contacts/{userId}` | — | 204 | Xóa bạn bè (unfriend): xóa quan hệ hai chiều trong cùng transaction |
-| `POST /contacts/{userId}/block` | — | 204 | Chặn người dùng. Nếu là bạn bè: đặt `blocked = true`. Nếu là người lạ: tạo một dòng block-only `(owner_id, contact_user_id, blocked = true)` |
-| `DELETE /contacts/{userId}/block` | — | 204 | Bỏ chặn người dùng. Nếu là dòng block-only người lạ: xóa dòng. Nếu vốn là bạn bè: đặt `blocked = false` |
+| `DELETE /contacts/{userId}` | — | 204 | Hủy quan hệ bạn bè hai chiều trong cùng transaction: đặt `is_friend = false`, giữ dòng chặn và xóa dòng không chặn |
+| `POST /contacts/{userId}/block` | — | 204 | Chỉ đặt `blocked = true` ở chiều của mình, giữ nguyên `is_friend`; nếu chưa có dòng thì tạo block-only `is_friend = false` |
+| `DELETE /contacts/{userId}/block` | — | 204 | Dựa trên dòng của mình: `is_friend = true` thì chỉ đặt `blocked = false`; `is_friend = false` thì xóa dòng. Không suy ra tình bạn từ chiều ngược |
 
 ### 2.4 Hội thoại và tin nhắn
 
@@ -101,7 +101,7 @@
 
 > **Chính sách nhận tin nhắn người lạ (`allowMessagesFromNonContacts`):**
 > - Mặc định là `true` (cho phép nhận tin từ người lạ tìm thấy qua SĐT).
-> - Khi người dùng đặt thành `false`: chỉ những người dùng đã có quan hệ bạn bè được chấp thuận (`contacts` với `blocked = false`) mới được gửi tin nhắn trực tiếp 1-1.
+> - Khi người dùng đặt thành `false`: chỉ những người dùng đã có quan hệ bạn bè được chấp thuận (cả hai chiều `contacts.is_friend = true`, không có block ở bất kỳ chiều nào) mới được gửi tin nhắn trực tiếp 1-1.
 > - Kiểm tra `BLOCKED` được ưu tiên trước: nếu người nhận đã chặn người gửi thì trả `403 BLOCKED`, bất kể cài đặt nhận tin người lạ.
 > - Nếu một cuộc hội thoại 1-1 đã được mở từ trước, nhưng sau đó người nhận tắt quyền này và hai người chưa kết bạn: mọi yêu cầu gửi tin nhắn mới `POST /conversations/{id}/messages` sẽ bị server từ chối với mã HTTP 403 `CONTACT_REQUIRED`.
 > - Gửi lời mời kết bạn qua `POST /contact-requests` vẫn luôn được phép kể cả khi tắt nhận tin từ người lạ.

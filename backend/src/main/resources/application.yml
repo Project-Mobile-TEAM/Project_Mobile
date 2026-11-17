@@ -24,6 +24,20 @@ spring:
   jdbc:
     template:
       query-timeout: 5s
+  flyway:
+    # Tự động chạy migration khi backend khởi động để các thành viên không phải chạy SQL tay trên Supabase.
+    enabled: ${FLYWAY_ENABLED:true}
+    # Ưu tiên kết nối Session/Direct port 5432 từ .env (nếu thiếu FLYWAY_URL thì fallback sang datasource URL và đổi 6543 -> 5432).
+    url: ${FLYWAY_URL:${spring.datasource.url:}}
+    user: ${FLYWAY_USER:${spring.datasource.username:}}
+    password: ${FLYWAY_PASSWORD:${spring.datasource.password:}}
+    # Chỉ chạy các migration cấu trúc chuẩn trong classpath (không tự chạy seed demo V2 để bảo vệ môi trường production).
+    locations: classpath:db/migration
+    # Nếu database đã chạy V1/V2 thủ công từ trước (chưa có bảng flyway_schema_history), đánh dấu baseline từ V1 rồi chạy tiếp V3, V4...
+    baseline-on-migrate: true
+    baseline-version: 1
+    # Database demo từng nạp V2 qua CLI (không nằm trong classpath) vẫn pass validateChecksum mà không báo thiếu V2.
+    ignore-migration-patterns: "*:missing"
 # Bí mật ký JWT lấy từ biến môi trường JWT_SECRET (>= 32 ký tự); không có giá trị mặc định ngoài profile dev.
 jwt:
   secret: ${JWT_SECRET:}

@@ -1,5 +1,5 @@
--- Read-only assertions. psql: use -v ON_ERROR_STOP=1 so any FAIL is nonzero.
--- Default: production (13 core tables). For demo, SET utechat.verify_demo = 'true';
+-- Chỉ đọc để kiểm chứng schema V1 + V3 + V4; psql dùng -v ON_ERROR_STOP=1 để FAIL trả mã lỗi.
+-- Mặc định kiểm production (13 bảng core); demo có thêm V2, dùng SET utechat.verify_demo = 'true';
 DO $verify$
 DECLARE
     demo BOOLEAN := COALESCE(current_setting('utechat.verify_demo', true), 'false') = 'true';
@@ -10,7 +10,7 @@ DECLARE
 BEGIN
     IF demo THEN expected := array_append(expected, 'demo_sms_outbox'); END IF;
 
-    -- 1. Required tables: a missing table cannot disappear from the result.
+    -- 1. Kiểm từng bảng bắt buộc để không bỏ sót bảng chưa được tạo.
     FOREACH item IN ARRAY expected LOOP
         IF to_regclass('public.' || item) IS NULL THEN
             RAISE EXCEPTION 'FAIL: missing table %', item;
@@ -23,7 +23,7 @@ BEGIN
     END IF;
     RAISE NOTICE 'PASS: table inventory';
 
-    -- 2. RLS enabled on every expected table; owner bypass is intentional.
+    -- 2. Mọi bảng phải bật RLS; owner được phép bypass theo kiến trúc JDBC phía server.
     FOREACH item IN ARRAY expected LOOP
         IF NOT EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
             WHERE n.nspname = 'public' AND c.relname = item AND c.relrowsecurity AND NOT c.relforcerowsecurity) THEN
@@ -32,16 +32,16 @@ BEGIN
     END LOOP;
     RAISE NOTICE 'PASS: relrowsecurity enabled';
 
-    -- 3. No data-access policy on application tables.
+    -- 3. Không có policy truy cập dữ liệu cho các bảng ứng dụng (default deny).
     IF EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = ANY(expected)) THEN
         RAISE EXCEPTION 'FAIL: unexpected RLS policy on application table';
     END IF;
     RAISE NOTICE 'PASS: zero policies';
 
-    -- 4. Performance and race-safety indexes.
+    -- 4. Kiểm index phục vụ hiệu năng và chống ghi trùng khi có thao tác đồng thời.
     FOREACH item IN ARRAY ARRAY['idx_contact_requests_pending_pair','idx_messages_conversation_id_desc',
         'idx_sync_events_user_cursor','idx_users_phone','idx_auth_throttles_scope','uq_messages_attachment',
-        'idx_sync_events_created'] LOOP
+        'idx_sync_events_created','idx_users_deletion_scheduled'] LOOP
         IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND indexname = item) THEN
             RAISE EXCEPTION 'FAIL: missing index %', item;
         END IF;
@@ -49,16 +49,39 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'public'
         AND indexname = 'idx_contact_requests_pending_pair' AND indexdef LIKE 'CREATE UNIQUE INDEX%'
         AND indexdef LIKE '%LEAST%' AND indexdef LIKE '%GREATEST%' AND indexdef LIKE '%PENDING%') THEN
-        -- pg_get_indexdef normalizes function names to lowercase on some versions.
+        -- Một số phiên bản PostgreSQL chuẩn hóa tên hàm trong index thành chữ thường.
         IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'public'
             AND indexname = 'idx_contact_requests_pending_pair' AND indexdef LIKE 'CREATE UNIQUE INDEX%'
             AND lower(indexdef) LIKE '%least%' AND lower(indexdef) LIKE '%greatest%' AND indexdef LIKE '%PENDING%') THEN
             RAISE EXCEPTION 'FAIL: pending pair unique index has wrong definition';
         END IF;
     END IF;
+    -- Index V3 phải đúng bảng/cột và chỉ chứa tài khoản ACTIVE đang chờ xóa.
+    IF NOT EXISTS (SELECT 1 FROM pg_index i
+        JOIN pg_class t ON t.oid = i.indrelid
+        JOIN pg_namespace n ON n.oid = t.relnamespace
+        JOIN pg_class x ON x.oid = i.indexrelid
+        WHERE n.nspname = 'public' AND t.relname = 'users'
+        AND x.relname = 'idx_users_deletion_scheduled' AND i.indisvalid
+        AND pg_get_indexdef(i.indexrelid, 1, true) = 'deletion_scheduled_at'
+        AND lower(pg_get_expr(i.indpred, i.indrelid)) LIKE '%deletion_scheduled_at is not null%'
+        AND pg_get_expr(i.indpred, i.indrelid) LIKE '%ACTIVE%'
+        AND lower(pg_get_expr(i.indpred, i.indrelid)) LIKE '%status%') THEN
+        RAISE EXCEPTION 'FAIL: deletion schedule index has wrong definition';
+    END IF;
     RAISE NOTICE 'PASS: indexes';
 
-    -- 5. Privacy, event payload type, and essential CHECK/FK invariants.
+    -- 5. Kiểm kiểu dữ liệu/default của V3/V4 và các bất biến quyền riêng tư, CHECK/FK.
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public'
+        AND table_name = 'users' AND column_name = 'deletion_scheduled_at'
+        AND data_type = 'timestamp with time zone' AND is_nullable = 'YES' AND column_default IS NULL) THEN
+        RAISE EXCEPTION 'FAIL: users.deletion_scheduled_at must be nullable TIMESTAMPTZ without default (apply V3)';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public'
+        AND table_name = 'contacts' AND column_name = 'is_friend'
+        AND data_type = 'boolean' AND is_nullable = 'NO' AND column_default = 'false') THEN
+        RAISE EXCEPTION 'FAIL: contacts.is_friend must be BOOLEAN NOT NULL DEFAULT FALSE (apply V4)';
+    END IF;
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public'
         AND table_name = 'users' AND column_name = 'allow_messages_from_non_contacts'
         AND data_type = 'boolean' AND is_nullable = 'NO' AND column_default = 'true') THEN
@@ -78,7 +101,7 @@ BEGIN
     END LOOP;
     RAISE NOTICE 'PASS: privacy, JSONB, constraints';
 
-    -- 6. Demo fixtures are checked only on a demo database.
+    -- 6. Chỉ kiểm fixture trên database demo còn giữ nguyên các quan hệ mẫu.
     IF demo THEN
         IF (SELECT count(*) FROM public.users WHERE id IN (
             '11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222',
@@ -99,8 +122,15 @@ BEGIN
             RAISE EXCEPTION 'FAIL: David privacy fixture';
         END IF;
         IF NOT EXISTS (SELECT 1 FROM public.contacts WHERE owner_id = '11111111-1111-1111-1111-111111111111'
-            AND contact_user_id = '55555555-5555-5555-5555-555555555555' AND blocked) THEN
+            AND contact_user_id = '55555555-5555-5555-5555-555555555555' AND blocked AND NOT is_friend) THEN
             RAISE EXCEPTION 'FAIL: Alice-Eve block fixture';
+        END IF;
+        -- V4 phải chuyển đủ 6 dòng bạn bè hai chiều Alice/Bob/Charlie; không tính các quan hệ phát sinh khi demo.
+        IF (SELECT count(*) FROM public.contacts
+            WHERE owner_id IN ('11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222', '33333333-3333-3333-3333-333333333333')
+            AND contact_user_id IN ('11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222', '33333333-3333-3333-3333-333333333333')
+            AND is_friend AND NOT blocked) <> 6 THEN
+            RAISE EXCEPTION 'FAIL: V4 must backfill six demo friendship rows';
         END IF;
         RAISE NOTICE 'PASS: demo seed';
     END IF;
