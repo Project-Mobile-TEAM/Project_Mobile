@@ -57,8 +57,11 @@ try {
         -not $apiUri.Query -and -not $apiUri.Fragment -and $apiUri.AbsolutePath -eq '/'
     Report $validUri 'Supabase HTTPS project URL syntax'
 
+    # Kiểm đủ V1/V2/V3/V4 để chế độ Quick không báo sẵn sàng khi thiếu migration mà backend Phase 3/4 cần.
     foreach ($relative in @('backend/src/main/resources/db/migration/V1__initial_schema.sql',
-        'backend/src/main/resources/db/demo/V2__seed_demo_data.sql', 'backend/scripts/verify-schema.sql')) {
+        'backend/src/main/resources/db/demo/V2__seed_demo_data.sql',
+        'backend/src/main/resources/db/migration/V3__account_deletion_grace.sql',
+        'backend/src/main/resources/db/migration/V4__contacts_friend_flag.sql', 'backend/scripts/verify-schema.sql')) {
         Report (Test-Path -LiteralPath (Join-Path $repoRoot $relative)) "Required file: $relative"
     }
     if ($Full) {

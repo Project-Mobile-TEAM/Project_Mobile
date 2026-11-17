@@ -1,6 +1,6 @@
 # UTEChat — ERD và lược đồ dữ liệu
 
-> **Trạng thái:** ĐÃ CHỐT 2026-11-09, cập nhật chuẩn hóa V1 2026-11-10. Chuẩn schema phía server là PostgreSQL do Supabase quản lý (ADR-007). Mermaid ERD chỉ rút gọn cột để dễ đọc; **bảng mô tả cột bên dưới là nguồn chính xác theo cột**. Mọi bảng bật Row Level Security không có policy, chỉ server truy cập qua service role.
+> **Trạng thái:** ĐÃ CHỐT 2026-11-09, cập nhật schema Phase 3/4 ngày 2026-11-17 (migration V1 + V3 + V4; demo thêm V2 trước V3/V4). Chuẩn schema phía server là PostgreSQL do Supabase quản lý (ADR-007). Mermaid ERD chỉ rút gọn cột để dễ đọc; **bảng mô tả cột bên dưới là nguồn chính xác theo cột**. Mọi bảng bật Row Level Security không có policy; backend truy cập qua role JDBC quản trị/owner hoặc BYPASSRLS, không dùng Supabase API key làm mật khẩu JDBC.
 >
 > [!NOTE]
 > **Phạm vi CSDL server V1 (đúng 13 bảng cốt lõi):**
@@ -10,7 +10,7 @@
 > 4. `auth_sessions`: Phiên đăng nhập nhiều bước
 > 5. `auth_throttles`: Kiểm soát giới hạn tần suất và khóa tạm đăng nhập/OTP (PHONE, DEVICE, PHONE_DEVICE)
 > 6. `contact_requests`: Lời mời kết bạn (PENDING, ACCEPTED, REJECTED, CANCELED; chống trùng ngược chiều)
-> 7. `contacts`: Quan hệ bạn bè đã chấp nhận (blocked = false) và danh sách chặn (blocked = true)
+> 7. `contacts`: Quan hệ bạn bè đã chấp nhận (`is_friend = true`) độc lập với danh sách chặn (`blocked = true`)
 > 8. `conversations`: Hội thoại 1-1 (DIRECT) và nhóm (GROUP)
 > 9. `conversation_members`: Thành viên hội thoại và mốc biên nhận (watermarks)
 > 10. `messages`: Tin nhắn (phân trang lịch sử bằng messageId)
@@ -52,6 +52,7 @@ erDiagram
         string status
         timestamp created_at
         timestamp deleted_at
+        timestamp deletion_scheduled_at
     }
     USER_DEVICES {
         uuid id PK
@@ -105,6 +106,7 @@ erDiagram
     CONTACTS {
         uuid owner_id PK
         uuid contact_user_id PK
+        boolean is_friend
         boolean blocked
         timestamp created_at
     }
@@ -188,7 +190,7 @@ Bảng chỉ dành cho môi trường `demo` (không có trong `prod`): `demo_sm
 
 | Bảng | Ràng buộc và ghi chú |
 |---|---|
-| `users` | `phone_e164` UNIQUE (cho phép NULL), định dạng `+` và 8 đến 15 chữ số. `status` ∈ `ACTIVE`, `LOCKED`, `DELETED`. Cột `allow_messages_from_non_contacts BOOLEAN NOT NULL DEFAULT TRUE`: kiểm soát quyền nhắn tin từ người lạ (không tạo bảng privacy mới).<br>• `TRUE`: người tìm thấy qua SĐT được phép mở hội thoại và nhắn tin 1-1.<br>• `FALSE`: chỉ người có quan hệ `ACCEPTED` (trong bảng `contacts` với `blocked = false`) mới được gửi tin.<br>• Gửi lời mời kết bạn vẫn được phép dù tắt nhận tin từ người lạ.<br>• Xoá tài khoản là **xoá mềm**: đặt `deleted_at`, ẩn tên/ảnh, **đặt `phone_e164 = NULL`**, xóa toàn bộ dòng liên quan trong `contacts`, thu hồi mọi thiết bị. Không có cột V2 (`two_factor_enabled`, `is_bot`, `friend_step_locked_until`). |
+| `users` | `phone_e164` UNIQUE (cho phép NULL), định dạng `+` và 8 đến 15 chữ số. `status` ∈ `ACTIVE`, `LOCKED`, `DELETED`. Cột V3 `deletion_scheduled_at TIMESTAMPTZ` nullable, không default: mốc xóa sau 15 ngày; `NULL` là không chờ xóa. Cột `allow_messages_from_non_contacts BOOLEAN NOT NULL DEFAULT TRUE`: kiểm soát quyền nhắn tin từ người lạ (không tạo bảng privacy mới).<br>• `TRUE`: người tìm thấy qua SĐT được phép mở hội thoại và nhắn tin 1-1.<br>• `FALSE`: chỉ người có quan hệ `ACCEPTED` (cả hai chiều `contacts.is_friend = true`, không có block ở bất kỳ chiều nào) mới được gửi tin.<br>• Gửi lời mời kết bạn vẫn được phép dù tắt nhận tin từ người lạ.<br>• Xoá tài khoản là **xoá mềm**: đặt `deleted_at`, ẩn tên/ảnh, **đặt `phone_e164 = NULL`**, xóa toàn bộ dòng liên quan trong `contacts`, thu hồi mọi thiết bị. Không có cột V2 (`two_factor_enabled`, `is_bot`, `friend_step_locked_until`). |
 | `user_devices` | UNIQUE (`user_id`, `device_id_hash`). `device_id_hash` là SHA-256 của `deviceId` do app tạo. `token_valid_after` là mốc: server **từ chối mọi JWT có `iat` sớm hơn mốc này** (đăng xuất, thu hồi hoặc đổi mật khẩu đặt mốc = bây giờ). `revoked_at` khác NULL là thiết bị đã bị thu hồi. Không có refresh token (ADR-018). Người dùng có thể thu hồi thiết bị bị mất qua `/account/devices`. |
 | `otp_challenges` | Mỗi lần gửi OTP là một dòng. `purpose` ∈ `REGISTER`, `LOGIN`, `PASSWORD_RESET`. Giới hạn gửi lại tính bằng số dòng trong 60 giây và 1 giờ qua theo `phone_e164`. `consumed_at` khác NULL là đã dùng. Chỉ lưu `code_hash`. Password reset bằng OTP thành công phải thu hồi token của mọi thiết bị khác (`token_valid_after = now`). |
 | `auth_sessions` | Giao dịch đăng nhập nhiều bước. `method` ∈ `PASSWORD`, `OTP`, `RESET`. `state` ∈ `NEED_OTP`, `COMPLETE`, `FAILED`, `LOCKED`. Hết hạn sau 10 phút. Token chỉ được cấp khi `state = COMPLETE`. Không có trạng thái V2 (`NEED_2FA`, `NEED_FRIEND`). |
@@ -198,8 +200,8 @@ Bảng chỉ dành cho môi trường `demo` (không có trong `prod`): `demo_sm
 
 | Bảng | Ràng buộc và ghi chú |
 |---|---|
-| `contact_requests` | Quản lý vòng đời lời mời kết bạn. Cột: `id` (UUID PK), `requester_id` (UUID FK users), `addressee_id` (UUID FK users), `status` ∈ `PENDING`, `ACCEPTED`, `REJECTED`, `CANCELED`, `created_at` (timestamptz), `responded_at` (timestamptz, NULL khi đang chờ). Ràng buộc CHECK: `requester_id <> addressee_id`.<br>• **Chống trùng ngược chiều:** Nếu đã có lời mời A $\rightarrow$ B ở trạng thái `PENDING`, hệ thống không cho phép tạo thêm lời mời B $\rightarrow$ A (service trả về lời mời hiện có hoặc lỗi `REQUEST_ALREADY_PENDING` 409).<br>• Khi trạng thái thay đổi (`ACCEPTED`, `REJECTED`, `CANCELED`), server tạo `sync_events` và đẩy WebSocket `contact_request.updated` cho cả 2 bên liên quan. Khi `ACCEPTED`, transaction chèn đồng thời 2 dòng `contacts` (`blocked = false`). |
-| `contacts` | PK (`owner_id`, `contact_user_id`). CHECK `owner_id <> contact_user_id`.<br>• **Semantics của contacts:**<br>  - Dòng có `blocked = false`: Quan hệ bạn bè chính thức đã được chấp nhận (`ACCEPTED`). `GET /contacts` chỉ trả về các dòng này.<br>  - Dòng có `blocked = true`: Hành vi chặn một chiều. Có thể phát sinh giữa hai người bạn (bạn bè bị chặn) hoặc giữa hai người lạ chưa từng kết bạn (dòng block-only do `POST /contacts/{userId}/block`).<br>• **Hành vi Unblock:** Nếu là dòng block-only (chưa kết bạn), server xoá hẳn dòng; nếu hai người vốn là bạn bè trước đó, server cập nhật `blocked = false`.<br>• Xoá tài khoản (soft delete) xóa toàn bộ mọi dòng `contacts` liên quan (cả chiều `owner_id` và `contact_user_id`). |
+| `contact_requests` | Quản lý vòng đời lời mời kết bạn. Cột: `id` (UUID PK), `requester_id` (UUID FK users), `addressee_id` (UUID FK users), `status` ∈ `PENDING`, `ACCEPTED`, `REJECTED`, `CANCELED`, `created_at` (timestamptz), `responded_at` (timestamptz, NULL khi đang chờ). Ràng buộc CHECK: `requester_id <> addressee_id`.<br>• **Chống trùng ngược chiều:** Nếu đã có lời mời A $\rightarrow$ B ở trạng thái `PENDING`, hệ thống không cho phép tạo thêm lời mời B $\rightarrow$ A (service trả về lời mời hiện có hoặc lỗi `REQUEST_ALREADY_PENDING` 409).<br>• Khi trạng thái thay đổi (`ACCEPTED`, `REJECTED`, `CANCELED`), server tạo `sync_events` và đẩy WebSocket `contact_request.updated` cho cả 2 bên liên quan. Khi `ACCEPTED`, transaction chèn đồng thời 2 dòng `contacts` (`is_friend = true, blocked = false`). |
+| `contacts` | PK (`owner_id`, `contact_user_id`). CHECK `owner_id <> contact_user_id`. V4 thêm `is_friend BOOLEAN NOT NULL DEFAULT FALSE`, độc lập với `blocked`.<br>• `is_friend = true`: quan hệ đã chấp nhận, kể cả khi đang chặn; danh sách bạn bè chỉ lấy `is_friend = true AND blocked = false` ở chiều của người xem.<br>• `is_friend = false AND blocked = true`: block-only người lạ. Không giữ dòng có cả hai cờ `false` (quy tắc service).<br>• Accept tạo/upsert cả hai chiều `is_friend = true, blocked = false` sau khi kiểm không có block. Block chỉ đặt `blocked = true`, giữ nguyên `is_friend`; dòng block-only mới dùng mặc định `is_friend = false`.<br>• Unblock: nếu dòng của mình có `is_friend = true`, chỉ đặt `blocked = false`; nếu `is_friend = false`, xóa dòng. Không suy ra tình bạn từ cờ blocked của dòng ngược, nên hai người cùng block/unblock không mất quan hệ.<br>• Unfriend đặt `is_friend = false` cả hai chiều, giữ dòng có `blocked = true`, xóa dòng không còn chặn; unblock sau unfriend không khôi phục bạn bè.<br>• Backend Phase 5/6 chỉ coi hai người là bạn đủ quyền nhắn khi tắt nhận tin người lạ/thêm nhóm/gọi thoại nếu cả hai chiều `is_friend = true` và không có block ở bất kỳ chiều nào.<br>• Xóa tài khoản xóa toàn bộ dòng liên quan cả `owner_id` và `contact_user_id`. |
 
 ### 2.3 Hội thoại và thành viên
 
@@ -222,10 +224,10 @@ Bảng chỉ dành cho môi trường `demo` (không có trong `prod`): `demo_sm
 1. Cặp người dùng chỉ có **một** hội thoại `DIRECT` (nhờ `direct_key`).
 2. Tạo tin nhắn, cập nhật `conversations.last_message_id`, tạo sự kiện tương ứng trong `sync_events` cho từng thành viên nhận tin và cập nhật mốc cho người gửi chạy trong **cùng một giao dịch**.
 3. Mốc `last_delivered_message_id` và `last_read_message_id` không bao giờ giảm; luôn thỏa mãn `last_delivered_message_id >= last_read_message_id`. Khi nhận báo đọc (`POST /api/conversations/{id}/read`), server tự động nâng cả `last_delivered_message_id` nếu mốc delivered hiện tại nhỏ hơn mốc read, đồng thời sinh sự kiện `RECEIPT_UPDATED` trong `sync_events` mang `syncEventId`.
-4. Lời mời kết bạn (`contact_requests`): Khi addressee chấp nhận (`ACCEPTED`), server cập nhật trạng thái và chèn đồng thời 2 bản ghi `contacts` (`blocked = false`) trong cùng transaction, đồng thời sinh sự kiện đồng bộ `CONTACT_REQUEST_UPDATED` và `CONTACT_UPDATED` cho cả hai phía. Khi từ chối (`REJECTED`) hoặc hủy (`CANCELED`), server cũng sinh `sync_events` và đẩy WebSocket `contact_request.updated` cho cả 2 bên.
+4. Lời mời kết bạn (`contact_requests`): Khi addressee chấp nhận (`ACCEPTED`), server cập nhật trạng thái và chèn đồng thời 2 bản ghi `contacts` (`is_friend = true, blocked = false`) trong cùng transaction, đồng thời sinh sự kiện đồng bộ `CONTACT_REQUEST_UPDATED` và `CONTACT_UPDATED` cho cả hai phía. Khi từ chối (`REJECTED`) hoặc hủy (`CANCELED`), server cũng sinh `sync_events` và đẩy WebSocket `contact_request.updated` cho cả 2 bên.
 5. Kiểm tra quyền riêng tư: `allow_messages_from_non_contacts` kiểm soát việc tạo hội thoại và gửi tin 1-1 từ người lạ; chỉ bạn bè `ACCEPTED` mới được thêm vào nhóm hoặc gọi thoại WebRTC.
 6. Thu hồi thiết bị đặt `revoked_at` và `token_valid_after = now` trong một giao dịch, đồng thời sinh sự kiện đồng bộ `DEVICE_REVOKED` mang `syncEventId`.
-7. Xoá tài khoản (xoá mềm) thu hồi mọi thiết bị, gỡ khỏi mọi nhóm (chuyển quản trị nếu cần), xoá sạch toàn bộ dòng liên quan trong bảng `contacts` hai chiều trong cùng giao dịch (`DELETE FROM contacts WHERE owner_id = :deleted_user_id OR contact_user_id = :deleted_user_id;`), đặt `phone_e164 = NULL` và `status = DELETED`.
+7. Yêu cầu xóa tài khoản đặt `users.deletion_scheduled_at = now() + interval '15 days'` (V3: `TIMESTAMPTZ`, nullable, không default), thu hồi mọi thiết bị ngay; tài khoản vẫn `ACTIVE` và giữ SĐT trong thời gian chờ. Đăng nhập lại có thể hủy bằng cách đặt cột này về `NULL`. Sau hạn chờ, tác vụ mỗi giờ và bước tra tài khoản theo SĐT thực hiện xóa mềm: gỡ khỏi nhóm (chuyển quản trị nếu cần ở phase nhóm), xóa sạch hai chiều contacts và các lời mời, đặt `phone_e164 = NULL`, `deleted_at = now()` và `status = DELETED`. Index V3 `idx_users_deletion_scheduled` trên `deletion_scheduled_at` có điều kiện `deletion_scheduled_at IS NOT NULL AND status = 'ACTIVE'` phục vụ tìm tài khoản đến hạn.
 8. Thiết bị đã thu hồi đăng nhập lại thì coi như thiết bị lạ. Thành công thì đặt `revoked_at = NULL` và `trusted = true`.
 9. `messages.attachment_id` chỉ được trỏ tới file do chính người gửi upload và chưa gắn vào tin nào khác.
 
