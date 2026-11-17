@@ -2,6 +2,9 @@
 
 Ngày thực hiện: 17/11/2026. Đây là file báo cáo chung duy nhất, được cập nhật sau từng đợt nhỏ.
 
+**Nơi làm việc hiện tại:** `D:\HCMUTE\Y3\S1\T2\LapTrinhDiDong\TeamProject`, nhánh `phase4_NP`.
+Từ lần thống nhất worktree dưới đây chỉ tiếp tục làm việc trong thư mục này. Các đoạn mô tả dùng worktree review ở đợt 01/02 là lịch sử.
+
 ## Đợt 01 — Chuẩn hóa SĐT: đã kiểm thử
 
 Tiện ích `ContactsValidator.normalize(String)` phục vụ bước nhập số khi tìm người:
@@ -51,7 +54,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Compile failed' }
 if ($LASTEXITCODE -ne 0) { throw 'Tests failed' }
 ```
 
-## Nhánh và cách bàn giao
+## Nhánh và cách bàn giao đợt 01 (lịch sử)
 
 - Nhánh bàn giao local: `phase4_NP`, từ snapshot `planning` tại `f607095fb9ed371efa5798adbaff2f1d5a63e643` đã chứa nền Phase 3. Dùng worktree riêng `TeamProject-phase4-review` để tránh mang theo code chưa kiểm chứng.
 - Đã đọc và xác nhận remote `main` tại `aaf38445c5bcb219799825617d75cda45ade374a`; ban đầu dự định tạo nhánh remote từ `main` và đưa đúng ba tệp lên đó.
@@ -132,3 +135,61 @@ Lệnh Maven chưa được xác nhận chạy thành công do giới hạn môi
 - Git trực tiếp vẫn báo `Could not resolve host: github.com`.
 - Vì vậy, đợt 02 được lưu bằng commit local trên nhánh `phase4_NP`; chưa có nhánh remote và chưa push thành công.
 - Cần khôi phục quyền ghi repository của kết nối GitHub hoặc đường Git trực tiếp trước khi công bố. Tất cả kết quả kiểm thử ở trên vẫn được giữ, không cần viết lại tính năng.
+
+## Thống nhất thư mục và kiểm tra lại — 17/11/2026
+
+### Kiểm tra và bảo toàn trước khi chuyển nhánh
+
+- `TeamProject` ban đầu ở `feature/contacts`, HEAD `f607095fb9ed371efa5798adbaff2f1d5a63e643`, có 17 tệp tracked thay đổi và 31 tệp untracked.
+- `TeamProject-phase4-review` ban đầu sạch, đang giữ nhánh `phase4_NP` tại `ada152dd6e1b42d028d37c240967ef36b8b9faeb`.
+- Xác nhận `b6f1b09` là tổ tiên của `ada152d` bằng `git merge-base --is-ancestor`, exit code 0. Không cherry-pick lại hai commit.
+- Đã dùng `git stash push --include-untracked` để lưu đủ 48 tệp trước khi chuyển nhánh. Bản dự phòng được giữ nguyên, không pop/drop:
+  - Stash: `5492dd88b08d56f4de575e7023be7b1b8cb45d64`.
+  - Nhãn: `phase4 consolidation: preserve unfinished work from feature/contacts`.
+- Cache build bị ignore vẫn giữ tại chỗ, không xóa.
+
+### Chuyển nhánh và khôi phục bản nháp
+
+- Chuyển worktree review sang detached HEAD tại `ada152d` để giải phóng nhánh; không xóa thư mục hay nhánh nào.
+- Chuyển `TeamProject` sang `phase4_NP` tại `ada152d`.
+- Khôi phục 17 tệp tracked và 25 tệp untracked chưa trùng với các tệp đã commit trên `phase4_NP`.
+- Sáu đường dẫn đã có trên nhánh được giữ theo phiên bản đã commit. So sánh SHA-256 với trước khi chuyển cho kết quả 45/48 tệp giữ nguyên từng byte.
+- Ba đường dẫn khác biệt là `TimeConfig.java`, `LookupRateLimiter.java`, `LookupRateLimiterTest.java`: giữ phiên bản mới đã kiểm thử trong working tree, đồng thời xác nhận SHA-256 của từng bản cũ trong stash trùng bản gốc trước chuyển.
+- 42 tệp bản nháp đang ở trạng thái chưa commit trong `TeamProject`; đây là phần việc chưa được nghiệm thu. Không đưa chúng vào commit cập nhật báo cáo hoặc lần push này.
+- Không tạo thêm project, worktree hoặc file báo cáo. Thư mục review chỉ được giữ lại tại detached HEAD cũ.
+
+### Kiểm thử thực tế từ TeamProject
+
+| Kiểm tra | Kết quả |
+|---|---|
+| Biên dịch `ContactsValidator` và test bằng `javac --release 17` | Đạt |
+| `ContactsValidatorTest` bằng JUnit 4.13.2 | **OK (28 tests)** |
+| Biên dịch `ApiException`, `TimeConfig`, `LookupRateLimiter` và test bằng `javac --release 17` | Đạt sau khi tái tạo runner tạm |
+| `LookupRateLimiterTest` bằng JUnit Platform Launcher 1.10.3 / Jupiter 5.10.3 | **8 tests successful, 0 failed** |
+| `git diff --check` trên các thay đổi hiện có | Đạt |
+
+Lần gọi test backend đầu tiên không khởi chạy được vì file runner trong thư mục TEMP của phiên trước không còn tồn tại (`error: file not found: .../phase4-rate-limit-tests/ContactsRateLimitTestRunner.java`). Đã tái tạo runner tạm ngoài source, biên dịch lại chính mã nguồn trong `TeamProject` và chạy đủ 8 test thành công. Không sửa logic tính năng trong đợt thống nhất này.
+
+Spring wiring test vẫn dùng các JAR Spring Framework 6.1.12 trong cache. Kết quả 36 test chỉ áp dụng hai thành phần đã nghiệm thu riêng; không phải kết quả build Gradle/Maven đầy đủ, APK, emulator hoặc nghiệm thu các bản nháp.
+
+### Lần push bằng Git CLI HTTPS
+
+Chạy từ `TeamProject`, remote `origin` là `https://github.com/Project-Mobile-TEAM/Project_Mobile.git`:
+
+```powershell
+git push --set-upstream origin phase4_NP
+```
+
+Exit code 1. Nguyên văn lỗi:
+
+```text
+fatal: unable to access 'https://github.com/Project-Mobile-TEAM/Project_Mobile.git/': Could not resolve host: github.com
+```
+
+Lỗi xảy ra ở bước phân giải tên miền, chưa cho phép kết luận về quyền ghi. GitHub connector được dùng để đọc danh sách nhánh và trả về `branches: []` cho `phase4_NP` tại thời điểm kiểm tra. Không dùng trạng thái kết nối để suy đoán quyền, không force push.
+
+Link nhánh dự kiến: https://github.com/Project-Mobile-TEAM/Project_Mobile/tree/phase4_NP — chưa được xác nhận tồn tại trên remote.
+
+### Điểm dừng
+
+Đã thống nhất working tree, giữ đủ bản nháp và bản dự phòng, chạy lại 36 kiểm thử liên quan. Commit tiếp theo chỉ cập nhật file báo cáo này trên `phase4_NP`; hai commit tính năng `b6f1b09` và `ada152d` được giữ trong lịch sử. Chưa triển khai tính năng tiếp theo.
