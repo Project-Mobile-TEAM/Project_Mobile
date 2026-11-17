@@ -205,6 +205,7 @@ Có 20 hạng mục để theo dõi, không mặc định tương ứng đúng 2
 - [ ] **01. Migration `is_friend` và database chạy thử:** kiểm tra tạo database mới và nâng cấp database cũ; phân biệt bạn bè với chặn; xử lý rõ dữ liệu chặn cũ không đủ thông tin; cập nhật bộ nạp schema chạy thử cùng migration mới. Không sửa migration đã áp dụng.
 - [ ] **02. DTO, lỗi API, chính sách quan hệ, khóa cặp và sự kiện:** chốt JSON/mã lỗi; tái sử dụng JWT Phase 3; thống nhất khóa cặp trước khi khóa dòng; bổ sung `SyncEventWriter` và hợp đồng `CONTACT_REQUEST_CREATED`, `CONTACT_REQUEST_UPDATED`, `CONTACT_UPDATED`; cập nhật tài liệu hợp đồng tương ứng.
   - [x] **02a. Lỗi thiếu query bắt buộc:** thiếu `phone` trả `400 PHONE_INVALID`; thiếu tham số khác trả `400 VALIDATION`; 4 test Spring MVC đạt. Các phần còn lại của mục 02 vẫn chưa nghiệm thu.
+  - [x] **02b. DTO JSON danh bạ và lời mời:** chốt năm record, kiểm đúng tên trường, boolean, ID/chiều lời mời và hồ sơ tối thiểu không chứa SĐT; 9 test Jackson đạt. Chưa nghiệm thu DTO Android, endpoint hoặc chính sách trả dữ liệu của service.
 - [ ] **03. API tìm người bằng SĐT:** server kiểm E.164 và danh tính từ JWT, nối `LookupRateLimiter`; xác minh `400 PHONE_INVALID`, `400 SELF`, `404 NOT_FOUND` cho các trường hợp cần che hồ sơ và `429 RATE_LIMITED` kèm thời gian chờ; trả đúng trạng thái quan hệ và ID/chiều lời mời. Chuẩn hóa ô nhập phía Android được nối tại mục 17.
 - [ ] **04. Gửi lời mời kết bạn:** cấm tự gửi, gửi khi có block, gửi khi đã là bạn; xử lý trùng cùng chiều và ngược chiều bằng `409 REQUEST_ALREADY_PENDING`; hai yêu cầu đồng thời chỉ tạo một lời mời chờ; ghi sự kiện cho đúng hai bên trong cùng transaction.
 - [ ] **05. Xem lời mời đã nhận và đã gửi:** chỉ trả lời mời liên quan tài khoản hiện tại, lọc chiều/trạng thái đúng; không tiết lộ SĐT trong hồ sơ tối thiểu của lời mời; không cho người thứ ba đọc dữ liệu trái quyền.
@@ -237,7 +238,7 @@ Có 20 hạng mục để theo dõi, không mặc định tương ứng đúng 2
 - Kiểm thử ngay từng phần: PostgreSQL thật/nhúng cho nghiệp vụ backend, Room thật cho DAO, unit test cho Repository và ViewModel. Mục 20 là nghiệm thu tổng thể, không phải lúc bắt đầu viết test.
 - Tích hợp một luồng thật ngay khi backend và client đủ thành phần để kiểm tra, không chờ tất cả màn hình hoàn tất.
 - Mọi thay đổi quan hệ phải ghi `sync_events` trong cùng transaction; WebSocket và `/api/sync` thuộc Phase 5, gọi thoại thuộc Phase 6.
-- Chọn một phần nhỏ → kiểm tra đạt → cập nhật duy nhất file báo cáo này → commit đúng phạm vi → push `phase4_NP` không force → dừng cho người dùng xem. Nếu push thất bại, ghi cách kết nối và nguyên văn lỗi.
+- Theo yêu cầu mới nhất: chọn một phần nhỏ → kiểm tra đạt → cập nhật duy nhất file báo cáo này → commit đúng phạm vi bằng Author và Committer `MeanFen <nghiapp11102006@gmail.com>` → báo kết quả và dừng. Không tự push; người dùng tự kiểm tra và push bằng Terminal. Các lần push ghi ở phần trước là lịch sử.
 - Chỉ làm việc trong `D:\HCMUTE\Y3\S1\T2\LapTrinhDiDong\TeamProject`; bảo toàn các bản nháp chưa commit và bản dự phòng hiện có.
 
 Checklist này chỉ bổ sung kế hoạch theo dõi; việc thêm checklist không đánh dấu hoàn thành thêm tính năng hoặc tạo kết quả test mới.
@@ -327,3 +328,53 @@ fatal: unable to access 'https://github.com/Project-Mobile-TEAM/Project_Mobile.g
 ### Điểm dừng sau đợt 03
 
 Chỉ commit handler, test tương ứng và báo cáo này bằng danh tính MeanFen. Các bản nháp khác được bảo toàn ngoài commit. Dừng chờ người dùng yêu cầu tiếp; không tự chuyển sang phần khác của checklist.
+
+## Đợt 04 — Chốt DTO JSON danh bạ và lời mời (02b)
+
+### Phạm vi và tệp thay đổi
+
+Chỉ hoàn thiện hợp đồng DTO backend của mục 02b. Đã đọc các chỗ sử dụng trong controller/service bản nháp và giữ nguyên tên record, constructor cùng accessor để không làm gãy lời gọi hiện có. Đưa DTO đã có trong bản nháp vào phạm vi được kiểm thử riêng, bổ sung chú thích tiếng Việt cho từng record; không thêm logic nghiệp vụ hoặc endpoint.
+
+| Tệp | Thay đổi |
+|---|---|
+| `backend/src/main/java/com/utechat/backend/dto/ContactDtos.java` | Chốt `UserSummaryDto`, `UserLookupResponse`, `SendContactRequestBody`, `ContactRequestDto`, `ContactDto`; giữ `@JsonProperty("isContact")` và giải thích phạm vi dữ liệu |
+| `backend/src/test/java/com/utechat/backend/contacts/ContactDtosTest.java` | 9 test trên DTO thật bằng Jackson, kiểm cả serialize và deserialize |
+| `docs/phase4/01-phone-validation.md` | Đánh dấu riêng 02b, ghi bằng chứng và cập nhật quy tắc không tự push |
+
+### Kiểm thử thực tế
+
+| Test mới | Kết quả |
+|---|---|
+| Hồ sơ tối thiểu chỉ có `id`, `displayName`, `avatarUrl` | Đạt |
+| Lookup giữ đúng tên camelCase, `isContact`, các boolean false và trường nullable | Đạt |
+| Lookup bạn bè giữ `isContact=true`, không nhầm với lời mời chờ | Đạt |
+| Lời mời nhận đến giữ ID và chiều `INCOMING` | Đạt |
+| Lời mời gửi đi giữ ID và chiều `OUTGOING` | Đạt |
+| Lời mời PENDING giữ hai hồ sơ tối thiểu, không có SĐT và respondedAt chưa có | Đạt |
+| Lời mời đã phản hồi giữ nguyên chuỗi thời gian ISO-8601 | Đạt |
+| Body gửi lời mời chỉ gồm `addresseeId` | Đạt |
+| ContactDto hỗ trợ boolean blocked và phone nullable | Đạt |
+
+- Biên dịch chính các tệp DTO và các thành phần đã nghiệm thu bằng JDK 21 với `javac --release 17 -encoding UTF-8`: đạt.
+- Chạy `ContactDtosTest` (9), `LookupRateLimiterTest` (8) và `MissingPhoneParameterTest` (4) bằng JUnit Platform Launcher 1.10.3 / Jupiter 5.10.3: **21 tests successful, 0 failed**.
+- Chạy lại `ContactsValidatorTest` bằng JUnit 4.13.2: **OK (28 tests)**.
+- Tổng **49 kiểm thử chọn lọc đạt**, gồm **9 mới và 40 hồi quy**. Không bỏ qua test trong các lần chạy này.
+- Jackson 2.17.2 và Spring Framework 6.1.12 lấy từ cache hiện có; không thêm dependency hoặc đổi cấu hình build. Runner tạm nằm trong `.task-cache/input-error-tests`, không đưa vào commit. Cảnh báo SLF4J thiếu provider của runner không làm test thất bại.
+
+Lệnh chuẩn từ `backend` khi Maven có đủ dependency:
+
+```powershell
+.\mvnw.cmd test "-Dtest=ContactDtosTest,LookupRateLimiterTest,MissingPhoneParameterTest"
+```
+
+Lệnh Maven trên là hướng dẫn chạy lại; kết quả lần này được kiểm chứng bằng JUnit trực tiếp với dependency cache.
+
+### Giới hạn và điểm dừng
+
+- Chỉ kiểm hợp đồng JSON trên DTO backend; chưa kiểm tương thích với Gson/DTO Android hoặc phản hồi HTTP từ API thật.
+- Test không chứa hoặc chạy controller/service danh bạ bản nháp. Việc service được phép trả SĐT khi nào vẫn phải kiểm chứng ở các phần nghiệp vụ tương ứng.
+- Record không tự xác thực UUID, trạng thái quan hệ hay quyền thao tác; trách nhiệm đó nằm ở các lớp biên/service sẽ hoàn thiện sau.
+- Mục 02 tổng thể và mục 01 migration vẫn chưa hoàn thành; không đánh dấu các phần chưa kiểm chứng.
+- Chưa chạy full Maven/Gradle build, PostgreSQL, APK hoặc emulator.
+- Chỉ commit ba tệp liệt kê trên bằng danh tính MeanFen. Các bản nháp còn lại được giữ ngoài commit.
+- Không gọi GitHub, fetch hoặc push trong đợt này. Dừng sau khi báo phần đã làm, kết quả test và mã commit để người dùng tự kiểm tra và push bằng Terminal.
