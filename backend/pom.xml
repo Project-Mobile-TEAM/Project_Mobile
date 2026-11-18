@@ -22,6 +22,9 @@
         <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-web</artifactId></dependency>
         <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-jdbc</artifactId></dependency>
         <dependency><groupId>org.postgresql</groupId><artifactId>postgresql</artifactId><scope>runtime</scope></dependency>
+        <!-- Flyway tự động áp dụng các migration (V1, V3, V4...) khi backend khởi động; kết nối qua port 5432 (Session/Direct). -->
+        <dependency><groupId>org.flywaydb</groupId><artifactId>flyway-core</artifactId></dependency>
+        <dependency><groupId>org.flywaydb</groupId><artifactId>flyway-database-postgresql</artifactId></dependency>
         <!-- Chỉ đọc .env ở máy phát triển; secret không được đóng vào artifact. -->
         <dependency><groupId>io.github.cdimascio</groupId><artifactId>dotenv-java</artifactId><version>3.1.0</version></dependency>
         <!-- Spring Security: BCrypt và chuỗi lọc JWT không trạng thái (ADR-006, ADR-018). -->

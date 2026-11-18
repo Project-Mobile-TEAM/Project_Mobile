@@ -43,7 +43,7 @@ flowchart LR
 `prepareThreshold=0` tắt prepared statement phía server của PGJDBC khi dùng transaction pooling.
 Port 6543 không giữ session giữa các transaction. Cấu hình pool Hikari nhỏ theo giới hạn gói,
 không coi pooler là bảo đảm hàng nghìn kết nối ứng dụng.
-Spring Boot cần cấu hình `spring.flyway.url/user/password` riêng qua các biến tương ứng ở Phase 2.
+Backend tích hợp sẵn Flyway trong `backend/pom.xml` để **tự động áp dụng `classpath:db/migration` (`V1`, `V3`, `V4`, ...) khi khởi động** qua `FLYWAY_URL` (Session pooler / Direct **5432**), tách biệt khỏi `SPRING_DATASOURCE_URL` runtime (Transaction pooler **6543**, `prepareThreshold=0`). Nếu `.env` thiếu `FLYWAY_URL`, `FlywaySessionPoolerConfig` tự chuyển cổng `:6543/` sang `:5432/` cho bước migration; có thể tắt bằng `FLYWAY_ENABLED=false`.
 
 ## 4. Row Level Security (RLS)
 
@@ -91,8 +91,8 @@ Không dùng `Invoke-Expression` hoặc `source` với file env.
 
 ## 6. Chạy migration
 
-Cần cài Flyway CLI có hỗ trợ PostgreSQL (hoặc dùng Flyway trong backend ở Phase 2).
-Chạy từ thư mục gốc repo sau khi nạp biến môi trường:
+Backend đã tích hợp `flyway-core` + `flyway-database-postgresql` (`application.yml`: `locations=classpath:db/migration`, `baseline-on-migrate=true`, `baseline-version=1`, `ignore-migration-patterns="*:missing"`). Khi khởi động `BackendApplication` hoặc `LocalDevServer`, Flyway tự động kiểm tra và chạy các migration cấu trúc còn thiếu qua cổng 5432 (bao gồm nâng cấp an toàn từ DB cũ từng chạy tay `V1`/`V2` hoặc DB demo đã có bản ghi `V2`).
+Nếu muốn chạy thủ công bằng Flyway CLI (hoặc nạp seed demo `V2` ở bảng bên dưới) từ thư mục gốc repo sau khi nạp biến môi trường:
 
 ```powershell
 # Production: CHỈ 13 bảng core, không có tài khoản hay outbox demo.
@@ -117,14 +117,67 @@ flyway info
 
 V1 tạo core; V2 (số thứ tự migration, không phải phạm vi sản phẩm V2) tạo outbox và seed demo;
 V3 thêm cột `users.deletion_scheduled_at` cho xoá tài khoản chờ 15 ngày (Phase 3, F-08).
+V4 thêm `contacts.is_friend BOOLEAN NOT NULL DEFAULT FALSE` để giữ tình bạn độc lập với chặn.
+Production chạy **V1 → V3 → V4**; demo mới chạy **V1 → V2 → V3 → V4**.
+V4 đã được cung cấp trên nền `main`; khi triển khai Phase 4, tái sử dụng file này, không tạo lại hay sửa nội dung sau khi đã áp dụng.
 Giữ nguyên locations của một database sau lần migrate đầu. Không chạy Flyway clean trên
 database dùng chung. Không sửa migration đã áp dụng; thêm migration mới.
-Hiện chưa có `pom.xml`/backend executable: `mvn flyway:migrate` chưa được cấu hình,
-không dùng lệnh đó để nghiệm thu Phase 1.
+Seed demo `V2` (`db/demo`) vẫn chỉ chạy bằng Flyway CLI khi cần khởi tạo môi trường demo, không đóng gói chạy tự động cùng backend để bảo vệ dữ liệu production.
+
+### 6.1 Nâng cấp database đã có V1/V2
+
+**Database do Flyway quản lý:** nạp lại các biến môi trường, xác nhận `FLYWAY_URL` là Session pooler/Direct **5432**.
+Giữ nguyên `FLYWAY_LOCATIONS` đã dùng với database đó (demo phải giữ cả `db/migration` và `db/demo`, cùng placeholder hash).
+Chạy từ gốc repository:
+
+```powershell
+# Kiểm lịch sử, áp dụng riêng các migration còn thiếu (V3/V4), rồi xác minh checksum và kết quả.
+flyway info
+flyway migrate
+flyway validate
+flyway info
+```
+
+Không chỉnh V1/V2/V3, không `repair` để che checksum mismatch và không đổi locations để bỏ seed đã áp dụng.
+
+**Database từng nạp thủ công, không có lịch sử Flyway:** mở Supabase SQL Editor bằng role quản trị.
+Nếu chỉ có V1/V2, chạy transaction dưới đây trước khi dùng tính năng Phase 4.
+Nếu đã có V3/V4 vẫn chạy được: backfill chỉ điền giá trị NULL, không ghi đè quan hệ Phase 4 đã lưu.
+Không chạy SQL thủ công rồi `flyway migrate` trên cùng database có lịch sử Flyway: SQL Editor không ghi `flyway_schema_history`.
+
+```sql
+BEGIN;
+-- V3: thêm lịch xóa nullable; các tài khoản hiện có không tự bị lên lịch xóa.
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS deletion_scheduled_at TIMESTAMPTZ;
+-- Chỉ lập chỉ mục cho tài khoản ACTIVE đang chờ xóa, khớp truy vấn của AccountService.
+CREATE INDEX IF NOT EXISTS idx_users_deletion_scheduled ON public.users (deletion_scheduled_at)
+    WHERE deletion_scheduled_at IS NOT NULL AND status = 'ACTIVE';
+
+-- V4: thêm cột tạm nullable để nhận diện dữ liệu cũ chưa được backfill.
+ALTER TABLE public.contacts ADD COLUMN IF NOT EXISTS is_friend BOOLEAN;
+-- Dữ liệu V2 gồm 6 dòng bạn chuyển true, Alice chặn Eve chuyển false; không sửa giá trị đã được Phase 4 lưu.
+UPDATE public.contacts SET is_friend = (NOT blocked) WHERE is_friend IS NULL;
+-- Dòng mới chưa kết bạn có mặc định false; không còn giá trị NULL sau backfill.
+ALTER TABLE public.contacts ALTER COLUMN is_friend SET DEFAULT FALSE;
+ALTER TABLE public.contacts ALTER COLUMN is_friend SET NOT NULL;
+-- Lưu ý nghĩa của cờ mới ngay trong catalog Supabase.
+COMMENT ON COLUMN public.contacts.is_friend IS 'Quan hệ bạn bè đã chấp nhận; độc lập với blocked, chỉ hủy kết bạn mới xóa cờ';
+COMMIT;
+```
+
+V4 backfill đúng dữ liệu V2. Nếu database đã có **bạn bè bị chặn trước V4**, cột `blocked` cũ không đủ
+để suy ra quan hệ trước đó (đặc biệt khi cả hai cùng chặn). Rà lại các cặp này trước nâng cấp;
+không dùng toàn bộ lịch sử lời mời `ACCEPTED` để tự phục hồi vì họ có thể đã unfriend.
+Không chạy lại V2 hoặc dùng backfill không có điều kiện `WHERE is_friend IS NULL` để phục hồi tình bạn sau khi đã sử dụng Phase 4.
+
+### 6.2 Kiểm chứng sau migration
 
 Kiểm tra `flyway_schema_history` có trạng thái thành công. Dùng SQL Editor chạy toàn bộ
 `backend/scripts/verify-schema.sql` với `utechat.verify_demo = false` cho production
 (mặc định) hoặc `true` cho demo. Script báo FAIL bằng exception để CLI/CI nhận mã lỗi.
+Mode demo kiểm cả fixture ban đầu (6 dòng bạn `is_friend = true`, Alice–Eve `is_friend = false`);
+sau khi diễn tập block/unfriend làm đổi fixture, dùng mode này có thể FAIL đúng theo dữ liệu đã đổi.
+Mode production kiểm cấu trúc mà không có outbox demo. Script chỉ đọc, không tự migrate hoặc reset dữ liệu.
 Với psql:
 
 ```powershell
@@ -176,8 +229,8 @@ npm install --prefix $testDeps --no-save --no-package-lock @electric-sql/pglite@
 node backend/scripts/test-schema.mjs (Join-Path $testDeps 'node_modules')
 ```
 
-Bộ kiểm thử chạy PostgreSQL WASM (PGlite) trong bộ nhớ: DDL production, seed demo,
+Bộ kiểm thử chạy PostgreSQL WASM (PGlite) trong bộ nhớ: production V1 + V3 + V4, demo V1 + V2 + V3 + V4,
 BCrypt, FK/CHECK/UNIQUE, seed chạy lại không lùi watermark, RLS với role không đặc quyền,
-và khả năng script phát hiện index/RLS/policy bị sửa sai. Mật khẩu kiểm thử ngẫu nhiên
+backfill `is_friend`, lịch xóa Phase 3 và khả năng phát hiện cột/kiểu/nullability/default/index/RLS/policy bị sửa sai. Mật khẩu kiểm thử ngẫu nhiên
 chỉ tồn tại trong bộ nhớ. Không thêm dependency vào Android hoặc runtime backend.
 PGlite không thay thế Flyway CLI, Supabase PostgREST, TLS hay pooler thật.

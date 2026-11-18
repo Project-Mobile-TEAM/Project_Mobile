@@ -1,5 +1,5 @@
-// Run: node backend/scripts/test-schema.mjs <temporary-node_modules-directory>
-// Test-only dependencies: @electric-sql/pglite@0.3.7 and bcryptjs@3.0.2 (not Android/runtime deps).
+// Chạy: node backend/scripts/test-schema.mjs <thư-mục-node_modules-tạm>.
+// Chỉ dùng @electric-sql/pglite@0.3.7 và bcryptjs@3.0.2 để test, không thêm vào runtime Android/backend.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -15,6 +15,9 @@ const bcrypt = require('bcryptjs');
 const read = p => readFileSync(resolve(root, p), 'utf8');
 const ddl = read('backend/src/main/resources/db/migration/V1__initial_schema.sql');
 const template = read('backend/src/main/resources/db/demo/V2__seed_demo_data.sql');
+// Giữ nguyên migration đã áp dụng; chạy nối tiếp V3/V4 như Flyway trên database thật.
+const deletionMigration = read('backend/src/main/resources/db/migration/V3__account_deletion_grace.sql');
+const friendMigration = read('backend/src/main/resources/db/migration/V4__contacts_friend_flag.sql');
 const verify = read('backend/scripts/verify-schema.sql');
 const password = randomBytes(24).toString('hex');
 const hash = bcrypt.hashSync(password, 10);
@@ -37,11 +40,19 @@ async function fails(sql, code) {
 }
 try {
     await test('production migration executes with exactly 13 core tables and no demo data', async () => {
+        // Database production độc lập, không nạp V2 và không ảnh hưởng thứ tự V1 -> V2 -> V3 -> V4 của demo bên dưới.
+        const prod = new PGlite();
+        try {
+            await prod.exec(ddl);
+            await prod.exec(deletionMigration);
+            await prod.exec(friendMigration);
+            const result = await prod.query("SELECT count(*)::int AS n FROM pg_tables WHERE schemaname = 'public'");
+            assert.equal(result.rows[0].n, 13);
+            assert.equal((await prod.query('SELECT count(*)::int AS n FROM public.users')).rows[0].n, 0);
+            await prod.exec(verify);
+        } finally { await prod.close(); }
+        // Chuẩn bị nền V1 để kiểm cả đường nâng cấp từ database demo cũ.
         await db.exec(ddl);
-        const result = await db.query("SELECT count(*)::int AS n FROM pg_tables WHERE schemaname = 'public'");
-        assert.equal(result.rows[0].n, 13);
-        assert.equal((await db.query('SELECT count(*)::int AS n FROM public.users')).rows[0].n, 0);
-        await db.exec(verify);
     });
     await test('demo refuses an absent BCrypt placeholder', async () => {
         await fails(template, 'P0001');
@@ -50,6 +61,11 @@ try {
     await test('demo migration creates the 14th table and valid BCrypt accounts', async () => {
         await db.exec(seed);
         await db.exec("SET utechat.verify_demo = 'true'");
+        // Chứng minh database chỉ có V1/V2 chưa đủ để chạy Phase 3, sau đó nâng cấp theo đúng thứ tự.
+        await fails(verify, 'P0001');
+        await db.exec(deletionMigration);
+        await fails(verify, 'P0001');
+        await db.exec(friendMigration);
         await db.exec(verify);
         const users = await db.query('SELECT password_hash FROM public.users');
         assert.equal(users.rows.length, 5);
@@ -61,6 +77,35 @@ try {
                 assert(Object.hasOwn(row.payload_json, key));
             }
         }
+    });
+    await test('V3 deletion schedule is nullable TIMESTAMPTZ and supports the Phase 3 lifecycle', async () => {
+        // Tài khoản cũ không tự bị xóa; có thể đặt và hủy lịch theo cùng câu SQL của AccountService.
+        const before = await db.query('SELECT deletion_scheduled_at FROM public.users');
+        assert(before.rows.every(row => row.deletion_scheduled_at === null));
+        await db.query("UPDATE public.users SET deletion_scheduled_at = now() + make_interval(days => $1) WHERE id = $2", [15, alice]);
+        assert.equal((await db.query('SELECT deletion_scheduled_at > now() AS pending FROM public.users WHERE id = $1', [alice])).rows[0].pending, true);
+        await db.query('UPDATE public.users SET deletion_scheduled_at = NULL WHERE id = $1', [alice]);
+        assert.equal((await db.query('SELECT deletion_scheduled_at FROM public.users WHERE id = $1', [alice])).rows[0].deletion_scheduled_at, null);
+    });
+    await test('V4 backfills six friends and keeps Alice-Eve block-only; new rows default to non-friend', async () => {
+        // Fixture V2 chỉ có 7 dòng: 6 bạn bè và 1 chặn người lạ; V4 không được đổi cờ blocked.
+        const result = await db.query('SELECT count(*)::int AS total, count(*) FILTER (WHERE is_friend AND NOT blocked)::int AS friends, count(*) FILTER (WHERE NOT is_friend AND blocked)::int AS blocks FROM public.contacts');
+        assert.deepEqual(result.rows[0], {total: 7, friends: 6, blocks: 1});
+        assert.equal((await db.query('SELECT is_friend FROM public.contacts WHERE owner_id = $1 AND contact_user_id = $2', [alice, eve])).rows[0].is_friend, false);
+        await db.exec('BEGIN');
+        try {
+            const inserted = await db.query('INSERT INTO public.contacts(owner_id, contact_user_id, blocked) VALUES ($1, $2, TRUE) RETURNING is_friend', [david, eve]);
+            assert.equal(inserted.rows[0].is_friend, false);
+            // Hai phía cùng chặn rồi bỏ chặn chỉ đổi blocked, không được mất cờ bạn bè đã backfill.
+            await db.query('UPDATE public.contacts SET blocked = TRUE WHERE (owner_id = $1 AND contact_user_id = $2) OR (owner_id = $2 AND contact_user_id = $1)', [alice, bob]);
+            // Nạp lại SQL V4 không được đổi bạn đang bị chặn thành người lạ hoặc đổi dòng mới thành bạn.
+            await db.exec(friendMigration);
+            assert.equal((await db.query('SELECT count(*)::int AS n FROM public.contacts WHERE is_friend')).rows[0].n, 6);
+            await db.query('UPDATE public.contacts SET blocked = FALSE WHERE (owner_id = $1 AND contact_user_id = $2) OR (owner_id = $2 AND contact_user_id = $1)', [alice, bob]);
+            const friends = await db.query('SELECT is_friend, blocked FROM public.contacts WHERE (owner_id = $1 AND contact_user_id = $2) OR (owner_id = $2 AND contact_user_id = $1)', [alice, bob]);
+            assert.equal(friends.rows.length, 2);
+            assert(friends.rows.every(row => row.is_friend && !row.blocked));
+        } finally { await db.exec('ROLLBACK'); }
     });
     await test('seed can be repeated without duplicate messages/events or regressing receipts', async () => {
         await db.exec("UPDATE public.conversation_members SET last_read_message_id = last_delivered_message_id WHERE user_id = '" + bob + "'");
@@ -122,6 +167,17 @@ try {
     });
     for (const [name, change] of [
         ['missing index', 'DROP INDEX public.idx_messages_conversation_id_desc'],
+        // Cố ý làm hỏng V3/V4 trong transaction rồi rollback để kiểm script phát hiện drift, không phá fixture.
+        ['missing deletion index', 'DROP INDEX public.idx_users_deletion_scheduled'],
+        ['wrong deletion index', 'DROP INDEX public.idx_users_deletion_scheduled; CREATE INDEX idx_users_deletion_scheduled ON public.users(created_at)'],
+        ['missing deletion column', 'ALTER TABLE public.users DROP COLUMN deletion_scheduled_at CASCADE'],
+        ['wrong deletion type', 'ALTER TABLE public.users ALTER COLUMN deletion_scheduled_at TYPE TIMESTAMP'],
+        ['non-null deletion schedule', "UPDATE public.users SET deletion_scheduled_at = now(); ALTER TABLE public.users ALTER COLUMN deletion_scheduled_at SET NOT NULL"],
+        ['missing friend flag', 'ALTER TABLE public.contacts DROP COLUMN is_friend'],
+        ['wrong friend default', 'ALTER TABLE public.contacts ALTER COLUMN is_friend SET DEFAULT TRUE'],
+        ['nullable friend flag', 'ALTER TABLE public.contacts ALTER COLUMN is_friend DROP NOT NULL'],
+        ['wrong demo friendship backfill', 'UPDATE public.contacts SET is_friend = FALSE WHERE NOT blocked'],
+        ['wrong demo block-only flag', "UPDATE public.contacts SET is_friend = TRUE WHERE owner_id = '" + alice + "' AND contact_user_id = '" + eve + "'"],
         ['disabled RLS', 'ALTER TABLE public.users DISABLE ROW LEVEL SECURITY'],
         ['leaked policy', 'CREATE POLICY test_leak ON public.users FOR SELECT USING (true)']
     ]) {

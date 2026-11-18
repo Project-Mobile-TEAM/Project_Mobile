@@ -158,7 +158,7 @@ sequenceDiagram
     Note over B: Người dùng B nhận thông báo lời mời kết bạn
     alt B chấp nhận lời mời
         B->>S: POST /contact-requests/{id}/accept
-        S->>S: Transaction: cập nhật status = ACCEPTED, chèn 2 dòng contacts (blocked = false)
+        S->>S: Transaction: cập nhật status = ACCEPTED, chèn 2 dòng contacts (is_friend = true, blocked = false)
         S->>S: Tạo sync_events CONTACT_REQUEST_UPDATED và CONTACT_UPDATED cho cả 2 bên
         S-->>B: 200 ACCEPTED
         S-->>A: WebSocket contact_request.updated (mang syncEventId)
@@ -179,11 +179,11 @@ sequenceDiagram
 - **Tìm kiếm:** Chỉ khớp chính xác số điện thoại E.164 (10 lượt/phút). Gửi lời mời kết bạn luôn được phép kể cả khi người nhận tắt quyền nhận tin từ người lạ.
 - **Chống trùng ngược chiều:** Nếu A $\rightarrow$ B đang `PENDING`, B $\rightarrow$ A không được tạo mới; server trả về lời mời đang chờ hoặc mã lỗi 409 `REQUEST_ALREADY_PENDING`.
 - **Bảng `contacts`:**
-  - Dòng có `blocked = false`: Đại diện cho quan hệ bạn bè chính thức đã được chấp nhận (`ACCEPTED`). `GET /contacts` chỉ trả về các dòng này.
+  - `is_friend = true` biểu diễn quan hệ bạn bè đã chấp nhận độc lập với hành vi chặn. `GET /contacts` chỉ lấy `is_friend = true AND blocked = false` ở chiều người xem.
   - Dòng có `blocked = true`: Hành vi chặn một chiều. Có thể phát sinh khi chặn một người bạn bè, hoặc chặn một người lạ chưa từng kết bạn (dòng block-only).
 - **Tải danh sách chặn:** `GET /contacts/blocked` trả về các dòng block-only và các quan hệ bạn bè đang bị chặn, để thiết bị mới có thể khôi phục danh sách chặn và người dùng có thể bỏ chặn.
-- **Hành vi Unblock:** Nếu là dòng block-only người lạ, server xoá hẳn dòng khỏi `contacts`. Nếu hai người vốn là bạn bè trước đó, server cập nhật `blocked = false`.
-- **Hủy kết bạn (Unfriend):** `DELETE /contacts/{userId}` xóa sạch quan hệ hai chiều trong cùng một transaction.
+- **Hành vi Block/Unblock:** Block chỉ đổi `blocked = true`, giữ `is_friend`; dòng block-only mới có `is_friend = false`. Unblock đọc chính dòng của người gọi: `is_friend = true` thì chỉ đặt `blocked = false`; `is_friend = false` thì xóa dòng. Hai người cùng block rồi unblock vẫn giữ tình bạn; block ở phía còn lại vẫn chặn tương tác.
+- **Hủy kết bạn (Unfriend):** `DELETE /contacts/{userId}` đặt `is_friend = false` cả hai chiều trong cùng transaction; giữ dòng đang chặn, xóa dòng không chặn. Unblock sau đó không khôi phục bạn bè.
 
 ---
 
@@ -451,7 +451,7 @@ Một tài khoản có thể đăng nhập đồng thời trên nhiều thiết 
 - Chặn người lạ tạo một dòng `owner_id -> contact_user_id` với `blocked = true` (dòng block-only).
 - Chặn bạn bè cập nhật dòng quan hệ đó thành `blocked = true`.
 - Khi bị chặn: đối phương không thể tìm thấy số điện thoại (`404`), không thể gửi tin nhắn (`403 BLOCKED`), và không thể gọi điện cho người chặn (`403 BLOCKED`).
-- Bỏ chặn (unblock): nếu là dòng block-only người lạ thì xoá dòng; nếu vốn là bạn bè thì đặt `blocked = false`.
+- Bỏ chặn (unblock): đọc `is_friend` ở chính dòng của mình; `false` thì xóa dòng block-only, `true` thì chỉ đặt `blocked = false`. Hủy kết bạn đặt `is_friend = false` hai chiều và giữ các dòng đang chặn.
 
 ### 11.3 Quyền xem tin trong nhóm
 Thành viên mới chỉ xem được tin nhắn kể từ mốc thời gian gia nhập (`visible_from_message_id`).

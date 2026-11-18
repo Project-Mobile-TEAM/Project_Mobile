@@ -11,23 +11,20 @@ import com.utechat.backend.service.OtpService;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.sql.Connection;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.core.io.FileSystemResource;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.datasource.init.ScriptUtils;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
- * Kiểm thử đầu-cuối của xác thực và tài khoản: HTTP + Spring Security + JWT + SQL chạy trên PostgreSQL thật (nhúng)
- * với đúng schema V1. Mỗi test dùng số điện thoại riêng nên chạy độc lập trên cùng một CSDL.
+ * Kiểm thử đầu-cuối của xác thực và tài khoản: HTTP + Spring Security + JWT + Flyway tự động (V1 + V3 + V4)
+ * trên PostgreSQL thật (nhúng), không nạp seed demo V2. Mỗi test dùng số điện thoại riêng.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -38,10 +35,6 @@ class AuthApiTest {
     static {
         try {
             PG = EmbeddedPostgres.builder().start();
-            try (Connection c = PG.getPostgresDatabase().getConnection()) {
-                ScriptUtils.executeSqlScript(c, new FileSystemResource("src/main/resources/db/migration/V1__initial_schema.sql"));
-                ScriptUtils.executeSqlScript(c, new FileSystemResource("src/main/resources/db/migration/V3__account_deletion_grace.sql"));
-            }
             OTP_DIR = Files.createTempDirectory("otp-local-test");
         } catch (Exception e) {
             throw new ExceptionInInitializerError(e);
