@@ -2,7 +2,7 @@
 
 Ngày thực hiện: 17/11/2026. Đây là file báo cáo chung duy nhất, được cập nhật sau từng đợt nhỏ.
 
-Cập nhật mới nhất: 18/11/2026 - đợt 08, hợp đồng Retrofit cho 11 endpoint danh bạ (10b).
+Cập nhật mới nhất: 18/11/2026 - đợt 09, bộ ánh xạ lỗi HTTP danh bạ sang ContactsResult (10c).
 
 **Nơi làm việc hiện tại:** `D:\HCMUTE\Y3\S1\T2\LapTrinhDiDong\TeamProject`, nhánh `phase4_NP`.
 Từ lần thống nhất worktree dưới đây chỉ tiếp tục làm việc trong thư mục này. Các đoạn mô tả dùng worktree review ở đợt 01/02 là lịch sử.
@@ -224,7 +224,8 @@ Có 20 hạng mục để theo dõi, không mặc định tương ứng đúng 2
 
 - [ ] **10. Retrofit, DTO Android và ánh xạ lỗi:** khai báo đủ 11 endpoint, dùng client/Bearer hiện có; ánh xạ đúng JSON backend, `isContact`, trạng thái quan hệ, ID/chiều lời mời, `retryAfterSeconds`; có kiểm thử tương thích hợp đồng và lỗi mạng.
   - [x] **10a. DTO Android và JSON Gson:** đọc đúng lookup, lời mời, danh sách contact và details của lỗi 409/429; body gửi chỉ gồm addresseeId; 10 test Gson đạt. Phạm vi DTO; kiểm hợp đồng Retrofit được ghi riêng ở 10b.
-  - [x] **10b. Interface Retrofit cho 11 endpoint:** kiểm method/path/query/body, chuyển JSON sang DTO/List, 201/204, giữ lỗi HTTP 409/429 và truyền IOException; 16 test dùng Retrofit/OkHttp/Gson thật với interceptor giả lập đạt. Chưa kiểm backend, JWT hoặc ánh xạ sang kết quả Repository.
+  - [x] **10b. Interface Retrofit cho 11 endpoint:** kiểm method/path/query/body, chuyển JSON sang DTO/List, 201/204, giữ lỗi HTTP 409/429 và truyền IOException; 16 test dùng Retrofit/OkHttp/Gson thật với interceptor giả lập đạt. Chưa kiểm backend/JWT; bộ ánh xạ HTTP được ghi riêng ở 10c.
+  - [x] **10c. Bộ ánh xạ lỗi HTTP độc lập:** đọc code/details sang ContactsResult, giữ HTTP_<status> khi thiếu code hoặc body sai, không ép metadata sai kiểu, đóng errorBody; 22 test mới đạt. Chưa nối vào Repository, chưa hoàn thành xử lý lỗi mạng/phiên hoặc thông báo UI.
 - [ ] **11. Room DAO và cập nhật cache bằng transaction:** đối soát để xóa dữ liệu hết hiệu lực, giữ hồ sơ và quyền riêng tư khi DTO thiếu trường; lưu dòng chặn và hồ sơ tối thiểu nguyên tử; giữ schema v1 theo kế hoạch; kiểm truy vấn và rollback bằng Room in-memory thật.
 - [ ] **12. Repository cho tìm kiếm và lời mời:** nối REST với Room, bảo vệ callback theo phiên và độ mới; cập nhật lời mời sau thao tác; accept không tự tạo bạn từ lịch sử `ACCEPTED` mà đối soát danh sách server; giữ các chữ ký cũ còn được sử dụng.
 - [ ] **13. Repository cho bạn bè và chặn:** cập nhật cache đúng sau unfriend/block/unblock; phản hồi tải lại cũ không ghi đè thao tác mới; phân biệt thao tác đã lưu nhưng refresh thất bại với kết quả ghi chưa xác định do mất phản hồi; không suy đoán quan hệ bạn bè.
@@ -595,4 +596,58 @@ Lệnh Gradle trên là hướng dẫn, không được chạy trong đợt này
 - Giữ thân lỗi 409/429 và truyền IOException chưa phải ánh xạ sang `ContactsResult`/thông báo UI; phần ánh xạ và tích hợp Repository vẫn còn.
 - Không ghi Room, sửa phiên, triển khai backend hoặc màn hình. Mục 01, khóa cặp PostgreSQL của mục 02 và mục 10 tổng thể vẫn chưa hoàn thành; chưa chạy full Maven/Gradle build, PostgreSQL, APK hoặc emulator.
 - Chỉ commit ba tệp liệt kê trên với Author và Committer `MeanFen <nghiapp11102006@gmail.com>`; giữ nguyên các bản nháp ngoài phạm vi. Không sửa lịch sử, tạo project/worktree hoặc báo cáo khác.
+- Không push. Dừng để người dùng tự kiểm tra và push bằng Terminal; chưa triển khai phần tiếp theo.
+
+## Đợt 09 - Bộ ánh xạ lỗi HTTP danh bạ sang ContactsResult (10c), 18/11/2026
+
+### Phạm vi và tệp thay đổi
+
+Chỉ chốt bộ ánh xạ HTTP độc lập, tiếp nối DTO và interface Retrofit. Đã đọc các chỗ dùng ContactsResult ở Repository thật/giả, ViewModel, UI và test bản nháp; chưa có caller nào gọi constructor trực tiếp ngoài factory trong chính class. Bản parser nháp có thể gán code null khiến isSuccess trả true; bộ ánh xạ mới luôn giữ mã HTTP dự phòng nếu thiếu code hợp lệ.
+
+| Tệp | Thay đổi |
+|---|---|
+| `app/src/main/java/com/utechat/data/repository/ContactsResult.java` | Đưa model kết quả từ bản nháp vào phần được kiểm thử; giữ tên field/factory, thêm chú thích tiếng Việt; constructor riêng, factory error từ chối code null/rỗng; vẫn cho phép thành công không có data |
+| `app/src/main/java/com/utechat/data/repository/ContactErrorMapper.java` | Thêm fromHttp cho phản hồi không phải 2xx; đọc code và metadata độc lập, đóng body và giữ HTTP_<status> khi thiếu hợp đồng hoặc không đọc được body |
+| `app/src/test/java/com/utechat/data/repository/ContactErrorMapperTest.java` | 22 test JUnit dùng Response Retrofit, parser JSON và stream body thật trong bộ nhớ |
+| `docs/phase4/01-phone-validation.md` | Thêm checklist 10c, kết quả kiểm thử và giới hạn; giữ mục 10 tổng thể chưa hoàn thành |
+
+Chỉ nhận code/ID/direction dạng chuỗi không rỗng; không tự ép số hoặc boolean thành chuỗi. retryAfterSeconds phải là số JSON nguyên không âm trong miền int; bỏ qua giá trị âm, thập phân, quá lớn hoặc sai kiểu bằng giá trị mặc định 0. Một metadata sai không làm mất code hay metadata hợp lệ khác. Chưa kiểm UUID hoặc diễn giải trạng thái nghiệp vụ trong bộ ánh xạ.
+
+Không dùng message của server làm thông báo UI; không ghi log body, token hoặc thông tin gỡ lỗi. Bộ ánh xạ tiêu thụ errorBody một lần và đóng body; caller không đọc lại. Nếu đã nhận status HTTP nhưng đọc body gặp IOException thì vẫn giữ lỗi HTTP, không tự đổi thành NETWORK. Phản hồi thành công đưa nhầm vào mapper bị từ chối bằng IllegalArgumentException.
+
+### Kiểm thử thực tế
+
+| Nhóm test mới | Số test | Kết quả |
+|---|---:|---|
+| 429 giữ code/số giây chờ; 409 giữ ID và hai chiều lời mời | 3 | Đạt |
+| Giữ code mới, bỏ qua message và trường bổ sung | 1 | Đạt |
+| Code thiếu/null/rỗng/sai kiểu; envelope sai; body rỗng/HTML/JSON bị cắt vẫn là lỗi HTTP | 6 | Đạt |
+| Details sai kiểu hoặc metadata không có code không tạo kết quả giả | 2 | Đạt |
+| Số giây chờ ở biên int, sai kiểu/thập phân/tràn số và độc lập với metadata lời mời | 3 | Đạt |
+| ID/chiều sai kiểu không làm mất trường còn hợp lệ | 1 | Đạt |
+| Đóng body khi JSON hợp lệ, JSON lỗi hoặc đọc stream gặp IOException | 3 | Đạt |
+| Guard phản hồi 2xx, guard factory lỗi và các kết quả độc lập/không có data | 3 | Đạt |
+
+- Biên dịch nguồn Java bằng JDK 21 với `javac --release 17 -encoding UTF-8 -Xlint:deprecation`: đạt.
+- JUnit 4.13.2 chạy mapper/result (22), interface Retrofit (16), DTO Android (10) và chuẩn hóa SĐT (28): **OK (76 tests)**.
+- Biên dịch lại nguồn backend đã nghiệm thu và chạy JUnit Platform Launcher 1.10.3 / Jupiter 5.10.3: **36 tests successful, 0 failed, 0 skipped** (8 policy, 7 sync writer, 9 DTO, 8 rate limiter, 4 missing parameter).
+- Tổng **112 test chọn lọc đạt**, gồm **22 mới và 90 hồi quy**. Không suy ra toàn bộ ứng dụng đã pass.
+- Dùng lại JAR trong cache như đợt 08: Retrofit 2.11.0, OkHttp 4.12.0, Gson 2.10.1 cùng dependency hiện có; không thêm hoặc tải dependency. Backend vẫn dùng fixture H2, không thay cho PostgreSQL. Runner backend riêng có cảnh báo SLF4J thiếu provider; các test đạt.
+- Trước khi sửa đã lưu bản ContactsResult nháp và hash 37 tệp chưa commit trong `.task-cache/contact-error-tests`; 36 tệp ngoài phạm vi được giữ nguyên. Runner/classpath/output tạm không commit.
+
+Lệnh Gradle chuẩn để chạy lại khi môi trường đủ điều kiện:
+
+```powershell
+.\gradlew.bat testDebugUnitTest --tests "com.utechat.data.repository.ContactErrorMapperTest" --tests "com.utechat.data.remote.api.ContactApiTest" --tests "com.utechat.data.remote.model.ContactDtosTest" --tests "com.utechat.ui.contacts.ContactsValidatorTest" --no-daemon
+```
+
+Lệnh Gradle trên là hướng dẫn, không được chạy trong đợt này. Kết quả thực tế đến từ javac và JUnit trực tiếp với JAR trong cache.
+
+### Giới hạn và điểm dừng
+
+- Mapper/result đã được kiểm riêng nhưng chưa thay parser cũ trong RealContactsRepository bản nháp. Chưa nghiệm thu luồng Repository, callback/phiên, Room hoặc UI; không đưa cả bản Repository chưa hoàn thiện vào commit.
+- Không gọi backend, HTTP server, DNS hoặc TLS thật; không xác minh JWT/Bearer, đăng xuất khi 401 hay quyền server. Chưa ánh xạ IOException trước khi có response, kết quả ghi chưa xác định hoặc refreshRequired trong luồng Repository.
+- Metadata sai dùng mặc định 0/null, chưa tạo thời gian đếm ngược hoặc kiểm giá trị nghiệp vụ. Dùng JsonParser của Gson hiện có, chưa bật chế độ parser JSON nghiêm ngặt riêng.
+- Mục 01, khóa cặp PostgreSQL của mục 02 và mục 10 tổng thể vẫn chưa hoàn thành. Chưa chạy full Maven/Gradle build, PostgreSQL, APK hoặc emulator.
+- Chỉ commit bốn tệp nêu trên với Author và Committer `MeanFen <nghiapp11102006@gmail.com>`. Giữ nguyên các bản nháp khác; không sửa lịch sử, tạo project/worktree hay báo cáo khác.
 - Không push. Dừng để người dùng tự kiểm tra và push bằng Terminal; chưa triển khai phần tiếp theo.
