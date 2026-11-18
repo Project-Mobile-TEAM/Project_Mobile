@@ -225,12 +225,14 @@ Có 20 hạng mục để theo dõi, không mặc định tương ứng đúng 2
 - [x] **08. Danh sách bạn bè và hủy kết bạn:** trả đúng bạn bè của tài khoản; unfriend cập nhật cả hai chiều, bảo toàn dòng chặn và hạ `is_friend` trên dòng chặn còn lại; ghi sự kiện cho trạng thái thực sự thay đổi, không tạo trùng khi thao tác lặp.
   - Đợt 19: xác nhận đủ 29 testcase HTTP/JWT/PostgreSQL đạt; danh sách/DTO/quyền, block/asymmetry, thao tác lặp, rollback và unfriend đồng thời/lịch sử ACCEPTED đều đạt. Race block vẫn dùng fixture SQL; phải kiểm lại với HTTP block thật ở 09.
 - [ ] **09. Chặn, danh sách chặn và bỏ chặn:** lưu quyết định chặn một chiều nhưng cản tương tác hai chiều; hủy lời mời chờ khi chặn; kiểm chặn người lạ, chặn bạn, hai bạn cùng chặn rồi bỏ chặn và unfriend trong lúc chặn; bỏ chặn không khôi phục quan hệ đã hủy.
+  - Đợt 20: đưa ba endpoint còn lại và block/unblock từ nháp vào phạm vi commit; thêm 34 test HTTP/JWT/PostgreSQL, gồm race với API accept/send/unfriend thật. Đã biên dịch, chưa chạy PostgreSQL mới do môi trường agent; giữ `[ ]`.
 
 ### Dữ liệu Android
 
 **Phụ thuộc bắt buộc:** thiết kế và kiểm chứng cơ chế phiên, executor và phản hồi cũ của mục 14 trước khi ghi cache trong mục 12–13. Fake Repository và Injection được mở rộng cùng các phần sử dụng chúng.
 
 - [ ] **10. Retrofit, DTO Android và ánh xạ lỗi:** khai báo đủ 11 endpoint, dùng client/Bearer hiện có; ánh xạ đúng JSON backend, `isContact`, trạng thái quan hệ, ID/chiều lời mời, `retryAfterSeconds`; có kiểm thử tương thích hợp đồng và lỗi mạng.
+  - Đợt 20: giữ DTO/Retrofit/mapper đã có, thêm NETWORK/INVALID_RESPONSE và 10 test transport. 48 regression app cùng 4 ca mới không cần socket đạt; 6 ca TCP và gate Retrofit → Tomcat/JWT/PostgreSQL còn chờ Windows. Cổng -AndroidContract bắt buộc chạy đủ 58 test app và 11 endpoint thật, chưa chốt toàn mục.
   - [x] **10a. DTO Android và JSON Gson:** đọc đúng lookup, lời mời, danh sách contact và details của lỗi 409/429; body gửi chỉ gồm addresseeId; 10 test Gson đạt. Phạm vi DTO; kiểm hợp đồng Retrofit được ghi riêng ở 10b.
   - [x] **10b. Interface Retrofit cho 11 endpoint:** kiểm method/path/query/body, chuyển JSON sang DTO/List, 201/204, giữ lỗi HTTP 409/429 và truyền IOException; 16 test dùng Retrofit/OkHttp/Gson thật với interceptor giả lập đạt. Chưa kiểm backend/JWT; bộ ánh xạ HTTP được ghi riêng ở 10c.
   - [x] **10c. Bộ ánh xạ lỗi HTTP độc lập:** đọc code/details sang ContactsResult, giữ HTTP_<status> khi thiếu code hoặc body sai, không ép metadata sai kiểu, đóng errorBody; 22 test mới đạt. Chưa nối vào Repository, chưa hoàn thành xử lý lỗi mạng/phiên hoặc thông báo UI.
@@ -1215,3 +1217,72 @@ Người dùng cung cấp thông báo **PASS tổng 215 test, các suite PASS, $
 **07–08 đạt điều kiện nghiệm thu trong phạm vi API của hai mục.** Hai lỗi CHECK của actions/friends là điều kiện thử có chủ đích để kiểm rollback, không phải test failure. Hai chiều unfriend chỉ ghi event khi trạng thái thực sự đổi; block-only còn lại mất cờ friend và không lộ phone. Accept lịch sử không phục hồi quan hệ sau unfriend. Kiểm đồng thời với block tại 08 dùng fixture transaction SQL cùng khóa cặp, chưa xác nhận API block 09; yêu cầu kiểm lại tích hợp HTTP thật được giữ nguyên cho đợt 09. Bộ này kiểm MVC/JWT/SQL thật, chưa nghiệm thu UI Android hoặc production/HTTPS.
 
 Không thấy khác biệt cần sửa trong code 07–08 của a052452: service/controller ngoài phần block nháp trùng commit, source test/harness/hợp đồng không có thay đổi chưa commit. Dumpstream mới lúc 21:04:35 chỉ có warning classpath Surefire như trước. Cập nhật checklist 07/08 `[x]`, giữ lịch sử bị chặn của đợt 18. Chỉ commit báo cáo bằng Author/Committer MeanFen, không push; giữ nguyên stash, các tệp nháp và artifact. Theo yêu cầu mới, sau nghiệm thu này tiếp tục chọn tối đa hai mục cấp chính tiếp theo, không coi việc đóng bằng chứng 07–08 là triển khai lại tính năng.
+
+## Đợt 20 - Chặn và hoàn thiện hợp đồng client: mục 09–10, 18/11/2026
+
+### Phạm vi và nội dung
+
+Sau khi chốt bằng chứng 07–08 tại **e491da8**, chọn đúng hai mục mới **09 và 10**. Làm việc duy nhất trong TeamProject, phase4_NP; giữ stash/backup và các nháp Android ngoài phạm vi. Không triển khai DAO, Repository, cache, phiên hoặc giao diện 11–20.
+
+**09:** tái sử dụng block/unblock và ba handler cuối của bản nháp. Block thuộc chiều JWT actor, giữ friend/createdAt đã có, người lạ thành block-only; hủy pending hai chiều và ghi sự kiện nguyên tử. Bỏ chặn chỉ hạ blocked trên friend hoặc xóa block-only; không phục hồi lời mời/tình bạn lịch sử. Danh sách blocked chỉ thuộc chủ JWT/target ACTIVE, phone chỉ có khi is_friend=true. Giữ khóa cặp trước ghi/khóa dòng, lặp không phát event thừa. Thêm **34 test**, có rollback sự kiện thứ hai hoặc contact event, retry, mutual block/unblock, unfriend và ba race **API HTTP thật** accept/block, send/block, unfriend/block để bổ sung tích hợp đã hẹn ở 06/08. Chưa coi các test mới là đã đạt khi chưa chạy PostgreSQL.
+
+**10:** đọc lại và giữ nguyên DTO, 11 endpoint Retrofit và bộ fromHttp đã kiểm. Bổ sung fromFailure: IOException vận chuyển/TLS trả NETWORK; lỗi parse/cấu trúc, gồm MalformedJsonException, trả INVALID_RESPONSE. Không lộ exception message, không xóa phiên hoặc sửa cache. ApiClient/AuthInterceptor Bearer hiện có được giữ nguyên; code Injection nháp đã dùng ApiClient.getRetrofit().create(ContactApi.class), nhưng không đưa Injection/Repository vào commit đợt này. Thêm 10 test transport bằng TCP loopback/Retrofit thật và lỗi typed. Các kiểm tra session/Keystore, phản hồi cũ và cache vẫn thuộc 14/12–13.
+
+Thêm gate **AndroidContactContractTest**: một ca biên dịch/chạy đúng bốn suite app (58 test JUnit4); ca còn lại biên dịch chính source DTO/ContactApi/mapper, gọi đủ 11 endpoint bằng Retrofit/Gson qua **Tomcat, JWT và PostgreSQL thật**, đọc lỗi 401/404/409/429 và mất kết nối sau khi đóng server. Không sao chép DTO sang backend; kiểm CodeSource để không nhận nhầm class app cũ. Token trong gate là token test do JwtService backend ký và gắn header bởi interceptor fixture; đây không phải kiểm Android Keystore hoặc thực thi AuthInterceptor trên thiết bị. Gate không cần build các bản nháp Room/UI, không bật Fake Repository, không thay nghiệm thu APK/hosted.
+
+### Tệp thuộc phạm vi commit
+
+| Tệp | Nội dung |
+|---|---|
+| `backend/src/main/java/com/utechat/backend/service/ContactsService.java` | Đưa block/unblock từ nháp vào commit cùng chú thích nghiệp vụ; backend không còn phương thức nháp ngoài commit |
+| `backend/src/main/java/com/utechat/backend/controller/ContactController.java` | Đủ 11 endpoint; rõ tên PathVariable và actor/quyền cho ba handler cuối |
+| `backend/src/test/java/com/utechat/backend/contacts/ContactBlockApiTest.java` | 34 test HTTP/JWT/PostgreSQL, quyền/privacy, mutation/event, rollback và race API thật |
+| `app/src/main/java/com/utechat/data/repository/ContactErrorMapper.java` | Ánh xạ failure vận chuyển/conversion, không đổi HTTP mapper cũ hoặc phiên/cache |
+| `app/src/test/java/com/utechat/data/remote/api/ContactTransportTest.java` | 10 ca transport, gồm 6 TCP và 4 ca typed/guard không cần socket |
+| `backend/src/test/java/com/utechat/backend/support/AndroidContactClient.java` | Compiler/classloader dùng source app thật, Retrofit/Gson và bridge tới mapper; dọn client/loader, class tạm nằm ở target |
+| `backend/src/test/java/com/utechat/backend/AndroidContactContractTest.java` | Hai gate: đủ 58 test app không bỏ qua; luồng đủ 11 endpoint qua HTTP/JWT/PostgreSQL thật |
+| `backend/pom.xml` | Năm dependency chỉ test, cùng phiên bản app: Retrofit/converter 2.11.0, Gson 2.10.1 (pin bản app để BOM backend không đổi JSON), OkHttp 4.12.0, JUnit4 4.13.2; không đóng vào JAR production |
+| `backend/scripts/test-phase4-foundation.ps1` | -BlocksApi chọn 249/19 suite; -AndroidContract chọn 251/20 suite, bao gồm 01–09 và gate client; giữ các bộ 73/117/159/215 |
+| `docs/API_CONTRACT.md` | Quy tắc block/unblock và lỗi transport Android; phân biệt trách nhiệm mapper với session/cache |
+| `docs/phase4/01-phone-validation.md` | Báo cáo tiến độ duy nhất và trạng thái chờ nghiệm thu 09/10 |
+
+### Kiểm thử thực tế và trở ngại
+
+- **JDK 27, release 17** xuyên suốt. Trước khi thêm dependency test cho gate client, Maven 3.9.16 chạy `mvn -o -B -ntp -f backend/pom.xml test-compile` **BUILD SUCCESS/exit 0**, biên dịch 29 source chính và 26 test source, gồm 34 test block. Không thay JDK hoặc phiên bản thư viện app; warning HealthControllerTest sẵn có giữ nguyên.
+- Khi thêm dependency test cho gate client, Maven test-compile **chưa thành công trong phiên agent**: repo người dùng không cho ghi dependency mới. Đã thử repo ghi được trong .task-cache, đọc cache Maven cũ và sao chép artifact/POM Gradle thực tế sang layout Maven, không sửa cache toàn máy; vẫn thiếu Okio 3.6.0, Kotlin stdlib-common/jdk8 1.9.25 và Hamcrest core 2.2 theo dependency management của Spring Boot. Thử HTTPS Maven Central xác nhận DNS phiên agent không phân giải được. POM cuối pin thêm Gson 2.10.1 đúng bản app, không đổi thư viện app; bản Maven build cuối vẫn chờ Windows. Không tạo POM/JAR giả để ép build xanh.
+- **Javac với thư viện thật đã cache:** helper/gate backend và test block cuối biên dịch được; probe chạy chính compiler/loader của gate đã biên dịch đủ source app và bốn suite 58 test, kiểm class mới thành công. Đây là bằng chứng biên dịch, không phải đã chạy 58 test hoặc thay kết quả Maven build cuối.
+- JUnit trực tiếp chạy **46 regression backend đạt**, không skipped/failed/aborted. JUnit app phần không cần socket chạy **52 test đạt** = 48 regression DTO/Retrofit/HTTP mapper + 4 ca failure typed/guard mới. Không cộng hai số này vào 251 hoặc kết quả 215 trước đó.
+- Lần thử đầy đủ app ban đầu: **58 test, 5 failure** vì HttpServer không tạo được loopback selector. Ca refused-connection ban đầu có thể nhận nhầm Permission denied là bằng chứng từ chối kết nối; đã siết assertion yêu cầu ConnectException thật, probe trả SocketException nên ca này cũng chưa đạt. Fixture cuối dùng java.net.ServerSocket để không phụ thuộc module JDK HttpServer trong test app, vẫn thực hiện TCP thật. **Lần chạy cuối: 58 test, 52 đạt và 6 failure, exit code 1** do kết nối loopback bị chặn; không ghi 58/58 đạt hoặc đổi sang interceptor giả/ignore để hạ tiêu chuẩn.
+- Discovery nhận đủ **36 gate mới** (34 block + 2 client), không execute các ca PostgreSQL/TCP. Docker preflight bị từ chối named pipe; **34 test PostgreSQL block và hai gate client chưa chạy thành công**. Không dùng H2/Supabase/.env thay PostgreSQL và không sửa luật bỏ qua test để nghiệm thu.
+- Script: Parser **0 lỗi**, BOM UTF-8 giữ nguyên; selector theo tên/số test source xác nhận 73/117/159/215/249/251 đúng, các suite cũ không bị bỏ khỏi bộ mới. Không gọi -AndroidContract để giả có kết quả khi preflight đã bị chặn. POM XML parse hợp lệ.
+
+Lỗi môi trường quan sát được (không phải bằng chứng lỗi JDK hoặc quyền GitHub):
+
+```text
+permission denied while trying to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine
+java.io.IOException: Unable to establish loopback connection
+Caused by: java.net.SocketException: Permission denied: connect
+java.nio.file.AccessDeniedException: C:\Users\Phuocnghia_admin\.m2\repository\com\squareup\retrofit2
+Could not find artifact com.squareup.okio:okio:jar:3.6.0 in existing-read-cache
+No such host is known. (repo.maven.apache.org:443)
+```
+
+### Lệnh nghiệm thu tại Windows
+
+```powershell
+Set-Location 'D:\HCMUTE\Y3\S1\T2\LapTrinhDiDong\TeamProject'
+$env:JAVA_HOME = 'C:\Program Files\Java\jdk-27'
+$env:Path = "$env:JAVA_HOME\bin;$env:Path"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\backend\scripts\test-phase4-foundation.ps1" -AndroidContract
+$LASTEXITCODE
+```
+
+Nếu mvn chưa ở PATH, thêm `-Maven 'C:\Users\Phuocnghia_admin\.m2\wrapper\dists\apache-maven-3.9.16\0daed3be3ebd1c706f0e69e8b07c6b73f5cc4ea3dfce72a8d0ec2e849ca2ddb0\bin\mvn.cmd'` vào lệnh powershell.exe trên. Dùng Maven cache/Internet bình thường ở Terminal Windows, không dùng settings repo thử của agent. Bypass chỉ cho tiến trình con, không đổi ExecutionPolicy toàn máy.
+
+**Dự kiến 251 test Surefire = 215 hồi quy + 34 block + 2 gate client**, gồm 204 ca cần PostgreSQL và 47 ca còn lại. Một trong 47 ca đó chạy **58 test JUnit4 lồng** và bắt buộc runCount=58, failures=0, ignored=0; **không cộng 58 thành tổng 309**. Cần BUILD SUCCESS/exit 0, đủ 20 XML mới, failures/errors/skipped đều 0, cùng log `ANDROID_CONTRACT_JUNIT4 tests=58 failures=0 ignored=0`. -AndroidContract đã bao gồm các bộ cũ và -BlocksApi, không cần chạy từng bộ riêng. Đây là số dự kiến, **chưa phải kết quả đã đạt**.
+
+### Trạng thái và bảo toàn
+
+- **01–08 đã nghiệm thu; 09 và 10 vẫn `[ ]`**. 09 thiếu kết quả SQL/event/race API thật; 10 thiếu đủ sáu TCP và gate client/server thật cùng Maven build cuối. Chưa nghiệm thu session/Keystore, Room, UI, APK hoặc production; không bấm thử giao diện mới trong đợt này.
+- Lưu hash 34 bản nháp và artifact tại .task-cache/phase4-09-10 trước thao tác. Hai tệp backend cuối được đưa toàn bộ phần còn lại thuộc 09 vào commit, nên không còn giữ nháp backend trong chúng; **32 tệp nháp khác không đổi**, gồm session, DAO, Repository, Injection, UI và ContactsApiTest cũ. Giữ nguyên ba stash gồm c1f69ff và mọi backup; không tạo project/worktree hoặc sửa lịch sử.
+- Bảo toàn bằng SHA-256 bộ artifact Windows 215 hiện có, không ghi đè/xóa hoặc commit XML/log/credential. Các test trực tiếp chỉ ghi log vào cache; chưa chạy Surefire test mới. Không đọc/in giá trị .env. Chỉ stage 11 tệp trong bảng và commit bằng Author/Committer `MeanFen <nghiapp11102006@gmail.com>`, không push. Dừng để người dùng chạy bộ Windows, không triển khai hạng mục thứ ba.
