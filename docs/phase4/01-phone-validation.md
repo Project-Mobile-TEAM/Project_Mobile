@@ -217,7 +217,9 @@ Có 20 hạng mục để theo dõi, không mặc định tương ứng đúng 2
 - [x] **04. Gửi lời mời kết bạn:** cấm tự gửi, gửi khi có block, gửi khi đã là bạn; xử lý trùng cùng chiều và ngược chiều bằng `409 REQUEST_ALREADY_PENDING`; hai yêu cầu đồng thời chỉ tạo một lời mời chờ; ghi sự kiện cho đúng hai bên trong cùng transaction.
   - Đợt 15: xác nhận 20 testcase API PostgreSQL và 2 testcase validation body đạt trong bộ 117 mới; hai ca đồng thời cùng/ngược chiều, JSONB cho đúng hai người nhận và CHECK gây lỗi sự kiện thứ hai/rollback/retry đều đạt. Không tự accept lời mời ngược chiều.
 - [ ] **05. Xem lời mời đã nhận và đã gửi:** chỉ trả lời mời liên quan tài khoản hiện tại, lọc chiều/trạng thái đúng; không tiết lộ SĐT trong hồ sơ tối thiểu của lời mời; không cho người thứ ba đọc dữ liệu trái quyền.
+  - Đợt 16: tái sử dụng và hoàn thiện truy vấn/handler nháp, thêm 17 test API/JWT/PostgreSQL, biên dịch đạt. Chưa chạy được các test PostgreSQL mới do Docker của phiên agent bị từ chối; giữ `[ ]`, chờ bộ Windows `-RequestsApi`.
 - [ ] **06. Chấp nhận lời mời:** chỉ người nhận được thực hiện, kiểm tra block; cập nhật lời mời, tạo hai dòng bạn bè và sự kiện nguyên tử; chấp nhận lặp không tạo trùng; chấp nhận lại lời mời cũ sau unfriend không tạo lại bạn bè; kiểm thử accept đồng thời với block.
+  - Đợt 16: tách accept từ nháp respond, thêm 25 test API/JWT/PostgreSQL cho quyền, event, lặp, concurrency, rollback và luồng tích hợp 03–06. Fixture block dùng transaction SQL theo khóa cặp, không triển khai/nghiệm thu API 09. Chưa có kết quả PostgreSQL mới; giữ `[ ]`.
 - [ ] **07. Từ chối và hủy lời mời:** chỉ người nhận được reject, chỉ người gửi được cancel; kiểm chuyển trạng thái hợp lệ, thao tác lặp và ghi sự kiện; accept sau reject/cancel phải bị từ chối nhất quán.
 - [ ] **08. Danh sách bạn bè và hủy kết bạn:** trả đúng bạn bè của tài khoản; unfriend cập nhật cả hai chiều, bảo toàn dòng chặn và hạ `is_friend` trên dòng chặn còn lại; ghi sự kiện cho trạng thái thực sự thay đổi, không tạo trùng khi thao tác lặp.
 - [ ] **09. Chặn, danh sách chặn và bỏ chặn:** lưu quyết định chặn một chiều nhưng cản tương tác hai chiều; hủy lời mời chờ khi chặn; kiểm chặn người lạ, chặn bạn, hai bạn cùng chặn rồi bỏ chặn và unfriend trong lúc chặn; bỏ chặn không khôi phục quan hệ đã hủy.
@@ -1034,3 +1036,64 @@ Hai testcase `concurrentSameDirectionProducesOnePendingRequest` và `concurrentO
 **Hai mục backend 03–04 đã nghiệm thu**, không còn điều kiện PostgreSQL bị thiếu trong phạm vi checklist này. Mục 01–02 tiếp tục đạt hồi quy. Bộ giới hạn tra cứu vẫn lưu trong bộ nhớ một backend, chưa cam kết chia sẻ quota giữa nhiều instance hoặc qua lần khởi động lại.
 
 Chưa có nghiệm thu giao diện mới: chưa nối chuẩn hóa ô nhập/tìm người/gửi lời mời từ Android vào backend; không xác nhận có thể bấm thử luồng hoàn chỉnh trên ứng dụng. Các mục 05–20 vẫn giữ nguyên trạng thái, không triển khai mục tiếp theo. Dừng để người dùng kiểm tra và tự push bằng Terminal.
+
+## Đợt 16 - Danh sách và chấp nhận lời mời: mục 05–06, 18/11/2026
+
+### Phạm vi và nội dung triển khai
+
+Chọn đúng hai mục **05 và 06** sau khi 01–04 đã nghiệm thu; làm việc tại TeamProject, nhánh phase4_NP, nền dda27da. Đọc lại báo cáo, hợp đồng và bản nháp; tái sử dụng requests, truy vấn request/mapRequest, thứ tự khóa và upsert/event từ respond. Không đưa API reject/cancel/friends/block/unblock/unfriend của 07–09 vào commit.
+
+**05:** GET /api/contact-requests lấy chủ danh sách từ JWT. Giữ mặc định nháp: status thiếu/blank là PENDING, type thiếu/blank lấy cả hai chiều; lọc đúng incoming/outgoing và bốn trạng thái cho phép, giá trị khác trả VALIDATION. Query có bind parameter, chỉ trả lời mời actor tham gia và cả hai tài khoản ACTIVE, hồ sơ tối thiểu không SĐT. Thêm ID giảm dần làm khóa phụ khi createdAt trùng nhau; trả mảng rỗng và không ghi dữ liệu/sự kiện.
+
+**06:** tách accept thành phương thức riêng từ nháp respond để không kéo API 07 vào commit. Chỉ addressee được accept; lấy khóa cặp rồi khóa dòng và đọc lại trạng thái, kiểm block hai chiều. PENDING chuyển ACCEPTED/respondedAt, upsert hai dòng bạn bè theo thứ tự UUID ổn định, ghi CONTACT_UPDATED cho chiều thực sự đổi và CONTACT_REQUEST_UPDATED cho hai người nhận trong cùng transaction. Giữ createdAt của contact cũ; lỗi ghi phải rollback toàn bộ. Lặp ACCEPTED trả DTO lịch sử, không ghi thêm, không phục hồi bạn bè sau unfriend hoặc đụng lời mời mới hơn. Helper payload contact phục vụ riêng accept, không phụ thuộc API danh sách bạn bè mục 08.
+
+| Tệp thuộc phạm vi commit | Nội dung |
+|---|---|
+| `backend/src/main/java/com/utechat/backend/service/ContactsService.java` | Đưa requests từ nháp vào commit, bổ sung accept và helper sự kiện cần thiết; giữ nháp respond/contacts/block/unblock/unfriend ngoài index |
+| `backend/src/main/java/com/utechat/backend/controller/ContactController.java` | Thêm GET danh sách và POST accept, đặt rõ tên tham số và dùng actor JWT; chỉ commit bốn handler thuộc 03–06 |
+| `backend/src/test/java/com/utechat/backend/contacts/ContactRequestListApiTest.java` | 17 test: JWT, actor, chiều/trạng thái, quyền người thứ ba, JSON tối thiểu, privacy/status, filter sai, thứ tự và không ghi dữ liệu |
+| `backend/src/test/java/com/utechat/backend/contacts/ContactAcceptApiTest.java` | 25 test: JWT/quyền/block/status, JSONB/event, lặp/lịch sử, upsert, rollback/retry, đồng thời và luồng tích hợp |
+| `backend/scripts/test-phase4-foundation.ps1` | Thêm -RequestsApi chọn 159 test/16 suite; giữ default 73 và -ContactsApi 117, backup và kiểm XML mới |
+| `docs/API_CONTRACT.md` | Làm rõ filter/danh tính, respondedAt của list, accept/lặp, payload và transaction |
+| `docs/phase4/01-phone-validation.md` | Báo cáo duy nhất; cập nhật checklist theo đúng trạng thái chờ PostgreSQL |
+
+### Kiểm thử thực tế và phần còn thiếu
+
+- **JDK 27, Maven 3.9.16:** chạy `mvn -o -B -ntp -f backend/pom.xml test-compile` bằng mvn.cmd trong Maven wrapper cache, **BUILD SUCCESS, exit code 0**. Biên dịch 29 source chính và 23 source test với release 17, gồm 42 test API mới. Warning varargs HealthControllerTest sẵn có giữ nguyên ngoài phạm vi. Không đổi JDK hoặc dependency.
+- Snapshot source đúng phần dự kiến commit của ContactsService/ContactController đã được **javac --release 17 -parameters biên dịch riêng thành công**, không dựa vào nháp API 07–09 để build hai tệp này.
+- JUnit Platform discovery nhận đúng **42 testcase mới** trên classpath ưu tiên snapshot; chỉ discover, không execute hoặc khởi tạo database, không tính là test đã đạt.
+- Runner JUnit riêng, ưu tiên class snapshot trên classpath, chạy **46 test regression: 46 thành công, 0 thất bại/skipped/aborted**, exit code 0. Không ghi đè surefire-reports. Đây là bộ helper/DTO/limiter/lỗi tham số/guard/URL đã có; **không phải kết quả của 42 test API mới**. Lần chuẩn bị runner ban đầu thiếu JUnit Platform Launcher trên classpath; đã dùng JAR 1.10.5 có sẵn trong cache, biên dịch lại và chạy đạt, không sửa POM/dependency project.
+- Kiểm tĩnh script: PowerShell Parser **0 lỗi**, vẫn có BOM UTF-8; self-check selector đối chiếu số testcase trong source: default **11 suite/73**, -ContactsApi **14/117**, -RequestsApi **16/159**. Chưa gọi script để chạy bộ 159 trong phiên agent.
+- Kiểm tra môi trường thực tế bằng `docker version --format '{{.Server.Version}}'`: **exit code 1**, lỗi nguyên văn dưới đây. Đây là quyền truy cập named pipe Docker của phiên agent; không phải bằng chứng Docker hỏng ở Terminal người dùng, lỗi mật khẩu database, DNS Maven hoặc lỗi JDK. Không dùng H2 thay PostgreSQL, không thử kết nối .env/Supabase.
+
+```text
+permission denied while trying to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine
+```
+
+**42 test mới chưa được thực thi trên PostgreSQL.** Các ca đã viết/biên dịch nhưng còn phải chạy gồm: lọc và cách ly danh sách; accept đúng quyền; payload JSONB cho hai bên; hai accept đồng thời chỉ chuyển trạng thái/ghi sự kiện một lần; lỗi CHECK ở dòng contact thứ hai hoặc sự kiện lời mời người nhận thứ hai rollback cả respondedAt, quan hệ và sự kiện, sau đó retry sạch; ACCEPTED lịch sử sau unfriend không tạo lại bạn; luồng HTTP gửi → xem hai chiều → accept → đọc lại → lookup FRIEND.
+
+Hai ca block đồng thời của mục 06 dùng **fixture SQL trong transaction lấy chính ContactPolicyService.lockPair**, không gọi API block nháp 09: một ca quan sát accept thực sự chờ advisory lock trong pg_stat_activity rồi kiểm lại block sau commit; một ca cho accept/block chạy hai thread và kiểm không bỏ qua block/không còn pending. Fixture chỉ tạo trạng thái đối kháng phục vụ accept, không kiểm sự kiện hoặc HTTP của API block. Khi thực hiện 09 cần kiểm lại tích hợp accept với API block thật; không suy ra 09 đã đạt từ fixture này.
+
+### Lệnh kiểm thử trên Windows
+
+```powershell
+Set-Location 'D:\HCMUTE\Y3\S1\T2\LapTrinhDiDong\TeamProject'
+$env:JAVA_HOME = 'C:\Program Files\Java\jdk-27'
+.\backend\scripts\test-phase4-foundation.ps1 -RequestsApi
+$LASTEXITCODE
+```
+
+Nếu mvn chưa nằm trong PATH:
+
+```powershell
+.\backend\scripts\test-phase4-foundation.ps1 -RequestsApi -Maven 'C:\Users\Phuocnghia_admin\.m2\wrapper\dists\apache-maven-3.9.16\0daed3be3ebd1c706f0e69e8b07c6b73f5cc4ea3dfce72a8d0ec2e849ca2ddb0\bin\mvn.cmd'
+```
+
+Script tạo PostgreSQL Docker/database cô lập, backup artifact cũ trước Surefire và chọn **159 test dự kiến = 117 hồi quy + 17 list + 25 accept**; **113 ca cần PostgreSQL + 46 ca còn lại**. Cần BUILD SUCCESS, script exit 0 và đủ 16 XML mới, failures/errors/skipped đều 0; không cộng kết quả nhiều lần chạy. **159 là phạm vi cần chạy, chưa phải kết quả đã đạt.** Không phải chạy lại riêng bộ -ContactsApi; -RequestsApi đã bao gồm toàn bộ 01–04.
+
+### Bảo toàn và điểm dừng
+
+- Giữ nguyên stash c1f69ff cùng hai stash trước đó. Lưu snapshot/hash 34 tệp nháp và artifact trước thao tác trong .task-cache/phase4-05-06; 32 tệp nháp ngoài ContactsService/ContactController giữ nguyên. Đối chiếu phần từ respond trở xuống với bản trước đợt: byte nội dung nháp 07–09 không đổi; chỉ handler accept của nháp chuyển sang phương thức accept mới thuộc 06.
+- Chỉ đưa snapshot đúng phạm vi 03–06 của hai tệp Java chung vào index; các API 07–09 vẫn ở working tree, nên sau commit hai tệp có thể tiếp tục hiển thị M. Không stage toàn bộ các bản nháp, không tạo project/worktree, không sửa migration hoặc lịch sử commit.
+- Giữ nguyên **32 artifact** hiện có trong surefire-reports, gồm bộ Windows 117 đã nghiệm thu; không sửa/xóa hoặc commit chúng. Không đọc/in giá trị .env, không xóa stash/backup. Chỉ commit code/test/script/hợp đồng thuộc 05–06 cùng báo cáo, với Author và Committer `MeanFen <nghiapp11102006@gmail.com>`; không push.
+- **05 và 06 vẫn `[ ]`** vì chưa có kết quả PostgreSQL mới; không chốt nghiệm thu từ code, test-compile hoặc 46 regression. Mục 01–04 tiếp tục giữ nghiệm thu trước đó. Chưa có UI mới để bấm thử và chưa nghiệm thu Android/hosted. Dừng để người dùng chạy bộ Windows và cung cấp kết quả, không triển khai mục thứ ba.
