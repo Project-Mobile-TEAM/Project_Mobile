@@ -37,6 +37,14 @@
         <!-- H2 chỉ kiểm thử JDBC/transaction của helper sự kiện; không thay thế kiểm thử schema PostgreSQL. -->
         <dependency><groupId>com.h2database</groupId><artifactId>h2</artifactId><scope>test</scope></dependency>
         <dependency><groupId>org.springframework.security</groupId><artifactId>spring-security-test</artifactId><scope>test</scope></dependency>
+        <!-- Chỉ test hợp đồng client Android qua HTTP thật; cùng phiên bản với app, không đưa vào JAR production. -->
+        <dependency><groupId>com.squareup.retrofit2</groupId><artifactId>retrofit</artifactId><version>2.11.0</version><scope>test</scope></dependency>
+        <dependency><groupId>com.squareup.retrofit2</groupId><artifactId>converter-gson</artifactId><version>2.11.0</version><scope>test</scope></dependency>
+        <!-- Giữ Gson đúng bản transitive của app, tránh BOM backend đổi hành vi JSON trong gate client. -->
+        <dependency><groupId>com.google.code.gson</groupId><artifactId>gson</artifactId><version>2.10.1</version><scope>test</scope></dependency>
+        <dependency><groupId>com.squareup.okhttp3</groupId><artifactId>okhttp</artifactId><version>4.12.0</version><scope>test</scope></dependency>
+        <!-- Chạy trực tiếp các test JUnit4 thuần Java đang có của app trong cổng nghiệm thu client. -->
+        <dependency><groupId>junit</groupId><artifactId>junit</artifactId><version>4.13.2</version><scope>test</scope></dependency>
         <!-- PostgreSQL thật chạy nhúng cho test tích hợp: kiểm SQL trên đúng schema V1, không cần Docker hay Supabase. -->
         <dependency><groupId>io.zonky.test</groupId><artifactId>embedded-postgres</artifactId><version>2.0.7</version><scope>test</scope></dependency>
     </dependencies>

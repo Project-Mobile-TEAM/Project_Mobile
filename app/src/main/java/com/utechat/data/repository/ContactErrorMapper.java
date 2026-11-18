@@ -4,6 +4,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
+import com.google.gson.stream.MalformedJsonException;
 import java.io.IOException;
 import okhttp3.ResponseBody;
 import retrofit2.Response;
@@ -11,6 +12,14 @@ import retrofit2.Response;
 /** Đọc lỗi REST danh bạ; không thay đổi phiên, cache hoặc tự thử lại thao tác ghi. */
 public final class ContactErrorMapper {
     private ContactErrorMapper() { }
+
+    /** Lỗi vận chuyển không làm hết phiên; lỗi chuyển JSON thành DTO được tách khỏi mất mạng. */
+    public static <T> ContactsResult<T> fromFailure(Throwable failure) {
+        if (failure == null) throw new IllegalArgumentException("Thiếu nguyên nhân thất bại");
+        // Không dùng message/cause làm mã lỗi: có thể chứa URL, dữ liệu hồ sơ hoặc thông tin nhạy cảm.
+        return ContactsResult.error(failure instanceof IOException && !(failure instanceof MalformedJsonException)
+                ? "NETWORK" : "INVALID_RESPONSE");
+    }
 
     /** Chỉ nhận HTTP lỗi; tiêu thụ và đóng errorBody nên caller không đọc lại thân lỗi. */
     public static <T> ContactsResult<T> fromHttp(Response<?> response) {

@@ -8,7 +8,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
-/** Tám endpoint danh bạ/lời mời dùng actor JWT; quyền và transaction được kiểm tại service. */
+/** 11 endpoint danh bạ dùng actor từ JWT; mọi kiểm quyền nằm trong service. */
 @RestController
 @RequestMapping("/api")
 public class ContactController {
@@ -30,6 +30,14 @@ public class ContactController {
     public void cancel(@AuthenticationPrincipal AuthenticatedActor a,@PathVariable(name="id") String id) { service.respond(a.userId(),ContactsService.id(id),"CANCELED"); }
     /** Danh sách theo chủ sở hữu JWT, chỉ lấy dòng bạn bè không bị chủ tài khoản chặn. */
     @GetMapping("/contacts") public List<ContactDto> friends(@AuthenticationPrincipal AuthenticatedActor a) { return service.contacts(a.userId(),false); }
+    /** Chỉ xem dòng chặn do chính chủ JWT sở hữu; hồ sơ không phải bạn không có SĐT. */
+    @GetMapping("/contacts/blocked") public List<ContactDto> blocked(@AuthenticationPrincipal AuthenticatedActor a) { return service.contacts(a.userId(),true); }
+    /** Quyết định chặn một chiều nhưng server cấm tương tác hai chiều. */
+    @PostMapping("/contacts/{id}/block") @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void block(@AuthenticationPrincipal AuthenticatedActor a,@PathVariable(name="id") String id) { service.block(a.userId(),ContactsService.id(id)); }
+    /** Bỏ chặn không khôi phục tình bạn đã bị unfriend; trả 204 không body. */
+    @DeleteMapping("/contacts/{id}/block") @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void unblock(@AuthenticationPrincipal AuthenticatedActor a,@PathVariable(name="id") String id) { service.unblock(a.userId(),ContactsService.id(id)); }
     /** Unfriend tác động hai chiều nhưng giữ quyết định chặn; actor luôn lấy từ JWT. */
     @DeleteMapping("/contacts/{id}") @ResponseStatus(HttpStatus.NO_CONTENT)
     public void unfriend(@AuthenticationPrincipal AuthenticatedActor a,@PathVariable(name="id") String id) { service.unfriend(a.userId(),ContactsService.id(id)); }

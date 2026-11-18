@@ -193,6 +193,26 @@ public class ContactsService {
         if(!rows.isEmpty()) contacts(owner,Boolean.TRUE.equals(rows.get(0).get("blocked"))).stream().filter(c->c.id().equals(other.toString())).findFirst().ifPresent(c->payload.put("user",c));
         events.write(owner,"CONTACT_UPDATED","CONTACT",other.toString(),payload);
     }
+    /** Chặn thuộc chiều mình; giữ cờ bạn cũ và hủy pending hai chiều trong cùng transaction/sự kiện. */
+    public void block(UUID actor,UUID target) {
+        tx.executeWithoutResult(s -> {
+            pair(actor,target);
+            int changed=db.update("INSERT INTO contacts(owner_id,contact_user_id,is_friend,blocked) VALUES (?,?,FALSE,TRUE) "
+                    +"ON CONFLICT(owner_id,contact_user_id) DO UPDATE SET blocked=TRUE WHERE NOT contacts.blocked",actor,target);
+            var pending=pending(actor,target);
+            if(pending!=null) { db.update("UPDATE contact_requests SET status='CANCELED',responded_at=now() WHERE id=?",id(pending.id())); requestEvent(request(id(pending.id()),false),"CONTACT_REQUEST_UPDATED"); }
+            if(changed>0) contactEvent(actor,target);
+        });
+    }
+    /** Bỏ block-only bằng xóa dòng; bạn còn hiệu lực chỉ hạ blocked, không suy bạn từ lời mời lịch sử. */
+    public void unblock(UUID actor,UUID target) {
+        tx.executeWithoutResult(s -> {
+            pair(actor,target);
+            int removed=db.update("DELETE FROM contacts WHERE owner_id=? AND contact_user_id=? AND blocked AND NOT is_friend",actor,target);
+            int changed=db.update("UPDATE contacts SET blocked=FALSE WHERE owner_id=? AND contact_user_id=? AND blocked AND is_friend",actor,target);
+            if(removed+changed>0) contactEvent(actor,target);
+        });
+    }
     /** Hủy bạn không được xóa quyết định chặn; phát sự kiện cả khi chỉ thay đổi is_friend trên dòng chặn. */
     public void unfriend(UUID actor,UUID target) {
         tx.executeWithoutResult(s -> {

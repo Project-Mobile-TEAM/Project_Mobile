@@ -1,5 +1,5 @@
 ﻿[CmdletBinding()]
-param([string]$Maven = 'mvn', [string]$PostgresImage = 'postgres:16', [switch]$ContactsApi, [switch]$RequestsApi, [switch]$FriendsApi)
+param([string]$Maven = 'mvn', [string]$PostgresImage = 'postgres:16', [switch]$ContactsApi, [switch]$RequestsApi, [switch]$FriendsApi, [switch]$BlocksApi, [switch]$AndroidContract)
 
 # Bộ nghiệm thu chỉ dùng PostgreSQL container tạm; không đọc .env hoặc kết nối Supabase.
 $ErrorActionPreference = 'Stop'
@@ -61,20 +61,28 @@ try {
         'com.utechat.backend.contacts.MissingPhoneParameterTest' = 4
     }
     # Các bộ nghiệp vụ sau kế thừa API/body 03–04 cùng 73 test nền.
-    if ($ContactsApi -or $RequestsApi -or $FriendsApi) {
+    if ($ContactsApi -or $RequestsApi -or $FriendsApi -or $BlocksApi -or $AndroidContract) {
         $expected['com.utechat.backend.contacts.ContactLookupApiTest'] = 22
         $expected['com.utechat.backend.contacts.ContactSendApiTest'] = 20
         $expected['com.utechat.backend.contacts.ContactInputValidationTest'] = 2
     }
     # Mục 05–06 chạy cùng toàn bộ hồi quy 01–04; không chọn suite nháp của API 07–09.
-    if ($RequestsApi -or $FriendsApi) {
+    if ($RequestsApi -or $FriendsApi -or $BlocksApi -or $AndroidContract) {
         $expected['com.utechat.backend.contacts.ContactRequestListApiTest'] = 17
         $expected['com.utechat.backend.contacts.ContactAcceptApiTest'] = 25
     }
     # Mục 07–08 thêm reject/cancel và friends/unfriend; không chọn suite nháp của API block 09.
-    if ($FriendsApi) {
+    if ($FriendsApi -or $BlocksApi -or $AndroidContract) {
         $expected['com.utechat.backend.contacts.ContactRequestActionsApiTest'] = 27
         $expected['com.utechat.backend.contacts.ContactFriendsApiTest'] = 29
+    }
+    # API chặn dùng HTTP thật, bao gồm các race từng dùng fixture SQL ở 06/08.
+    if ($BlocksApi -or $AndroidContract) {
+        $expected['com.utechat.backend.contacts.ContactBlockApiTest'] = 34
+    }
+    # Một ca chạy đủ 58 unit app bằng JUnit4, ca còn lại gọi 11 endpoint qua Tomcat/JWT/PostgreSQL.
+    if ($AndroidContract) {
+        $expected['com.utechat.backend.AndroidContactContractTest'] = 2
     }
     $tests = ($expected.Keys | ForEach-Object { ($_ -split '\.')[-1] }) -join ','
     # Giữ artifact lần trước trước khi Surefire ghi báo cáo của lần chạy mới.
@@ -102,7 +110,7 @@ try {
         $total += [int]$result.tests
         Write-Output ("PASS {0}: {1} test, không bỏ qua" -f $suite, $result.tests)
     }
-    $scopeLabel = if ($FriendsApi) { '07–08 cùng hồi quy 01–06' } elseif ($RequestsApi) { '05–06 cùng hồi quy 01–04' } elseif ($ContactsApi) { '03–04 cùng hồi quy 01–02' } else { '01–02' }
+    $scopeLabel = if ($AndroidContract) { '09–10 cùng hồi quy 01–08 (gồm 58 unit Android lồng trong một test)' } elseif ($BlocksApi) { '09 cùng hồi quy 01–08' } elseif ($FriendsApi) { '07–08 cùng hồi quy 01–06' } elseif ($RequestsApi) { '05–06 cùng hồi quy 01–04' } elseif ($ContactsApi) { '03–04 cùng hồi quy 01–02' } else { '01–02' }
     Write-Output ("PASS tổng {0} test trong bộ {1}; XML ở backend/target/surefire-reports." -f $total, $scopeLabel)
 } catch {
     $exitCode = 1
