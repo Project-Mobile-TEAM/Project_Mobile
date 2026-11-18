@@ -2,7 +2,7 @@ package com.utechat.backend.config;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
+import com.utechat.backend.support.PostgresFixture;
 import java.sql.Connection;
 import javax.sql.DataSource;
 import org.flywaydb.core.Flyway;
@@ -33,8 +33,8 @@ class FlywayMigrationTest {
 
     @Test
     void migratesPreexistingManualDatabaseWithBaselineAndAppliesV3AndV4() throws Exception {
-        try (EmbeddedPostgres pg = EmbeddedPostgres.builder().start()) {
-            DataSource ds = pg.getPostgresDatabase();
+        try (var database = new PostgresFixture()) {
+            DataSource ds = database.source;
             // Mô phỏng database Supabase cũ chỉ mới chạy tay V1 trong SQL Editor (chưa có flyway_schema_history).
             try (Connection c = ds.getConnection()) {
                 ScriptUtils.executeSqlScript(c, new FileSystemResource("src/main/resources/db/migration/V1__initial_schema.sql"));
@@ -63,8 +63,8 @@ class FlywayMigrationTest {
 
     @Test
     void ignoresMissingDemoV2SeedWhenAppStartsWithProductionClasspathLocations() throws Exception {
-        try (EmbeddedPostgres pg = EmbeddedPostgres.builder().start()) {
-            DataSource ds = pg.getPostgresDatabase();
+        try (var database = new PostgresFixture()) {
+            DataSource ds = database.source;
             // Mô phỏng database demo từng chạy Flyway V1 trước, kèm bản ghi V2 đã áp dụng từ CLI.
             Flyway cli = Flyway.configure()
                     .dataSource(ds)

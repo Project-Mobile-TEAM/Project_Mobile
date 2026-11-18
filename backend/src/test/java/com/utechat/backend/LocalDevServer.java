@@ -12,11 +12,17 @@ import org.springframework.boot.SpringApplication;
 public class LocalDevServer {
     public static void main(String[] args) throws Exception {
         EmbeddedPostgres pg = EmbeddedPostgres.builder().start();
-        // Tham số dòng lệnh có độ ưu tiên cao hơn application.yml (default properties thì thấp hơn nên không ghi đè được).
-        SpringApplication.run(BackendApplication.class,
-                "--spring.datasource.url=" + pg.getJdbcUrl("postgres", "postgres"),
-                "--spring.datasource.username=postgres",
-                "--spring.datasource.password=",
-                "--utechat.otp.local-dir=otp-local");
+        SpringApplication.run(BackendApplication.class, databaseArguments(pg.getJdbcUrl("postgres", "postgres"), "postgres", ""));
+    }
+
+    /** Buộc cả runtime và Flyway vào database test; FLYWAY_URL từ môi trường không được trỏ sang Supabase. */
+    static String[] databaseArguments(String url, String user, String password) {
+        return new String[] {
+                "--spring.datasource.url=" + url, "--spring.datasource.username=" + user,
+                "--spring.datasource.password=" + password,
+                "--spring.flyway.url=" + url, "--spring.flyway.user=" + user,
+                "--spring.flyway.password=" + password, "--spring.flyway.enabled=true",
+                "--spring.flyway.locations=classpath:db/migration", "--utechat.otp.local-dir=otp-local"
+        };
     }
 }
