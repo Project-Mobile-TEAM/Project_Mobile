@@ -2,7 +2,7 @@
 
 Ngày thực hiện: 17/11/2026. Đây là file báo cáo chung duy nhất, được cập nhật sau từng đợt nhỏ.
 
-Cập nhật mới nhất: 18/11/2026 - đợt 10, kiểm tra hai mục cấp chính 01 và 02; chưa nghiệm thu do bị chặn môi trường PostgreSQL/build.
+Cập nhật mới nhất: 18/11/2026 - đợt 11, kiểm tra sau merge main và .env; 112 test chọn lọc đạt, mục 01/02 vẫn chưa nghiệm thu PostgreSQL.
 
 **Nơi làm việc hiện tại:** `D:\HCMUTE\Y3\S1\T2\LapTrinhDiDong\TeamProject`, nhánh `phase4_NP`.
 Từ lần thống nhất worktree dưới đây chỉ tiếp tục làm việc trong thư mục này. Các đoạn mô tả dùng worktree review ở đợt 01/02 là lịch sử.
@@ -205,9 +205,9 @@ Có 20 hạng mục để theo dõi, không mặc định tương ứng đúng 2
 ### Backend
 
 - [ ] **01. Migration `is_friend` và database chạy thử:** kiểm tra tạo database mới và nâng cấp database cũ; phân biệt bạn bè với chặn; xử lý rõ dữ liệu chặn cũ không đủ thông tin; cập nhật bộ nạp schema chạy thử cùng migration mới. Không sửa migration đã áp dụng.
-  - Đợt 10: đã kiểm tra bản nháp, chưa nghiệm thu PostgreSQL; Docker chưa chạy được, thiếu engine nhúng và không tải được dependency. Đã tái hiện lỗi splitter cắt khối DO của V4; loader/migration/test bản nháp vẫn cần sửa và kiểm chứng trên PostgreSQL.
+  - Đợt 11 sau merge: giữ V4 và LocalDevServer từ main; V4 mới không còn khối DO, loader dùng Flyway nên phát hiện splitter ở đợt 10 chỉ áp dụng bản nháp cũ. Test ContactsMigrationTest cũ chưa khớp chính sách backfill mới. Quick .env đạt, nhưng JDBC lỗi DNS và Maven thiếu dependency; chưa nghiệm thu migration/database chạy thử.
 - [ ] **02. DTO, lỗi API, chính sách quan hệ, khóa cặp và sự kiện:** chốt JSON/mã lỗi; tái sử dụng JWT Phase 3; thống nhất khóa cặp trước khi khóa dòng; bổ sung `SyncEventWriter` và hợp đồng `CONTACT_REQUEST_CREATED`, `CONTACT_REQUEST_UPDATED`, `CONTACT_UPDATED`; cập nhật tài liệu hợp đồng tương ứng.
-  - Đợt 10: 36 test hồi quy chọn lọc backend đạt; chưa kiểm advisory lock, JSONB/schema và transaction trên PostgreSQL, chưa hoàn tất hợp đồng sự kiện/tích hợp JWT. Phụ thuộc môi trường PostgreSQL và schema của mục 01, không nghiệm thu từ kết quả H2.
+  - Đợt 11 sau merge: biên dịch/chạy lại 36 test backend đạt; chưa kiểm advisory lock, JSONB/schema và transaction trên PostgreSQL, chưa hoàn tất hợp đồng sự kiện/tích hợp JWT. Hai kết nối JDBC từ .env cùng lỗi UnknownHostException; phụ thuộc mục 01, không nghiệm thu từ kết quả H2.
   - [x] **02a. Lỗi thiếu query bắt buộc:** thiếu `phone` trả `400 PHONE_INVALID`; thiếu tham số khác trả `400 VALIDATION`; 4 test Spring MVC đạt. Các phần còn lại của mục 02 vẫn chưa nghiệm thu.
   - [x] **02b. DTO JSON danh bạ và lời mời:** chốt năm record, kiểm đúng tên trường, boolean, ID/chiều lời mời và hồ sơ tối thiểu không chứa SĐT; 9 test Jackson đạt. Chưa nghiệm thu DTO Android, endpoint hoặc chính sách trả dữ liệu của service.
   - [x] **02c. Helper ghi sự kiện trong transaction:** `SyncEventWriter` yêu cầu transaction đang có, cùng commit/rollback với caller, không nuốt lỗi JSON/JDBC; 7 test Spring proxy và JDBC trên H2 đạt. Chưa nghiệm thu schema/JSONB PostgreSQL hoặc sự kiện của các thao tác quan hệ thật.
@@ -719,3 +719,72 @@ Lệnh thoát mã 1 **trước khi chạy test**. Đây là thiếu dependency/b
 - Chưa có chức năng hoặc thay đổi giao diện mới để bấm thử; không tuyên bố đã chạy app với backend thật hoặc Fake trong đợt này.
 - Điều kiện để tiếp tục hai mục này: môi trường cho phép chạy một engine PostgreSQL thật/nhúng và có đủ dependency backend 3.3.5 (qua cache hợp lệ hoặc kết nối Maven Central). Sau đó phải sửa và kiểm đầy đủ 01 trước khi nghiệm thu phần PostgreSQL của 02.
 - Dừng đợt này với cả hai ô chính vẫn `[ ]`; không triển khai mục thứ ba.
+
+## Đợt 11 - Kiểm tra sau merge main, .env và nghiệm thu mục 01/02, 18/11/2026
+
+### Trạng thái Git và bảo toàn
+
+- Thư mục duy nhất: `D:\HCMUTE\Y3\S1\T2\LapTrinhDiDong\TeamProject`, nhánh `phase4_NP`; HEAD đầu đợt `c5030e8` là merge origin/main. Không có xung đột hoặc thay đổi trong index.
+- Xác nhận stash `c1f69ff` vẫn còn. Lưu hash 35 tệp chưa commit trong `.task-cache/phase4-postmerge-01-02/dirty-before.json`; kiểm lại không có tệp nào bị đổi hoặc mất. Giữ nguyên cả tệp chưa theo dõi `tash list`.
+- V4 và LocalDevServer không có diff so với HEAD sau merge; không khôi phục bản cũ từ stash, không sửa lịch sử hoặc các migration đã có. `.env` được Git ignore, không tracked, không stage và không in giá trị bí mật.
+
+### Kết quả đọc cấu hình và code mới
+
+- `.env` có 18 biến; đủ nhóm DB/Flyway/runtime. Script có sẵn `backend/scripts/test-db-connection.ps1 -Quick` **đạt toàn bộ kiểm tra được yêu cầu**: cú pháp host, cổng Session 5432/Transaction 6543, JDBC TLS/prepareThreshold, HTTPS Supabase và các tệp schema. Quick chỉ kiểm cấu hình cục bộ, không chứng minh đăng nhập database hoặc migration thành công.
+- Main đã thêm dependency Flyway, cấu hình tự migrate/baseline trong application.yml, FlywaySessionPoolerConfig, FlywayMigrationTest và cập nhật test-schema.mjs/verify-schema.sql. Đã đọc các phần này cùng V4, LocalDevServer và test nháp liên quan.
+- **V4 từ main khác bản nháp cũ:** backfill mọi is_friend còn NULL bằng NOT blocked; các dòng blocked cũ thành block-only, không còn cơ chế RAISE cho hai chiều cùng chặn. V4 giữ giá trị is_friend đã có, đặt NOT NULL/default FALSE. Không được dùng kết luận lỗi splitter khối DO của bản nháp đợt 10 để mô tả V4 hiện tại.
+- **LocalDevServer từ main đã bỏ nạp bằng ScriptUtils**, dựa vào Flyway. Chưa chạy được smoke test PostgreSQL/Flyway của đường khởi động này; chưa xác nhận việc chọn datasource/Flyway URL và đóng engine khi có cấu hình môi trường thực tế.
+- **ContactsMigrationTest nháp chưa phù hợp V4 mới:** vẫn kỳ vọng mutual block làm migration ném RuntimeException và blocked friend được giữ is_friend=true. Đây là khác biệt từ đọc code; chưa chạy test PostgreSQL để xác nhận kết quả. Không tự sửa kỳ vọng để tuyên bố pass hoặc ghi đè V4 main bằng bản backup.
+- Chính sách backfill cũ của V4 mới không tự chứng minh giữ được lịch sử bạn bè của một dòng đã blocked. Cần kiểm các fixture nâng cấp, ghi rõ trường hợp mất thông tin và đối soát nếu cần; không suy ra friendship từ ACCEPTED cũ hoặc tự chạy migration trên database dùng chung.
+
+### Kiểm thử thực tế sau merge
+
+| Kiểm tra đã chạy | Kết quả | Giới hạn |
+|---|---|---|
+| Script PowerShell test-db-connection.ps1 -Quick | Đạt | Chỉ cấu hình/tệp cục bộ |
+| JDBC PostgreSQL 42.7.3 với FLYWAY_URL/user/password từ .env | Thất bại: SQLState 08001, UnknownHostException | Chưa đến xác thực hoặc truy vấn metadata |
+| JDBC PostgreSQL 42.7.3 với SPRING_DATASOURCE_URL/user/password từ .env | Thất bại: SQLState 08001, UnknownHostException | Chưa đến xác thực hoặc truy vấn metadata |
+| Maven offline với các test migration và backend liên quan | Thoát 1 trước khi chạy test | Thiếu Spring Boot parent 3.3.5 |
+| Tải POM parent từ Maven Central | Lỗi DNS | Không tải được dependency |
+| Kiểm Docker daemon | Không kết nối được named pipe | Không có PostgreSQL container để thay thế |
+| Tìm PGlite theo đường dẫn tạm hướng dẫn trong repo; thử lấy dependency PGlite 0.3.7 từ npm registry | Không có package tại các vị trí đã kiểm; tải lỗi DNS | Không chạy được test-schema.mjs; không coi việc script tồn tại là kết quả test |
+| Biên dịch lại/chạy 36 test backend bằng JUnit Platform | 36 successful, 0 failed, 0 skipped | 8 policy, 7 sync writer, 9 DTO, 8 rate limiter, 4 missing parameter; fixture H2 cho JDBC, không nghiệm thu PostgreSQL |
+| Biên dịch lại/chạy các test Android JVM chọn lọc bằng JUnit 4 | OK (76 tests) | 22 mapper/result, 16 Retrofit, 10 DTO, 28 validator; không phải Gradle build hoặc emulator |
+
+**112 test hồi quy chọn lọc đạt sau merge. Không có test PostgreSQL/Flyway mới đạt trong đợt này.** Dùng javac --release 17 và JAR trong cache như các đợt trước, không sửa phiên bản POM để thay parent bị thiếu. Runner backend có cảnh báo SLF4J thiếu provider; test đạt.
+
+Probe JDBC tạm chỉ đọc `.env` trong bộ nhớ, giải quyết tham chiếu biến và đặt timeout, dự kiến chỉ truy vấn metadata trong transaction read-only rồi rollback; thực tế cả hai lần đều lỗi trước khi kết nối được. Không gọi Flyway migrate/repair/clean, không tạo schema hoặc sửa dữ liệu Supabase. Host/credential được che trong log; các tệp probe tạm không chứa giá trị từ `.env` và không commit.
+
+Lệnh/kiểu lỗi tiêu biểu đã chạy từ gốc project (đường dẫn classpath rút gọn ở đây; runner thực tế dùng các JAR cache):
+
+```powershell
+.\backend\scripts\test-db-connection.ps1 -Quick
+java -cp <probe-classes-and-postgresql-42.7.3.jar> PostgresConfigProbe .env FLYWAY
+java -cp <probe-classes-and-postgresql-42.7.3.jar> PostgresConfigProbe .env DATASOURCE
+docker version --format '{{json .Server}}'
+```
+
+```text
+FLYWAY: JDBC failed; SQLState=08001; PSQLException
+Cause: java.net.UnknownHostException: <redacted>
+DATASOURCE: JDBC failed; SQLState=08001; PSQLException
+Cause: java.net.UnknownHostException: <redacted>
+Maven Central error: No such host is known. (repo.maven.apache.org:443)
+PGlite dependency fetch error: No such host is known. (registry.npmjs.org:443)
+```
+
+Maven 3.9.16 từ cache đã chạy từ backend:
+
+```powershell
+mvn -o "-Dmaven.repo.local=C:/Users/Phuocnghia_admin/.m2/repository" "-Dtest=ContactsMigrationTest,ContactPolicyServiceTest,SyncEventWriterTest,ContactDtosTest,LookupRateLimiterTest,MissingPhoneParameterTest" test
+```
+
+Lỗi dừng trước test: `Non-resolvable parent POM ... spring-boot-starter-parent:pom:3.3.5 (absent): Cannot access central ... in offline mode`. Thiếu dependency và lỗi phân giải DNS là các bằng chứng riêng; không kết luận mật khẩu sai, thiếu quyền database hoặc database hỏng.
+
+### Kết luận nghiệm thu và điểm dừng
+
+- **01 chưa hoàn thành:** đã có schema/loader/Flyway mới từ main và Quick config đạt; chưa kiểm database mới/nâng cấp/default/rollback, chưa xử lý dứt điểm khác biệt test nháp với chính sách backfill, chưa chạy local dev server trên PostgreSQL.
+- **02 chưa hoàn thành:** các test DTO/lỗi/helper hiện có vẫn đạt; chưa kiểm advisory lock hai chiều và commit/rollback/concurrency, JSONB với schema thật, hợp đồng sự kiện đầy đủ hoặc JWT tích hợp trên PostgreSQL. Không gộp các phần con thành nghiệm thu toàn mục.
+- **0/2 hạng mục cấp chính được nghiệm thu.** Không triển khai mục thứ ba. Chưa có thay đổi UI để bấm thử; chưa chạy APK, emulator, full Maven/Gradle build hoặc test backend thật end-to-end.
+- Chỉ cập nhật file báo cáo này, không thay mã sản phẩm, migration hoặc các test nháp chưa nghiệm thu. Commit báo cáo bằng Author và Committer `MeanFen <nghiapp11102006@gmail.com>`; không push, không xóa stash/backup, không tạo project/worktree.
+- Điều kiện còn thiếu để tiếp tục: phiên thực thi phân giải/kết nối được host PostgreSQL trong .env hoặc có engine PostgreSQL nhúng cục bộ; đồng thời có đủ dependency backend để chạy test Flyway/JWT/transaction. Giá trị .env có mặt không khắc phục được lỗi DNS của phiên thực thi.
