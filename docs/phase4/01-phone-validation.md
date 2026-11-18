@@ -2,7 +2,7 @@
 
 Ngày thực hiện: 17/11/2026. Đây là file báo cáo chung duy nhất, được cập nhật sau từng đợt nhỏ.
 
-Cập nhật mới nhất: 18/11/2026 - đợt 09, bộ ánh xạ lỗi HTTP danh bạ sang ContactsResult (10c).
+Cập nhật mới nhất: 18/11/2026 - đợt 10, kiểm tra hai mục cấp chính 01 và 02; chưa nghiệm thu do bị chặn môi trường PostgreSQL/build.
 
 **Nơi làm việc hiện tại:** `D:\HCMUTE\Y3\S1\T2\LapTrinhDiDong\TeamProject`, nhánh `phase4_NP`.
 Từ lần thống nhất worktree dưới đây chỉ tiếp tục làm việc trong thư mục này. Các đoạn mô tả dùng worktree review ở đợt 01/02 là lịch sử.
@@ -200,12 +200,14 @@ Link nhánh dự kiến: https://github.com/Project-Mobile-TEAM/Project_Mobile/t
 
 Hai thành phần đã kiểm thử riêng là chuẩn hóa SĐT (28 test) và giới hạn tra cứu (8 test). Chúng chưa tạo thành luồng tìm người hoàn chỉnh. Các mục dưới đây đều chưa được nghiệm thu, dù một số đã có code nháp trong `TeamProject`.
 
-Có 20 hạng mục để theo dõi, không mặc định tương ứng đúng 20 lượt thực hiện. Mục lớn có thể tách thành nhiều đợt nhỏ. Trước khi viết, đọc lại bản nháp liên quan để sửa và tái sử dụng phần phù hợp. Chỉ đánh dấu `[x]` khi đã có bằng chứng đạt các điều kiện của mục đó.
+Có 20 hạng mục để theo dõi, không mặc định tương ứng đúng 20 lượt thực hiện. Từ đợt 10, mỗi lượt chọn tối đa hai hạng mục cấp chính 01–20 theo thứ tự phụ thuộc; các phần con không được tính thành hạng mục cấp chính. Trước khi viết, đọc lại bản nháp liên quan để sửa và tái sử dụng phần phù hợp. Chỉ đánh dấu `[x]` khi đã có bằng chứng đạt toàn bộ điều kiện của mục đó; nếu bị chặn thì ghi nguyên nhân và phần còn thiếu.
 
 ### Backend
 
 - [ ] **01. Migration `is_friend` và database chạy thử:** kiểm tra tạo database mới và nâng cấp database cũ; phân biệt bạn bè với chặn; xử lý rõ dữ liệu chặn cũ không đủ thông tin; cập nhật bộ nạp schema chạy thử cùng migration mới. Không sửa migration đã áp dụng.
+  - Đợt 10: đã kiểm tra bản nháp, chưa nghiệm thu PostgreSQL; Docker chưa chạy được, thiếu engine nhúng và không tải được dependency. Đã tái hiện lỗi splitter cắt khối DO của V4; loader/migration/test bản nháp vẫn cần sửa và kiểm chứng trên PostgreSQL.
 - [ ] **02. DTO, lỗi API, chính sách quan hệ, khóa cặp và sự kiện:** chốt JSON/mã lỗi; tái sử dụng JWT Phase 3; thống nhất khóa cặp trước khi khóa dòng; bổ sung `SyncEventWriter` và hợp đồng `CONTACT_REQUEST_CREATED`, `CONTACT_REQUEST_UPDATED`, `CONTACT_UPDATED`; cập nhật tài liệu hợp đồng tương ứng.
+  - Đợt 10: 36 test hồi quy chọn lọc backend đạt; chưa kiểm advisory lock, JSONB/schema và transaction trên PostgreSQL, chưa hoàn tất hợp đồng sự kiện/tích hợp JWT. Phụ thuộc môi trường PostgreSQL và schema của mục 01, không nghiệm thu từ kết quả H2.
   - [x] **02a. Lỗi thiếu query bắt buộc:** thiếu `phone` trả `400 PHONE_INVALID`; thiếu tham số khác trả `400 VALIDATION`; 4 test Spring MVC đạt. Các phần còn lại của mục 02 vẫn chưa nghiệm thu.
   - [x] **02b. DTO JSON danh bạ và lời mời:** chốt năm record, kiểm đúng tên trường, boolean, ID/chiều lời mời và hồ sơ tối thiểu không chứa SĐT; 9 test Jackson đạt. Chưa nghiệm thu DTO Android, endpoint hoặc chính sách trả dữ liệu của service.
   - [x] **02c. Helper ghi sự kiện trong transaction:** `SyncEventWriter` yêu cầu transaction đang có, cùng commit/rollback với caller, không nuốt lỗi JSON/JDBC; 7 test Spring proxy và JDBC trên H2 đạt. Chưa nghiệm thu schema/JSONB PostgreSQL hoặc sự kiện của các thao tác quan hệ thật.
@@ -240,12 +242,13 @@ Có 20 hạng mục để theo dõi, không mặc định tương ứng đúng 2
 - [ ] **19. Màn hình danh sách chặn:** hiển thị dữ liệu online/cache offline, bỏ chặn có xác nhận và đối soát đúng; có empty/loading/error state. Với cả mục 16–19: dùng ViewBinding đúng vòng đời, `ListAdapter + DiffUtil`, Material DayNight và chuỗi Anh–Việt.
 - [ ] **20. Nghiệm thu toàn luồng:** chạy Android với backend và PostgreSQL thật, tắt Fake; dùng ít nhất ba tài khoản thử A/B/C để kiểm cả người thứ ba; kiểm quyền, đồng thời, request lặp, offline giữa thao tác, đổi tài khoản/đổi phiên, xoay màn hình, sáng tối và Anh–Việt; chạy bộ backend test, Android unit test, Room test và Lint cần thiết; ghi đúng kết quả và giới hạn còn lại.
 
-### Quy tắc áp dụng ở mỗi đợt nhỏ
+### Quy tắc áp dụng ở mỗi đợt
 
 - Kiểm thử ngay từng phần: PostgreSQL thật/nhúng cho nghiệp vụ backend, Room thật cho DAO, unit test cho Repository và ViewModel. Mục 20 là nghiệm thu tổng thể, không phải lúc bắt đầu viết test.
 - Tích hợp một luồng thật ngay khi backend và client đủ thành phần để kiểm tra, không chờ tất cả màn hình hoàn tất.
 - Mọi thay đổi quan hệ phải ghi `sync_events` trong cùng transaction; WebSocket và `/api/sync` thuộc Phase 5, gọi thoại thuộc Phase 6.
-- Theo yêu cầu mới nhất: chọn một phần nhỏ → kiểm tra đạt → cập nhật duy nhất file báo cáo này → commit đúng phạm vi bằng Author và Committer `MeanFen <nghiapp11102006@gmail.com>` → báo kết quả và dừng. Không tự push; người dùng tự kiểm tra và push bằng Terminal. Các lần push ghi ở phần trước là lịch sử.
+- Từ đợt 10: chọn hai mục cấp chính chưa hoàn thành theo phụ thuộc, hoàn thành mục thứ nhất rồi tiếp tục mục thứ hai trong cùng lượt; tối đa hai mục, không triển khai mục thứ ba. Nghiệm thu toàn mục, không bàn giao chỉ vì xong một phần con. Nếu phụ thuộc chưa hoàn thành thì ưu tiên phụ thuộc vào một trong hai vị trí; nếu gặp trở ngại thực sự không giải quyết được thì ghi bằng chứng, không hạ tiêu chuẩn hoặc tính các phần con thành hai mục hoàn thành.
+- Cập nhật duy nhất file báo cáo này, chỉ stage thay đổi thuộc hai mục đã chọn và báo cáo; ưu tiên một commit cho mỗi mục hoàn thành, với Author và Committer `MeanFen <nghiapp11102006@gmail.com>`. Không sửa lịch sử, không tự push; người dùng tự kiểm tra và push bằng Terminal. Cuối lượt báo trạng thái thật, kiểm thử, khả năng bấm thử UI, commit và trở ngại rồi dừng. Các quy tắc một phần nhỏ/lượt và các lần push ở phần trước là lịch sử.
 - Chỉ làm việc trong `D:\HCMUTE\Y3\S1\T2\LapTrinhDiDong\TeamProject`; bảo toàn các bản nháp chưa commit và bản dự phòng hiện có.
 
 Checklist này chỉ bổ sung kế hoạch theo dõi; việc thêm checklist không đánh dấu hoàn thành thêm tính năng hoặc tạo kết quả test mới.
@@ -651,3 +654,68 @@ Lệnh Gradle trên là hướng dẫn, không được chạy trong đợt này
 - Mục 01, khóa cặp PostgreSQL của mục 02 và mục 10 tổng thể vẫn chưa hoàn thành. Chưa chạy full Maven/Gradle build, PostgreSQL, APK hoặc emulator.
 - Chỉ commit bốn tệp nêu trên với Author và Committer `MeanFen <nghiapp11102006@gmail.com>`. Giữ nguyên các bản nháp khác; không sửa lịch sử, tạo project/worktree hay báo cáo khác.
 - Không push. Dừng để người dùng tự kiểm tra và push bằng Terminal; chưa triển khai phần tiếp theo.
+
+## Đợt 10 - Hai hạng mục cấp chính 01 và 02, 18/11/2026
+
+### Phạm vi và trạng thái thực tế
+
+Áp dụng quy tắc mới: tối đa hai mục cấp chính trong một lượt. Chọn 01 trước 02 vì schema is_friend là nền cho chính sách quan hệ, khóa cặp và ghi sự kiện. Không chọn thêm mục thứ ba và không tính các phần con 02a–02d hoặc 10a–10c thành mục cấp chính hoàn thành.
+
+| Mục đã chọn | Trạng thái cuối đợt | Phần còn thiếu để nghiệm thu |
+|---|---|---|
+| 01. Migration và database chạy thử | **Chưa hoàn thành, bị chặn** | Sửa loader/test đang tách sai khối DO; kiểm database mới, nâng cấp, rollback khi dữ liệu chặn cũ mơ hồ, default/constraint và bộ nạp dev trên PostgreSQL thật/nhúng |
+| 02. DTO, lỗi, chính sách, khóa cặp và sự kiện | **Chưa hoàn thành, bị chặn phần PostgreSQL** | Kiểm lock cặp hai chiều, chờ/nhả lock khi commit/rollback, thứ tự trước khóa dòng; kiểm JSONB và nguyên tử dữ liệu/sự kiện trên schema thật; chốt đủ hợp đồng sự kiện và kiểm tích hợp JWT Phase 3 |
+
+**0/2 hạng mục cấp chính được nghiệm thu trong đợt này.** Hai mục cùng phụ thuộc PostgreSQL; các kết quả unit/H2 đã có không thay thế tiêu chuẩn đó. Không thay phiên bản Spring Boot để né dependency thiếu, không dùng H2 để nhận migration hoặc advisory lock đã đạt.
+
+### Đã kiểm tra và tự xử lý môi trường
+
+- Xác nhận thư mục TeamProject, nhánh phase4_NP, HEAD đầu đợt `4dc965a`; index rỗng. Lưu hash của 36 tệp chưa commit trong `.task-cache/phase4-main-01-02/dirty-before.json`; giữ nguyên nội dung tất cả các bản nháp.
+- Đọc V1/V3/V4, ContactsMigrationTest, LocalDevServer, schema sync_events, pom.xml, ContactPolicyService, SyncEventWriter và các bản nháp/test liên quan. Chưa sửa migration đã áp dụng hoặc đưa API nghiệp vụ ngoài 01/02 vào commit.
+- Không tìm thấy psql/initdb/pg_ctl trong PATH, không có engine Zonky nhúng trong Maven cache. Có driver PostgreSQL JDBC trong cache nhưng driver không phải database engine. Không thấy cấu hình database kiểm thử qua các tên biến môi trường PostgreSQL thông dụng.
+- Kiểm hai Docker context default và desktop-linux: cả hai không kết nối được daemon. Thử docker desktop start, sau đó thử mở Docker Desktop.exe trực tiếp với cửa sổ ẩn; lệnh mở trả PID nhưng kiểm tra tiếp vẫn không thấy daemon hoạt động. Không sửa registry hoặc cấu hình hệ thống.
+- WSL không cho liệt kê distro. Kiểm bind TCP loopback tạm bằng .NET thành công; không kết luận firewall hỏng hoặc mọi kết nối nội bộ đều bị chặn.
+- Thử truy cập POM embedded-postgres 2.0.7 trên Maven Central để có thể tải engine/dependency: lỗi DNS. Chạy Maven offline bằng bản Maven 3.9.16 có sẵn cũng không qua bước đọc POM vì thiếu Spring Boot parent 3.3.5.
+
+Bằng chứng lỗi thực tế:
+
+```text
+failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine; check if the path is correct and if the daemon is running: open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified.
+
+starting Docker Desktop: getting launcher path: cannot find registry key "SOFTWARE\\Docker Inc.\\Docker Desktop": The system cannot find the file specified.
+
+Access is denied.
+Error code: Wsl/E_ACCESSDENIED
+
+No such host is known. (repo.maven.apache.org:443)
+```
+
+Lỗi parent POM nguyên văn trong lần Maven offline:
+
+```text
+Non-resolvable parent POM for com.utechat:backend:1.0.0: The following artifacts could not be resolved: org.springframework.boot:spring-boot-starter-parent:pom:3.3.5 (absent): Cannot access central (https://repo.maven.apache.org/maven2) in offline mode and the artifact org.springframework.boot:spring-boot-starter-parent:pom:3.3.5 has not been downloaded from it before. and 'parent.relativePath' points at no local POM @ line 6, column 13
+```
+
+Lệnh Maven đã thực sự chạy từ backend, bằng executable Maven trong cache:
+
+```powershell
+mvn -o -Dmaven.repo.local=C:/Users/Phuocnghia_admin/.m2/repository "-Dtest=ContactsMigrationTest,ContactPolicyServiceTest,SyncEventWriterTest,ContactDtosTest,LookupRateLimiterTest,MissingPhoneParameterTest" test
+```
+
+Lệnh thoát mã 1 **trước khi chạy test**. Đây là thiếu dependency/build; lần tải POM trực tiếp lỗi DNS. Không liên quan đến kết nối hoặc quyền GitHub; không có thao tác push trong đợt này.
+
+### Kiểm tra đã chạy và phát hiện trong bản nháp
+
+- Biên dịch lại các nguồn backend đã nghiệm thu bằng javac --release 17 và chạy JUnit Platform Launcher: **36 test đạt, 0 failed, 0 skipped**, gồm policy 8, sync writer 7, DTO 9, rate limiter 8, missing parameter 4. Đây là kiểm thử hồi quy đã có, không có test PostgreSQL mới đạt. Runner có cảnh báo SLF4J thiếu provider như các đợt trước.
+- Chạy probe Java với chính ScriptUtils của Spring JDBC 6.1.12 trong cache lên V4 bản nháp: **8 đoạn SQL**, `DO block split before END $$: true`. Đã tái hiện việc splitter dấu chấm phẩy mặc định cắt khối DO trước END. Đây là chẩn đoán bộ nạp SQL, **không phải chạy migration trên PostgreSQL**.
+- LocalDevServer và ContactsMigrationTest bản nháp hiện dùng splitter mặc định; vì vậy assertThrows(RuntimeException.class) trong test mơ hồ không đủ để chứng minh lỗi do dữ liệu chặn: cũng có thể bắt nhầm lỗi loader/cú pháp. Cần sửa cả loader và assertion theo lỗi migration mong muốn khi có thể kiểm PostgreSQL, không chỉ thêm test đếm dòng.
+- V4 chủ động dừng khi cả hai chiều đều chặn để tránh đoán nhầm bạn bè. Chưa kiểm được hành vi rollback hay nâng cấp thật; không xác nhận migration đã an toàn chỉ từ đọc SQL hoặc probe.
+- Không sửa mã sản phẩm/SQL/test bản nháp khi chưa thể kiểm chứng thay đổi nền PostgreSQL. Probe và output tạm chỉ nằm trong .task-cache, không commit. Không chạy lại Android hoặc toàn bộ test ứng dụng vì đợt này chưa thay đổi mã Android.
+
+### Tệp thay đổi, commit và điểm dừng
+
+- Chỉ thay đổi `docs/phase4/01-phone-validation.md`: cập nhật quy tắc đợt mới, trạng thái 01/02, bằng chứng môi trường, phát hiện loader và kết quả thực tế. Không tạo file báo cáo khác.
+- Commit đợt này chỉ ghi nhận báo cáo bị chặn, không phải commit hoàn thành 01 hoặc 02; Author và Committer là `MeanFen <nghiapp11102006@gmail.com>`. Không sửa lịch sử, không tạo project/worktree, không push.
+- Chưa có chức năng hoặc thay đổi giao diện mới để bấm thử; không tuyên bố đã chạy app với backend thật hoặc Fake trong đợt này.
+- Điều kiện để tiếp tục hai mục này: môi trường cho phép chạy một engine PostgreSQL thật/nhúng và có đủ dependency backend 3.3.5 (qua cache hợp lệ hoặc kết nối Maven Central). Sau đó phải sửa và kiểm đầy đủ 01 trước khi nghiệm thu phần PostgreSQL của 02.
+- Dừng đợt này với cả hai ô chính vẫn `[ ]`; không triển khai mục thứ ba.
