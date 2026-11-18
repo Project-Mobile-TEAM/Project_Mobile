@@ -2,7 +2,7 @@
 
 Ngày thực hiện: 17/11/2026. Đây là file báo cáo chung duy nhất, được cập nhật sau từng đợt nhỏ.
 
-Cập nhật mới nhất: 18/11/2026 — đợt 07, DTO Android đọc hợp đồng JSON (10a).
+Cập nhật mới nhất: 18/11/2026 - đợt 08, hợp đồng Retrofit cho 11 endpoint danh bạ (10b).
 
 **Nơi làm việc hiện tại:** `D:\HCMUTE\Y3\S1\T2\LapTrinhDiDong\TeamProject`, nhánh `phase4_NP`.
 Từ lần thống nhất worktree dưới đây chỉ tiếp tục làm việc trong thư mục này. Các đoạn mô tả dùng worktree review ở đợt 01/02 là lịch sử.
@@ -223,7 +223,8 @@ Có 20 hạng mục để theo dõi, không mặc định tương ứng đúng 2
 **Phụ thuộc bắt buộc:** thiết kế và kiểm chứng cơ chế phiên, executor và phản hồi cũ của mục 14 trước khi ghi cache trong mục 12–13. Fake Repository và Injection được mở rộng cùng các phần sử dụng chúng.
 
 - [ ] **10. Retrofit, DTO Android và ánh xạ lỗi:** khai báo đủ 11 endpoint, dùng client/Bearer hiện có; ánh xạ đúng JSON backend, `isContact`, trạng thái quan hệ, ID/chiều lời mời, `retryAfterSeconds`; có kiểm thử tương thích hợp đồng và lỗi mạng.
-  - [x] **10a. DTO Android và JSON Gson:** đọc đúng lookup, lời mời, danh sách contact và details của lỗi 409/429; body gửi chỉ gồm addresseeId; 10 test Gson đạt. Chưa nghiệm thu Retrofit, HTTP thực tế hoặc xử lý lỗi ở Repository.
+  - [x] **10a. DTO Android và JSON Gson:** đọc đúng lookup, lời mời, danh sách contact và details của lỗi 409/429; body gửi chỉ gồm addresseeId; 10 test Gson đạt. Phạm vi DTO; kiểm hợp đồng Retrofit được ghi riêng ở 10b.
+  - [x] **10b. Interface Retrofit cho 11 endpoint:** kiểm method/path/query/body, chuyển JSON sang DTO/List, 201/204, giữ lỗi HTTP 409/429 và truyền IOException; 16 test dùng Retrofit/OkHttp/Gson thật với interceptor giả lập đạt. Chưa kiểm backend, JWT hoặc ánh xạ sang kết quả Repository.
 - [ ] **11. Room DAO và cập nhật cache bằng transaction:** đối soát để xóa dữ liệu hết hiệu lực, giữ hồ sơ và quyền riêng tư khi DTO thiếu trường; lưu dòng chặn và hồ sơ tối thiểu nguyên tử; giữ schema v1 theo kế hoạch; kiểm truy vấn và rollback bằng Room in-memory thật.
 - [ ] **12. Repository cho tìm kiếm và lời mời:** nối REST với Room, bảo vệ callback theo phiên và độ mới; cập nhật lời mời sau thao tác; accept không tự tạo bạn từ lịch sử `ACCEPTED` mà đối soát danh sách server; giữ các chữ ký cũ còn được sử dụng.
 - [ ] **13. Repository cho bạn bè và chặn:** cập nhật cache đúng sau unfriend/block/unblock; phản hồi tải lại cũ không ghi đè thao tác mới; phân biệt thao tác đã lưu nhưng refresh thất bại với kết quả ghi chưa xác định do mất phản hồi; không suy đoán quan hệ bạn bè.
@@ -544,3 +545,54 @@ Lệnh Gradle trên là hướng dẫn chạy lại, chưa được xác nhận 
 - Mục 01, phần khóa cặp PostgreSQL của mục 02 và mục 10 tổng thể vẫn chưa hoàn thành. Chưa chạy full Maven/Gradle build, PostgreSQL, APK hoặc emulator.
 - Chỉ commit ba tệp liệt kê trên với Author và Committer `MeanFen <nghiapp11102006@gmail.com>`; các bản nháp khác được bảo toàn ngoài commit.
 - Không push hoặc triển khai phần tiếp theo. Dừng để người dùng tự kiểm tra và push bằng Terminal.
+
+## Đợt 08 - Hợp đồng Retrofit cho 11 endpoint danh bạ (10b), 18/11/2026
+
+### Phạm vi và tệp thay đổi
+
+Chỉ hoàn thành interface REST của Android, tiếp nối DTO ở đợt 07. Đã đối chiếu đường dẫn và mã phản hồi với `docs/API_CONTRACT.md`, quy tắc URL/Bearer với `docs/DEPLOYMENT_SECURITY.md` và chữ ký controller bản nháp. Không đưa controller hoặc service bản nháp vào commit này.
+
+| Tệp | Thay đổi |
+|---|---|
+| `app/src/main/java/com/utechat/data/remote/api/ContactApi.java` | Chốt 11 endpoint từ bản nháp, giữ chữ ký đang được gọi, dùng import và chú thích tiếng Việt; đường dẫn tương đối `api/...`, query phone được Retrofit mã hóa, JSON tạo lời mời chỉ có người nhận, thao tác 204 dùng `Call<Void>` |
+| `app/src/test/java/com/utechat/data/remote/api/ContactApiTest.java` | 16 test JUnit chạy Retrofit, OkHttp và Gson thật; interceptor ghi request và trả fixture trước tầng socket |
+| `docs/phase4/01-phone-validation.md` | Cập nhật checklist 10a/10b, kết quả chạy và giới hạn; mục 10 tổng thể vẫn chưa hoàn thành |
+
+Không thêm dependency hoặc tạo client riêng trong mã sản phẩm. Interface được thiết kế để tạo từ `ApiClient` hiện có với URL cấu hình tập trung và interceptor Bearer. Test dùng Retrofit riêng không có token; không phải bằng chứng đã nghiệm thu tích hợp `ApiClient`/JWT.
+
+`requests()` hiện lấy toàn bộ danh sách, không tự thêm bộ lọc status/type; chưa bổ sung giao diện gọi lọc trên server. ID trong accept/reject/cancel là ID lời mời; ID trong unfriend/block/unblock là ID tài khoản. Backend vẫn chịu trách nhiệm kiểm UUID, quyền và trạng thái nghiệp vụ.
+
+### Kiểm thử thực tế
+
+| Nhóm test mới | Số test | Kết quả |
+|---|---:|---|
+| 11 endpoint: method/path và kiểu phản hồi; lookup giữ dấu `+`; send chỉ gửi addresseeId và nhận 201; danh sách có kiểu; accept/reject; cancel/unfriend/block/unblock nhận 204 | 11 | Đạt |
+| Path parameter mã hóa slash và khoảng trắng thành một segment | 1 | Đạt |
+| HTTP 429 và 409 giữ nguyên status/thân lỗi, không đọc thành DTO thành công | 2 | Đạt |
+| Danh sách JSON rỗng là kết quả thành công | 1 | Đạt |
+| IOException giả lập truyền lên caller, không trả thành công | 1 | Đạt |
+
+- Biên dịch bằng JDK 21 với `javac --release 17 -encoding UTF-8`: đạt. Đã đổi lời gọi tạo response body của fixture sang overload hiện hành rồi biên dịch/chạy lại.
+- JUnit 4.13.2 chạy `ContactApiTest` (16), DTO Android (10) và chuẩn hóa SĐT (28): **OK (54 tests)**.
+- Biên dịch lại các nguồn backend đã nghiệm thu và chạy JUnit Platform Launcher 1.10.3 / Jupiter 5.10.3: **36 tests successful, 0 failed, 0 skipped** (8 policy, 7 sync writer, 9 DTO, 8 rate limiter, 4 missing parameter).
+- Tổng **90 test chọn lọc đạt**, gồm **16 mới và 74 hồi quy**. Không suy ra toàn bộ ứng dụng đã pass.
+- Dùng JAR có sẵn trong cache: Retrofit/converter-gson 2.11.0, OkHttp 4.12.0, Okio JVM 3.6.0, Kotlin stdlib 1.9.0 và Gson 2.10.1. Kotlin stdlib chỉ là dependency runtime của OkHttp/Okio; mã ứng dụng/test vẫn là Java. Không tải hoặc thêm dependency mới.
+- Backend dùng Spring Framework 6.1.12, Jackson 2.17.2 và H2 2.2.224 như các đợt trước. Runner backend riêng có cảnh báo SLF4J thiếu provider; các test đạt.
+- Runner/classpath/output tạm trong `.task-cache`, không commit. Trước khi chỉnh sửa đã lưu bản interface nháp và hash 38 tệp chưa commit; các tệp ngoài phạm vi được giữ nguyên.
+
+Lệnh Gradle chuẩn để chạy lại từ thư mục gốc khi môi trường đủ điều kiện:
+
+```powershell
+.\gradlew.bat testDebugUnitTest --tests "com.utechat.data.remote.api.ContactApiTest" --tests "com.utechat.data.remote.model.ContactDtosTest" --tests "com.utechat.ui.contacts.ContactsValidatorTest" --no-daemon
+```
+
+Lệnh Gradle trên là hướng dẫn, không được chạy trong đợt này. Bằng chứng thực tế là biên dịch và chạy JUnit trực tiếp bằng JAR trong cache.
+
+### Giới hạn và điểm dừng
+
+- Interceptor trả fixture trước socket: chưa gọi backend, DNS, TLS hoặc HTTP server thật. Test prefix base URL chỉ kiểm cách Retrofit ghép đường dẫn, không xác minh cấu hình Release hay triển khai hosted.
+- Không chạy AuthInterceptor, không xác minh gửi Bearer hoặc từ chối JWT thiếu/sai/hết hạn. Chưa kiểm phân quyền server, quyền riêng tư hoặc thao tác giữa các tài khoản thật.
+- Giữ thân lỗi 409/429 và truyền IOException chưa phải ánh xạ sang `ContactsResult`/thông báo UI; phần ánh xạ và tích hợp Repository vẫn còn.
+- Không ghi Room, sửa phiên, triển khai backend hoặc màn hình. Mục 01, khóa cặp PostgreSQL của mục 02 và mục 10 tổng thể vẫn chưa hoàn thành; chưa chạy full Maven/Gradle build, PostgreSQL, APK hoặc emulator.
+- Chỉ commit ba tệp liệt kê trên với Author và Committer `MeanFen <nghiapp11102006@gmail.com>`; giữ nguyên các bản nháp ngoài phạm vi. Không sửa lịch sử, tạo project/worktree hoặc báo cáo khác.
+- Không push. Dừng để người dùng tự kiểm tra và push bằng Terminal; chưa triển khai phần tiếp theo.
