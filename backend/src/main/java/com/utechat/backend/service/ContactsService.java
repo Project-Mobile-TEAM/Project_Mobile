@@ -111,4 +111,52 @@ public class ContactsService {
             var existing=pending(actor,target); if(existing!=null) throw alreadyPending(actor,existing); throw e;
         }
     }
+    /** Chỉ lấy lời mời có actor tham gia; filter được kiểm danh sách cho phép trước khi tạo SQL. */
+    public List<ContactRequestDto> requests(UUID actor,String status,String type) {
+        String state=status==null||status.isBlank()?"PENDING":status;
+        if(!List.of("PENDING","ACCEPTED","REJECTED","CANCELED").contains(state) ||
+                (type!=null&&!type.isBlank()&&!List.of("incoming","outgoing").contains(type))) throw error(HttpStatus.BAD_REQUEST,"VALIDATION");
+        String direction="incoming".equals(type)?"r.addressee_id=?":"outgoing".equals(type)?"r.requester_id=?":"(r.requester_id=? OR r.addressee_id=?)";
+        Object[] args=type==null||type.isBlank()?new Object[]{state,actor,actor}:new Object[]{state,actor};
+        // Một snapshot SQL cho cả hai hồ sơ; ID là khóa phụ để thứ tự ổn định khi trùng thời gian.
+        return db.query(REQUEST_SELECT+"WHERE r.status=? AND "+direction+" AND a.status='ACTIVE' AND b.status='ACTIVE' ORDER BY r.created_at DESC,r.id DESC",this::mapRequest,args);
+    }
+
+    /** Chỉ người nhận chấp nhận; lấy khóa cặp trước khóa dòng và không phục hồi bạn từ lịch sử ACCEPTED. */
+    public ContactRequestDto accept(UUID actor, UUID key) {
+        return tx.execute(status -> {
+            // Tái sử dụng truy vấn nháp để tìm cặp bất biến, chưa khóa dòng ở bước đọc sơ bộ.
+            var preliminary = request(key, false);
+            UUID sender = id(preliminary.requester().id()), recipient = id(preliminary.addressee().id());
+            if (!actor.equals(recipient)) throw error(HttpStatus.FORBIDDEN, "FORBIDDEN");
+            pair(sender, recipient);
+            var current = request(key, true);
+            notBlocked(sender, recipient);
+            if ("ACCEPTED".equals(current.status())) return current;
+            if (!"PENDING".equals(current.status())) throw error(HttpStatus.CONFLICT, "INVALID_STATE");
+            db.update("UPDATE contact_requests SET status='ACCEPTED',responded_at=now() WHERE id=?", key);
+            UUID lo = sender.compareTo(recipient) < 0 ? sender : recipient;
+            UUID hi = lo.equals(sender) ? recipient : sender;
+            for (UUID owner : List.of(lo, hi)) {
+                UUID other = owner.equals(sender) ? recipient : sender;
+                // Giữ created_at của dòng đã có; không ghi event nếu cờ bạn bè vốn không đổi.
+                int changed = db.update("INSERT INTO contacts(owner_id,contact_user_id,is_friend,blocked) VALUES (?,?,TRUE,FALSE) "
+                        + "ON CONFLICT(owner_id,contact_user_id) DO UPDATE SET is_friend=TRUE WHERE NOT contacts.is_friend", owner, other);
+                if (changed > 0) acceptedContactEvent(owner, other);
+            }
+            var updated = request(key, false);
+            requestEvent(updated, "CONTACT_REQUEST_UPDATED");
+            return updated;
+        });
+    }
+
+    /** Đọc payload theo chiều chủ sở hữu ngay trong transaction accept, không phụ thuộc API danh sách mục 08. */
+    private void acceptedContactEvent(UUID owner, UUID other) {
+        ContactDto user = db.queryForObject("SELECT u.id,u.phone_e164,u.display_name,u.avatar_url,c.blocked,c.created_at "
+                + "FROM contacts c JOIN users u ON u.id=c.contact_user_id WHERE c.owner_id=? AND c.contact_user_id=?",
+                (row, index) -> new ContactDto(row.getString("id"), row.getString("phone_e164"), row.getString("display_name"),
+                        row.getString("avatar_url"), row.getBoolean("blocked"), row.getTimestamp("created_at").toInstant().toString()), owner, other);
+        events.write(owner, "CONTACT_UPDATED", "CONTACT", other.toString(), Map.of(
+                "contactUserId", other.toString(), "isFriend", true, "blocked", false, "removed", false, "user", user));
+    }
 }
