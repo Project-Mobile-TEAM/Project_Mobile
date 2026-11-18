@@ -2,6 +2,8 @@
 
 Ngày thực hiện: 17/11/2026. Đây là file báo cáo chung duy nhất, được cập nhật sau từng đợt nhỏ.
 
+Cập nhật mới nhất: 18/11/2026 — đợt 05, helper ghi sự kiện trong transaction (02c).
+
 **Nơi làm việc hiện tại:** `D:\HCMUTE\Y3\S1\T2\LapTrinhDiDong\TeamProject`, nhánh `phase4_NP`.
 Từ lần thống nhất worktree dưới đây chỉ tiếp tục làm việc trong thư mục này. Các đoạn mô tả dùng worktree review ở đợt 01/02 là lịch sử.
 
@@ -206,6 +208,7 @@ Có 20 hạng mục để theo dõi, không mặc định tương ứng đúng 2
 - [ ] **02. DTO, lỗi API, chính sách quan hệ, khóa cặp và sự kiện:** chốt JSON/mã lỗi; tái sử dụng JWT Phase 3; thống nhất khóa cặp trước khi khóa dòng; bổ sung `SyncEventWriter` và hợp đồng `CONTACT_REQUEST_CREATED`, `CONTACT_REQUEST_UPDATED`, `CONTACT_UPDATED`; cập nhật tài liệu hợp đồng tương ứng.
   - [x] **02a. Lỗi thiếu query bắt buộc:** thiếu `phone` trả `400 PHONE_INVALID`; thiếu tham số khác trả `400 VALIDATION`; 4 test Spring MVC đạt. Các phần còn lại của mục 02 vẫn chưa nghiệm thu.
   - [x] **02b. DTO JSON danh bạ và lời mời:** chốt năm record, kiểm đúng tên trường, boolean, ID/chiều lời mời và hồ sơ tối thiểu không chứa SĐT; 9 test Jackson đạt. Chưa nghiệm thu DTO Android, endpoint hoặc chính sách trả dữ liệu của service.
+  - [x] **02c. Helper ghi sự kiện trong transaction:** `SyncEventWriter` yêu cầu transaction đang có, cùng commit/rollback với caller, không nuốt lỗi JSON/JDBC; 7 test Spring proxy và JDBC trên H2 đạt. Chưa nghiệm thu schema/JSONB PostgreSQL hoặc sự kiện của các thao tác quan hệ thật.
 - [ ] **03. API tìm người bằng SĐT:** server kiểm E.164 và danh tính từ JWT, nối `LookupRateLimiter`; xác minh `400 PHONE_INVALID`, `400 SELF`, `404 NOT_FOUND` cho các trường hợp cần che hồ sơ và `429 RATE_LIMITED` kèm thời gian chờ; trả đúng trạng thái quan hệ và ID/chiều lời mời. Chuẩn hóa ô nhập phía Android được nối tại mục 17.
 - [ ] **04. Gửi lời mời kết bạn:** cấm tự gửi, gửi khi có block, gửi khi đã là bạn; xử lý trùng cùng chiều và ngược chiều bằng `409 REQUEST_ALREADY_PENDING`; hai yêu cầu đồng thời chỉ tạo một lời mời chờ; ghi sự kiện cho đúng hai bên trong cùng transaction.
 - [ ] **05. Xem lời mời đã nhận và đã gửi:** chỉ trả lời mời liên quan tài khoản hiện tại, lọc chiều/trạng thái đúng; không tiết lộ SĐT trong hồ sơ tối thiểu của lời mời; không cho người thứ ba đọc dữ liệu trái quyền.
@@ -378,3 +381,54 @@ Lệnh Maven trên là hướng dẫn chạy lại; kết quả lần này đư�
 - Chưa chạy full Maven/Gradle build, PostgreSQL, APK hoặc emulator.
 - Chỉ commit ba tệp liệt kê trên bằng danh tính MeanFen. Các bản nháp còn lại được giữ ngoài commit.
 - Không gọi GitHub, fetch hoặc push trong đợt này. Dừng sau khi báo phần đã làm, kết quả test và mã commit để người dùng tự kiểm tra và push bằng Terminal.
+
+## Đợt 05 — Helper ghi sync_events trong transaction (02c), 18/11/2026
+
+### Phạm vi và tệp thay đổi
+
+Chỉ đưa helper `SyncEventWriter` trong bản nháp vào phần được nghiệm thu riêng. Đã đối chiếu hai chỗ gọi trong `ContactsService` bản nháp và giữ nguyên constructor, chữ ký `write` và câu INSERT. Không mở rộng sang nghiệp vụ quan hệ, API hoặc đồng bộ realtime.
+
+| Tệp | Thay đổi |
+|---|---|
+| `backend/src/main/java/com/utechat/backend/service/SyncEventWriter.java` | Ghi sự kiện bằng tham số JDBC và JSON Jackson; `@Transactional(MANDATORY)` để tham gia transaction hiện có; ném lỗi serialize thay vì bỏ qua sự kiện; bổ sung chú thích tiếng Việt |
+| `backend/src/test/java/com/utechat/backend/contacts/SyncEventWriterTest.java` | 7 test dùng Spring proxy, DataSourceTransactionManager và JDBC thật trên H2 in-memory |
+| `backend/pom.xml` | Thêm H2 ở scope test để chạy kiểm thử transaction; không thay datasource hoặc dependency runtime production |
+| `docs/phase4/01-phone-validation.md` | Đánh dấu riêng 02c, ghi kết quả và giới hạn của test H2 |
+
+Helper không tự tạo transaction độc lập. Khi caller rollback, các sự kiện cũng bị rollback; lỗi JSON hoặc JDBC được ném ra để không commit dữ liệu nghiệp vụ mà thiếu sự kiện.
+
+### Kiểm thử thực tế
+
+| Test mới | Kết quả |
+|---|---|
+| Gọi qua Spring proxy khi không có transaction bị từ chối và không ghi dòng nào | Đạt |
+| Sự kiện và marker nghiệp vụ cùng commit; recipient, loại, entity, ID và JSON Unicode được ghi đúng | Đạt |
+| Caller rollback xóa cả hai sự kiện đã ghi và marker nghiệp vụ | Đạt |
+| Lỗi serialize JSON rollback thay đổi nghiệp vụ trước đó | Đạt |
+| Caller bắt lỗi serialize nhưng transaction vẫn rollback-only, không commit được | Đạt |
+| Lỗi ràng buộc JDBC không bị nuốt và rollback thay đổi nghiệp vụ | Đạt |
+| Payload lời mời giữ hai hồ sơ tối thiểu, không có phone | Đạt |
+
+- Biên dịch chính helper, test và các thành phần đã nghiệm thu bằng JDK 21, `javac --release 17 -encoding UTF-8`: đạt.
+- JUnit Platform Launcher 1.10.3 / Jupiter 5.10.3 chạy `SyncEventWriterTest` (7), `ContactDtosTest` (9), `LookupRateLimiterTest` (8), `MissingPhoneParameterTest` (4): **28 tests successful, 0 failed**.
+- Chạy lại `ContactsValidatorTest` bằng JUnit 4.13.2: **OK (28 tests)**.
+- Tổng **56 test chọn lọc đạt**, gồm **7 mới và 49 hồi quy**, không có test bị bỏ qua.
+- Dùng H2 2.2.224, Spring Framework 6.1.12, Jackson 2.17.2 từ cache. Runner nằm trong `.task-cache/input-error-tests`, không đưa vào commit. Có cảnh báo SLF4J thiếu provider trong runner riêng; không làm test thất bại.
+
+Lệnh chuẩn từ `backend` khi Maven đủ dependency:
+
+```powershell
+.\mvnw.cmd test "-Dtest=SyncEventWriterTest,ContactDtosTest,LookupRateLimiterTest,MissingPhoneParameterTest"
+```
+
+Lệnh Maven là hướng dẫn chạy lại, chưa được xác nhận chạy thành công trong đợt này. Bằng chứng thực tế là JUnit trực tiếp với dependency cache, Spring transaction proxy và H2 JDBC.
+
+### Giới hạn và điểm dừng
+
+- Fixture H2 dùng bảng `sync_events` tối thiểu và domain `JSONB AS CHARACTER VARYING` để kiểm nội dung chuỗi JSON và transaction; không thực thi migration V1/V4, CHECK/FK/RLS hoặc kiểu JSONB của PostgreSQL.
+- Kết quả rollback/commit trên H2 không thay thế nghiệm thu trên PostgreSQL/Supabase. Chưa kiểm đồng thời, thứ tự sự kiện, cursor hoặc realtime.
+- Caller phải lấy helper qua Spring để `@Transactional(MANDATORY)` có hiệu lực; tạo bằng `new` sẽ không đi qua proxy. Test đợt này dùng bean Spring thật.
+- Chưa kiểm việc các thao tác send/accept/reject/cancel/block/unblock/unfriend thực sự ghi đủ sự kiện. Phần này thuộc các mục nghiệp vụ trong checklist.
+- Mục 01 và mục 02 tổng thể vẫn chưa đánh dấu hoàn thành. Chưa chạy full Maven/Gradle build, PostgreSQL, APK hoặc emulator.
+- Chỉ commit bốn tệp liệt kê trên với Author và Committer `MeanFen <nghiapp11102006@gmail.com>`; các bản nháp khác vẫn giữ ngoài commit.
+- Không push, không sửa lịch sử hoặc chuyển sang phần tiếp theo trong đợt này. Dừng cho người dùng tự kiểm tra và push bằng Terminal.

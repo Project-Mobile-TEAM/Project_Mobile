@@ -31,6 +31,8 @@
         <dependency><groupId>io.jsonwebtoken</groupId><artifactId>jjwt-impl</artifactId><version>0.12.6</version><scope>runtime</scope></dependency>
         <dependency><groupId>io.jsonwebtoken</groupId><artifactId>jjwt-jackson</artifactId><version>0.12.6</version><scope>runtime</scope></dependency>
         <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-test</artifactId><scope>test</scope></dependency>
+        <!-- H2 chỉ kiểm thử JDBC/transaction của helper sự kiện; không thay thế kiểm thử schema PostgreSQL. -->
+        <dependency><groupId>com.h2database</groupId><artifactId>h2</artifactId><scope>test</scope></dependency>
         <dependency><groupId>org.springframework.security</groupId><artifactId>spring-security-test</artifactId><scope>test</scope></dependency>
         <!-- PostgreSQL thật chạy nhúng cho test tích hợp: kiểm SQL trên đúng schema V1, không cần Docker hay Supabase. -->
         <dependency><groupId>io.zonky.test</groupId><artifactId>embedded-postgres</artifactId><version>2.0.7</version><scope>test</scope></dependency>
