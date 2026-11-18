@@ -2,7 +2,7 @@
 
 Ngày thực hiện: 17/11/2026. Đây là file báo cáo chung duy nhất, được cập nhật sau từng đợt nhỏ.
 
-Cập nhật mới nhất: 18/11/2026 - đợt 14, triển khai code và bộ test API 03–04; build Maven/JDK 27 và 46 test không cần PostgreSQL đạt, chờ chạy bộ 117 test trên Windows để nghiệm thu 03–04. Mục 01–02 giữ trạng thái đã nghiệm thu.
+Cập nhật mới nhất: 18/11/2026 - đợt 21, đối chiếu kết quả Windows -AndroidContract: đủ 20 XML/20 TXT, 251 test đạt, không failure/error/skipped; gate app ghi 58 test JUnit4 đạt, không ignored. Nghiệm thu mục 09–10 trong phạm vi API và hợp đồng client thuần Java; 01–10 đã nghiệm thu, 11–20 chưa nghiệm thu. Bằng chứng và giới hạn tại đợt 21 cuối báo cáo.
 
 **Nơi làm việc hiện tại:** `D:\HCMUTE\Y3\S1\T2\LapTrinhDiDong\TeamProject`, nhánh `phase4_NP`.
 Từ lần thống nhất worktree dưới đây chỉ tiếp tục làm việc trong thư mục này. Các đoạn mô tả dùng worktree review ở đợt 01/02 là lịch sử.
@@ -198,7 +198,7 @@ Link nhánh dự kiến: https://github.com/Project-Mobile-TEAM/Project_Mobile/t
 
 ## Checklist các hạng mục còn lại của Phase 4
 
-Hai thành phần đã kiểm thử riêng là chuẩn hóa SĐT (28 test) và giới hạn tra cứu (8 test). **Mục 01–02 đã nghiệm thu tại đợt 13; API backend 03–04 tại đợt 15; mục 05–06 tại đợt 17; mục 07–08 tại đợt 19 bằng bộ Windows 215 test.** Luồng tìm người trên Android chưa hoàn chỉnh; chuẩn hóa ô nhập và gọi API từ màn hình còn thuộc mục 17. Các mục 09–20 vẫn chưa được nghiệm thu toàn mục, dù một số đã có code nháp trong `TeamProject`.
+Hai thành phần đã kiểm thử riêng là chuẩn hóa SĐT (28 test) và giới hạn tra cứu (8 test). **Mục 01–02 đã nghiệm thu tại đợt 13; API backend 03–04 tại đợt 15; mục 05–06 tại đợt 17; mục 07–08 tại đợt 19 bằng bộ Windows 215 test; mục 09–10 tại đợt 21 bằng bộ Windows 251 test cùng 58 test app lồng.** Luồng tìm người trên Android chưa hoàn chỉnh; chuẩn hóa ô nhập và gọi API từ màn hình còn thuộc mục 17. Các mục 11–20 vẫn chưa được nghiệm thu toàn mục, dù một số đã có code nháp trong `TeamProject`. Phạm vi và bằng chứng nghiệm thu mới được ghi tại đợt 21.
 
 Có 20 hạng mục để theo dõi, không mặc định tương ứng đúng 20 lượt thực hiện. Từ đợt 10, mỗi lượt chọn tối đa hai hạng mục cấp chính 01–20 theo thứ tự phụ thuộc; các phần con không được tính thành hạng mục cấp chính. Trước khi viết, đọc lại bản nháp liên quan để sửa và tái sử dụng phần phù hợp. Chỉ đánh dấu `[x]` khi đã có bằng chứng đạt toàn bộ điều kiện của mục đó; nếu bị chặn thì ghi nguyên nhân và phần còn thiếu.
 
@@ -220,19 +220,23 @@ Có 20 hạng mục để theo dõi, không mặc định tương ứng đúng 2
   - Đợt 17: đối chiếu đủ 17 testcase API/JWT/PostgreSQL đạt trong bộ Windows 159 test. Đã kiểm chủ danh sách từ JWT, chiều/trạng thái, cách ly người thứ ba, hồ sơ tối thiểu, dữ liệu inactive/privacy, filter sai, thứ tự ổn định và API đọc không ghi dữ liệu.
 - [x] **06. Chấp nhận lời mời:** chỉ người nhận được thực hiện, kiểm tra block; cập nhật lời mời, tạo hai dòng bạn bè và sự kiện nguyên tử; chấp nhận lặp không tạo trùng; chấp nhận lại lời mời cũ sau unfriend không tạo lại bạn bè; kiểm thử accept đồng thời với block.
   - Đợt 17: xác nhận 25 testcase API/JWT/PostgreSQL đạt, gồm JSONB/event, đồng thời, CHECK/rollback/retry và luồng tích hợp 03–06. Hai ca accept/block kiểm với fixture transaction SQL dùng khóa cặp; đây là nghiệm thu hành vi accept, chưa nghiệm thu HTTP/sự kiện của API block mục 09. Giữ yêu cầu kiểm tích hợp với API block thật khi làm 09.
+  - Đợt 21: đóng yêu cầu bổ sung accept/block bằng testcase `actualAcceptAndBlockHaveConsistentFinalState` đạt trong ContactBlockApiTest; cả hai thao tác đi qua endpoint bằng MockMvc/JWT với PostgreSQL thật (không thay API block bằng fixture SQL).
 - [x] **07. Từ chối và hủy lời mời:** chỉ người nhận được reject, chỉ người gửi được cancel; kiểm chuyển trạng thái hợp lệ, thao tác lặp và ghi sự kiện; accept sau reject/cancel phải bị từ chối nhất quán.
   - Đợt 19: đối chiếu đủ 27 testcase HTTP/JWT/PostgreSQL đạt trong bộ Windows 215; vai trò/trạng thái, lặp, JSONB hai bên, CHECK/rollback/retry, tranh accept/reject/cancel và luồng gửi lại đều đạt.
 - [x] **08. Danh sách bạn bè và hủy kết bạn:** trả đúng bạn bè của tài khoản; unfriend cập nhật cả hai chiều, bảo toàn dòng chặn và hạ `is_friend` trên dòng chặn còn lại; ghi sự kiện cho trạng thái thực sự thay đổi, không tạo trùng khi thao tác lặp.
   - Đợt 19: xác nhận đủ 29 testcase HTTP/JWT/PostgreSQL đạt; danh sách/DTO/quyền, block/asymmetry, thao tác lặp, rollback và unfriend đồng thời/lịch sử ACCEPTED đều đạt. Race block vẫn dùng fixture SQL; phải kiểm lại với HTTP block thật ở 09.
-- [ ] **09. Chặn, danh sách chặn và bỏ chặn:** lưu quyết định chặn một chiều nhưng cản tương tác hai chiều; hủy lời mời chờ khi chặn; kiểm chặn người lạ, chặn bạn, hai bạn cùng chặn rồi bỏ chặn và unfriend trong lúc chặn; bỏ chặn không khôi phục quan hệ đã hủy.
+  - Đợt 21: đóng yêu cầu bổ sung unfriend/block bằng testcase `actualUnfriendAndBlockCannotLoseBlockingDecision` đạt trong ContactBlockApiTest; kiểm hai endpoint bằng MockMvc/JWT/PostgreSQL, bảo toàn quyết định chặn và không lộ phone.
+- [x] **09. Chặn, danh sách chặn và bỏ chặn:** lưu quyết định chặn một chiều nhưng cản tương tác hai chiều; hủy lời mời chờ khi chặn; kiểm chặn người lạ, chặn bạn, hai bạn cùng chặn rồi bỏ chặn và unfriend trong lúc chặn; bỏ chặn không khôi phục quan hệ đã hủy.
   - Đợt 20: đưa ba endpoint còn lại và block/unblock từ nháp vào phạm vi commit; thêm 34 test HTTP/JWT/PostgreSQL, gồm race với API accept/send/unfriend thật. Đã biên dịch, chưa chạy PostgreSQL mới do môi trường agent; giữ `[ ]`.
+  - Đợt 21: đối chiếu 34/34 testcase và log PostgreSQL 16.16 đạt, không bỏ qua; quyền/privacy, pending/event, CHECK/rollback/retry, mutual block/unblock và race endpoint accept/send/unfriend đều đạt. Bằng chứng ở bảng và liên kết cuối báo cáo; cách gọi endpoint của suite là MockMvc, không phải TCP tới Tomcat.
 
 ### Dữ liệu Android
 
 **Phụ thuộc bắt buộc:** thiết kế và kiểm chứng cơ chế phiên, executor và phản hồi cũ của mục 14 trước khi ghi cache trong mục 12–13. Fake Repository và Injection được mở rộng cùng các phần sử dụng chúng.
 
-- [ ] **10. Retrofit, DTO Android và ánh xạ lỗi:** khai báo đủ 11 endpoint, dùng client/Bearer hiện có; ánh xạ đúng JSON backend, `isContact`, trạng thái quan hệ, ID/chiều lời mời, `retryAfterSeconds`; có kiểm thử tương thích hợp đồng và lỗi mạng.
+- [x] **10. Retrofit, DTO Android và ánh xạ lỗi:** khai báo đủ 11 endpoint, dùng client/Bearer hiện có; ánh xạ đúng JSON backend, `isContact`, trạng thái quan hệ, ID/chiều lời mời, `retryAfterSeconds`; có kiểm thử tương thích hợp đồng và lỗi mạng.
   - Đợt 20: giữ DTO/Retrofit/mapper đã có, thêm NETWORK/INVALID_RESPONSE và 10 test transport. 48 regression app cùng 4 ca mới không cần socket đạt; 6 ca TCP và gate Retrofit → Tomcat/JWT/PostgreSQL còn chờ Windows. Cổng -AndroidContract bắt buộc chạy đủ 58 test app và 11 endpoint thật, chưa chốt toàn mục.
+  - Đợt 21: hai gate client đạt, marker 58/58 JUnit4 không ignored; gồm đủ 10 test transport (6 TCP + 4 typed/guard). Gate dùng source app thật gọi đủ 11 endpoint qua Retrofit/Gson → Tomcat/JWT/PostgreSQL, kiểm lỗi 401/404/409/429 và mất kết nối. Nghiệm thu DTO/interface/mapper và hợp đồng JVM; Bearer trong gate do interceptor fixture gắn, chưa kiểm AuthInterceptor/Keystore trên thiết bị hoặc Repository/cache/UI.
   - [x] **10a. DTO Android và JSON Gson:** đọc đúng lookup, lời mời, danh sách contact và details của lỗi 409/429; body gửi chỉ gồm addresseeId; 10 test Gson đạt. Phạm vi DTO; kiểm hợp đồng Retrofit được ghi riêng ở 10b.
   - [x] **10b. Interface Retrofit cho 11 endpoint:** kiểm method/path/query/body, chuyển JSON sang DTO/List, 201/204, giữ lỗi HTTP 409/429 và truyền IOException; 16 test dùng Retrofit/OkHttp/Gson thật với interceptor giả lập đạt. Chưa kiểm backend/JWT; bộ ánh xạ HTTP được ghi riêng ở 10c.
   - [x] **10c. Bộ ánh xạ lỗi HTTP độc lập:** đọc code/details sang ContactsResult, giữ HTTP_<status> khi thiếu code hoặc body sai, không ép metadata sai kiểu, đóng errorBody; 22 test mới đạt. Chưa nối vào Repository, chưa hoàn thành xử lý lỗi mạng/phiên hoặc thông báo UI.
@@ -1286,3 +1290,39 @@ Nếu mvn chưa ở PATH, thêm `-Maven 'C:\Users\Phuocnghia_admin\.m2\wrapper\d
 - **01–08 đã nghiệm thu; 09 và 10 vẫn `[ ]`**. 09 thiếu kết quả SQL/event/race API thật; 10 thiếu đủ sáu TCP và gate client/server thật cùng Maven build cuối. Chưa nghiệm thu session/Keystore, Room, UI, APK hoặc production; không bấm thử giao diện mới trong đợt này.
 - Lưu hash 34 bản nháp và artifact tại .task-cache/phase4-09-10 trước thao tác. Hai tệp backend cuối được đưa toàn bộ phần còn lại thuộc 09 vào commit, nên không còn giữ nháp backend trong chúng; **32 tệp nháp khác không đổi**, gồm session, DAO, Repository, Injection, UI và ContactsApiTest cũ. Giữ nguyên ba stash gồm c1f69ff và mọi backup; không tạo project/worktree hoặc sửa lịch sử.
 - Bảo toàn bằng SHA-256 bộ artifact Windows 215 hiện có, không ghi đè/xóa hoặc commit XML/log/credential. Các test trực tiếp chỉ ghi log vào cache; chưa chạy Surefire test mới. Không đọc/in giá trị .env. Chỉ stage 11 tệp trong bảng và commit bằng Author/Committer `MeanFen <nghiapp11102006@gmail.com>`, không push. Dừng để người dùng chạy bộ Windows, không triển khai hạng mục thứ ba.
+
+## Đợt 21 - Nghiệm thu 09–10 từ kết quả Windows, 18/11/2026
+
+### Đối chiếu lần chạy
+
+Người dùng cung cấp console của `-AndroidContract`: **BUILD SUCCESS**, tổng **251 test, failures/errors/skipped đều 0**, hoàn tất **22:33:11 UTC+7**, `$LASTEXITCODE=0`. Đây là thông tin từ console người dùng gửi; không có bản lưu toàn bộ console Maven để đối chiếu độc lập từng dòng. Đã đọc trực tiếp **20 XML và 20 TXT** tại `backend/target/surefire-reports`, thời gian sửa **22:32:09–22:33:11 ngày 18/11/2026**, và đối chiếu với selector của [script](../../backend/scripts/test-phase4-foundation.ps1):
+
+- Đủ đúng 20 suite; tổng 251 testcase. Từng suite có đúng số testcase dự kiến, tên testcase khớp source hiện tại, không trùng tên trong suite; không có node failure/error/skipped. Cả 20 TXT khớp số tests/failures/errors/skipped của XML tương ứng.
+- Cả 20 XML ghi `java.version=27` và cùng giá trị `sun.java.command`, nhận diện lần Surefire `2026-11-18T22-31-58_106-jvmRun1`. Các log ứng dụng có PID 56276. Dùng kết quả của lần chạy này, không cộng artifact 215 cũ hoặc các lần JUnit trực tiếp ở đợt 20.
+- Đếm theo log trong từng testcase: **204 testcase ghi database PostgreSQL 16.16 trên loopback với tên `phase4_*`**, 47 testcase còn lại không có dòng database đó. Một trong 47 ca chạy 58 test app lồng; không cộng thành 309.
+- [XML gate client](../../backend/target/surefire-reports/TEST-com.utechat.backend.AndroidContactContractTest.xml) có marker **`ANDROID_CONTRACT_JUNIT4 tests=58 failures=0 ignored=0`**. Ca tích hợp ghi Tomcat khởi động cổng HTTP 59031 và database PostgreSQL 16.16. Cả hai testcase đều đạt.
+- Dumpstream `2026-11-18T22-31-58_106.dumpstream` ghi cảnh báo Manifest-JAR/classpath khác root; không có failure/error/skipped trong bộ XML. Không thay cấu hình chỉ để xóa cảnh báo này.
+
+| Phạm vi | Test Surefire | Bằng chứng và kết quả |
+|---|---:|---|
+| 18 suite hồi quy 01–08 | 215 | Đủ suite/testcase, toàn bộ đạt trong cùng lần chạy mới |
+| ContactBlockApiTest | 34 | Quyền JWT, privacy, block/unblock, pending/event, CHECK/rollback/retry, mutual block/unblock, race endpoint accept/send/unfriend; toàn bộ đạt |
+| AndroidContactContractTest | 2 | 58 test app lồng đạt và luồng client gọi đủ 11 endpoint, lỗi HTTP cùng mất kết nối; cả hai đạt |
+| **Tổng** | **251** | **Failures=0, errors=0, skipped=0** |
+
+### Phạm vi nghiệm thu và phần được đóng
+
+**09 đạt tiêu chí trong checklist.** [Source ContactBlockApiTest](../../backend/src/test/java/com/utechat/backend/contacts/ContactBlockApiTest.java) và [XML 34 test](../../backend/target/surefire-reports/TEST-com.utechat.backend.contacts.ContactBlockApiTest.xml) xác nhận quyền/danh sách theo actor, block một chiều cản tương tác hai chiều, hủy pending hai chiều, giữ friend/createdAt, không phục hồi quan hệ đã hủy, privacy phone, lặp không phát event thừa và rollback/retry khi sự kiện thất bại. Các lỗi CHECK có chủ đích trong source kiểm rollback; các testcase tương ứng đều đạt.
+
+Đóng phần kiểm tích hợp còn hẹn ở 06/08 bằng ba testcase đạt `actualAcceptAndBlockHaveConsistentFinalState`, `actualSendAndBlockCannotLeavePending`, `actualUnfriendAndBlockCannotLoseBlockingDecision`. Chính xác về phương thức kiểm: suite này dùng **MockMvc qua controller/security filter/JWT và transaction PostgreSQL thật**, như [ContactApiSupport](../../backend/src/test/java/com/utechat/backend/contacts/ContactApiSupport.java); các thao tác block trong race đi qua endpoint, không dùng fixture SQL thay API block. Các cụm “HTTP thật” tại đợt 20 mô tả việc gọi endpoint nghiệp vụ; không được hiểu rằng ba race đã chạy qua socket/Tomcat hoặc hosted server.
+
+**10 đạt tiêu chí hợp đồng client thuần Java trong checklist.** [Source gate](../../backend/src/test/java/com/utechat/backend/AndroidContactContractTest.java), [helper compiler/classloader](../../backend/src/test/java/com/utechat/backend/support/AndroidContactClient.java) và XML gate xác nhận biên dịch source app hiện tại, kiểm CodeSource, chạy bốn suite **10 DTO + 16 Retrofit + 22 HTTP mapper + 10 transport = 58**, không ignored. [ContactTransportTest](../../app/src/test/java/com/utechat/data/remote/api/ContactTransportTest.java) có sáu ca TCP: đọc DTO, ConnectException thật, 401, 429/details, HTML 503 và JSON sai cấu trúc; bốn ca còn lại kiểm lỗi typed/guard, gồm SSLHandshakeException được tạo trong test, không phải handshake TLS tới server thật.
+
+Gate tích hợp riêng dùng Retrofit/Gson và DTO/mapper app gọi đủ **11 endpoint qua TCP tới Tomcat**, backend ký JWT test, dùng PostgreSQL thật; kiểm 401/404/409/429, ID/chiều pending, `retryAfterSeconds`, phone theo quyền và NETWORK sau khi đóng server. Bearer được interceptor fixture gắn vào header. Source [ApiClient](../../app/src/main/java/com/utechat/data/remote/api/ApiClient.java) dùng AuthInterceptor hiện có; gate không chạy AuthInterceptor/Keystore trên Android. Repository/cache/phiên, Room, UI, APK và hosted HTTPS vẫn ngoài nghiệm thu 09–10.
+
+### Cập nhật và điểm dừng
+
+- Cập nhật dòng tiến độ mới nhất, tổng quan, checklist **09/10 `[x]`** và ghi đóng yêu cầu tích hợp ở 06/08. Giữ nội dung đợt 20 làm lịch sử trở ngại trước khi có kết quả Windows; các dòng chờ tại đợt đó không phải trạng thái hiện tại.
+- Các tệp source/test/script/POM/hợp đồng của đợt 20 không có diff so với HEAD **4538132** tại lúc đối chiếu. Phần còn thiếu được đóng bằng kết quả Windows mới; đợt này chỉ sửa báo cáo, không cần sửa code hoặc chạy lại test.
+- Snapshot SHA-256 trước/sau đối chiếu dùng để kiểm bảo toàn 32 tệp đang sửa/chưa được theo dõi và artifact Surefire/backup. Bản backup mới nhất trước lần chạy Windows có 18 XML, tổng 215 test. Không đưa XML/log/credential vào source hoặc commit báo cáo.
+- Dừng sau nghiệm thu **09–10**; các mục **11–20 giữ `[ ]`**. Không triển khai hạng mục tiếp theo, không chạy Maven/Gradle/Docker/test trong lượt đối chiếu này. Lượt đối chiếu ban đầu để báo cáo ở working tree; theo yêu cầu bàn giao tiếp theo, đưa riêng báo cáo mới nhất vào commit bằng Author/Committer `MeanFen <nghiapp11102006@gmail.com>`. Code/test 09–10 đã nằm trong **4538132**, không có diff còn thiếu thuộc phạm vi này; giữ 32 tệp nháp ngoài phạm vi và không push.
