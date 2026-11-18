@@ -1,0 +1,84 @@
+[CmdletBinding()]
+param([string]$Maven = 'mvn', [string]$PostgresImage = 'postgres:16')
+
+# Bộ nghiệm thu chỉ dùng PostgreSQL container tạm; không đọc .env hoặc kết nối Supabase.
+$ErrorActionPreference = 'Stop'
+$repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
+$container = 'utechat-phase4-' + [Guid]::NewGuid().ToString('N')
+$previousPassword = $env:PHASE4_TEST_PG_PASSWORD
+$previousPostgresPassword = $env:POSTGRES_PASSWORD
+$created = $false
+$exitCode = 1
+Push-Location $repoRoot
+try {
+    # Giữ JDK/Maven đang được Terminal chọn; không tự hạ phiên bản khi chưa có lỗi tương thích.
+    & $Maven -version
+    if ($LASTEXITCODE -ne 0) { throw 'Không chạy được Maven; truyền -Maven với đường dẫn mvn.cmd thực tế.' }
+    & docker version --format '{{.Server.Version}}'
+    if ($LASTEXITCODE -ne 0) { throw 'Phiên PowerShell này không truy cập được Docker Engine.' }
+
+    # Mật khẩu ngẫu nhiên chỉ thuộc container test; truyền qua môi trường để không in vào lệnh/log.
+    $env:PHASE4_TEST_PG_PASSWORD = [Guid]::NewGuid().ToString('N')
+    $env:POSTGRES_PASSWORD = $env:PHASE4_TEST_PG_PASSWORD
+    & docker run --detach --name $container --env POSTGRES_PASSWORD --publish '127.0.0.1::5432' $PostgresImage | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'Không tạo được PostgreSQL container kiểm thử.' }
+    $created = $true
+    $deadline = [DateTime]::UtcNow.AddSeconds(60)
+    $ready = $false
+    do {
+        & docker exec $container pg_isready -U postgres -d postgres *> $null
+        if ($LASTEXITCODE -eq 0) { $ready = $true; break }
+        Start-Sleep -Milliseconds 500
+    } while ([DateTime]::UtcNow -lt $deadline)
+    if (-not $ready) { throw 'PostgreSQL chưa sẵn sàng trong 60 giây.' }
+
+    # Cổng ngẫu nhiên chỉ bind loopback; mỗi test tiếp tục tạo database riêng bên trong container này.
+    $binding = (& docker port $container '5432/tcp' | Select-Object -First 1)
+    if ($LASTEXITCODE -ne 0 -or $binding -notmatch '^127\.0\.0\.1:(\d+)$') { throw 'Không lấy được cổng loopback của container test.' }
+    $jdbcUrl = 'jdbc:postgresql://127.0.0.1:' + $Matches[1] + '/postgres'
+    $tests = 'ContactsMigrationTest,FlywayMigrationTest,LocalDevServerSmokeTest,ContactPostgresFoundationTest,ContactJwtPostgresTest,PostgresFixtureGuardTest,ContactPolicyServiceTest,SyncEventWriterTest,ContactDtosTest,LookupRateLimiterTest,MissingPhoneParameterTest'
+    $testStart = [DateTime]::UtcNow
+    & $Maven -B -ntp -f backend/pom.xml "-Dphase4.pg.url=$jdbcUrl" "-Dtest=$tests" test
+    $exitCode = $LASTEXITCODE
+    if ($exitCode -ne 0) { throw "Maven test thất bại, mã thoát $exitCode; xem backend/target/surefire-reports." }
+    # Không dùng exit code 0 hoặc XML cũ để nhận nhầm test bị bỏ qua là đã nghiệm thu.
+    $expected = @{
+        'com.utechat.backend.contacts.ContactsMigrationTest' = 6
+        'com.utechat.backend.config.FlywayMigrationTest' = 3
+        'com.utechat.backend.LocalDevServerSmokeTest' = 1
+        'com.utechat.backend.contacts.ContactPostgresFoundationTest' = 12
+        'com.utechat.backend.contacts.ContactJwtPostgresTest' = 8
+        'com.utechat.backend.support.PostgresFixtureGuardTest' = 7
+        'com.utechat.backend.contacts.ContactPolicyServiceTest' = 8
+        'com.utechat.backend.contacts.SyncEventWriterTest' = 7
+        'com.utechat.backend.contacts.ContactDtosTest' = 9
+        'com.utechat.backend.contacts.LookupRateLimiterTest' = 8
+        'com.utechat.backend.contacts.MissingPhoneParameterTest' = 4
+    }
+    $total = 0
+    foreach ($suite in $expected.Keys) {
+        $report = Get-Item -LiteralPath (Join-Path $repoRoot "backend/target/surefire-reports/TEST-$suite.xml")
+        if ($report.LastWriteTimeUtc -lt $testStart) { throw "Báo cáo cũ không thuộc lần chạy hiện tại: $suite" }
+        [xml]$xml = Get-Content -LiteralPath $report.FullName -Raw
+        $result = $xml.testsuite
+        if ([int]$result.tests -lt $expected[$suite] -or [int]$result.failures -ne 0 -or [int]$result.errors -ne 0 -or [int]$result.skipped -ne 0) {
+            throw "Chưa đủ test hoặc có failure/error/skipped trong $suite"
+        }
+        $total += [int]$result.tests
+        Write-Output ("PASS {0}: {1} test, không bỏ qua" -f $suite, $result.tests)
+    }
+    Write-Output ("PASS tổng {0} test trong bộ nghiệm thu 01–02; XML ở backend/target/surefire-reports." -f $total)
+} catch {
+    $exitCode = 1
+    Write-Error -Message $_.Exception.Message -ErrorAction Continue
+} finally {
+    # Chỉ dọn container ngẫu nhiên và anonymous volume do nó tạo; không đụng image/named volume của người dùng.
+    if ($created) {
+        & docker rm --force --volumes $container | Out-Null
+        if ($LASTEXITCODE -ne 0) { Write-Warning "Chưa dọn được container test: $container"; $exitCode = 1 }
+    }
+    $env:PHASE4_TEST_PG_PASSWORD = $previousPassword
+    $env:POSTGRES_PASSWORD = $previousPostgresPassword
+    Pop-Location
+}
+exit $exitCode
