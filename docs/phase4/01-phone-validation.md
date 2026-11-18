@@ -2,7 +2,7 @@
 
 Ngày thực hiện: 17/11/2026. Đây là file báo cáo chung duy nhất, được cập nhật sau từng đợt nhỏ.
 
-Cập nhật mới nhất: 18/11/2026 - đợt 12, bổ sung bộ nghiệm thu PostgreSQL cho 01/02 và lệnh chạy trên Windows; 44 test không cần PostgreSQL đạt bằng JDK 27, chưa có kết quả 29 ca PostgreSQL.
+Cập nhật mới nhất: 18/11/2026 - đợt 13, đã đối chiếu kết quả Windows: 73 test đạt, 0 failures/errors/skipped trên JDK 27 và PostgreSQL 16.16; nghiệm thu hai mục cấp chính 01–02.
 
 **Nơi làm việc hiện tại:** `D:\HCMUTE\Y3\S1\T2\LapTrinhDiDong\TeamProject`, nhánh `phase4_NP`.
 Từ lần thống nhất worktree dưới đây chỉ tiếp tục làm việc trong thư mục này. Các đoạn mô tả dùng worktree review ở đợt 01/02 là lịch sử.
@@ -198,20 +198,20 @@ Link nhánh dự kiến: https://github.com/Project-Mobile-TEAM/Project_Mobile/t
 
 ## Checklist các hạng mục còn lại của Phase 4
 
-Hai thành phần đã kiểm thử riêng là chuẩn hóa SĐT (28 test) và giới hạn tra cứu (8 test). Chúng chưa tạo thành luồng tìm người hoàn chỉnh. Các mục dưới đây đều chưa được nghiệm thu, dù một số đã có code nháp trong `TeamProject`.
+Hai thành phần đã kiểm thử riêng là chuẩn hóa SĐT (28 test) và giới hạn tra cứu (8 test). Chúng chưa tạo thành luồng tìm người hoàn chỉnh. **Mục 01–02 đã được nghiệm thu tại đợt 13**; các mục còn lại vẫn chưa được nghiệm thu toàn mục, dù một số đã có code nháp trong `TeamProject`.
 
 Có 20 hạng mục để theo dõi, không mặc định tương ứng đúng 20 lượt thực hiện. Từ đợt 10, mỗi lượt chọn tối đa hai hạng mục cấp chính 01–20 theo thứ tự phụ thuộc; các phần con không được tính thành hạng mục cấp chính. Trước khi viết, đọc lại bản nháp liên quan để sửa và tái sử dụng phần phù hợp. Chỉ đánh dấu `[x]` khi đã có bằng chứng đạt toàn bộ điều kiện của mục đó; nếu bị chặn thì ghi nguyên nhân và phần còn thiếu.
 
 ### Backend
 
-- [ ] **01. Migration `is_friend` và database chạy thử:** kiểm tra tạo database mới và nâng cấp database cũ; phân biệt bạn bè với chặn; xử lý rõ dữ liệu chặn cũ không đủ thông tin; cập nhật bộ nạp schema chạy thử cùng migration mới. Không sửa migration đã áp dụng.
-  - Đợt 12: giữ nguyên SQL V4 từ main, thay test nháp lệch chính sách bằng sáu ca migration/rollback trên PostgreSQL; thêm smoke test và buộc LocalDevServer dùng cùng URL runtime/Flyway. Bộ chạy Windows đã chuẩn bị; phiên hiện tại bị Docker permission denied và DNS Maven Central, nên chưa đánh dấu toàn mục.
-- [ ] **02. DTO, lỗi API, chính sách quan hệ, khóa cặp và sự kiện:** chốt JSON/mã lỗi; tái sử dụng JWT Phase 3; thống nhất khóa cặp trước khi khóa dòng; bổ sung `SyncEventWriter` và hợp đồng `CONTACT_REQUEST_CREATED`, `CONTACT_REQUEST_UPDATED`, `CONTACT_UPDATED`; cập nhật tài liệu hợp đồng tương ứng.
-  - Đợt 12: đã bổ sung test PostgreSQL cho lock cặp hai kết nối, JSONB/rollback, JWT Phase 3 và cập nhật hợp đồng kỹ thuật; 44 test regression/guard/đổi URL đạt trên JDK 27. Các ca PostgreSQL chưa chạy được trong phiên hiện tại; không dùng H2 hoặc kết quả biên dịch để nghiệm thu toàn mục.
-  - [x] **02a. Lỗi thiếu query bắt buộc:** thiếu `phone` trả `400 PHONE_INVALID`; thiếu tham số khác trả `400 VALIDATION`; 4 test Spring MVC đạt. Các phần còn lại của mục 02 vẫn chưa nghiệm thu.
-  - [x] **02b. DTO JSON danh bạ và lời mời:** chốt năm record, kiểm đúng tên trường, boolean, ID/chiều lời mời và hồ sơ tối thiểu không chứa SĐT; 9 test Jackson đạt. Chưa nghiệm thu DTO Android, endpoint hoặc chính sách trả dữ liệu của service.
-  - [x] **02c. Helper ghi sự kiện trong transaction:** `SyncEventWriter` yêu cầu transaction đang có, cùng commit/rollback với caller, không nuốt lỗi JSON/JDBC; 7 test Spring proxy và JDBC trên H2 đạt. Chưa nghiệm thu schema/JSONB PostgreSQL hoặc sự kiện của các thao tác quan hệ thật.
-  - [x] **02d. Truy vấn chính sách quan hệ:** xác định chủ thể chặn, kiểm chặn hai chiều và yêu cầu đủ hai dòng bạn bè không chặn; 8 test JDBC/guard đạt trên H2. Chưa nghiệm thu advisory lock, đồng thời hoặc nghiệp vụ API trên PostgreSQL.
+- [x] **01. Migration `is_friend` và database chạy thử:** kiểm tra tạo database mới và nâng cấp database cũ; phân biệt bạn bè với chặn; xử lý rõ dữ liệu chặn cũ không đủ thông tin; cập nhật bộ nạp schema chạy thử cùng migration mới. Không sửa migration đã áp dụng.
+  - Đợt 13: xác nhận 6 test migration, 3 test Flyway và 1 smoke test đều đạt từ XML/log Windows; database mới/baseline/nâng cấp, backfill bảo thủ, giữ cờ đã biết, default/NOT NULL, rollback/retry và readiness đã kiểm trên PostgreSQL 16.16. Giữ nguyên checksum V4 và ghi rõ giới hạn dữ liệu chặn legacy.
+- [x] **02. DTO, lỗi API, chính sách quan hệ, khóa cặp và sự kiện:** chốt JSON/mã lỗi; tái sử dụng JWT Phase 3; thống nhất khóa cặp trước khi khóa dòng; bổ sung `SyncEventWriter` và hợp đồng `CONTACT_REQUEST_CREATED`, `CONTACT_REQUEST_UPDATED`, `CONTACT_UPDATED`; cập nhật tài liệu hợp đồng tương ứng.
+  - Đợt 13: xác nhận 12 test nền PostgreSQL và 8 test JWT đều đạt, cùng các test DTO/lỗi/helper hồi quy. Đã kiểm chờ/nhả advisory lock hai kết nối, khóa cặp trước khóa dòng, JSONB, transaction/rollback, FK/CHECK và cấu hình JWT Phase 3; hợp đồng kỹ thuật ở docs/API_CONTRACT.md. Nghiệm thu nền tảng, không thay cho nghiệm thu caller/API mục 03–09.
+  - [x] **02a. Lỗi thiếu query bắt buộc:** thiếu `phone` trả `400 PHONE_INVALID`; thiếu tham số khác trả `400 VALIDATION`; 4 test Spring MVC đạt, đã chạy lại trong bộ Windows 73 test.
+  - [x] **02b. DTO JSON danh bạ và lời mời:** chốt năm record, kiểm đúng tên trường, boolean, ID/chiều lời mời và hồ sơ tối thiểu không chứa SĐT; 9 test Jackson đạt trong bộ Windows. DTO Android có kết quả riêng ở 10a; endpoint và chính sách trả dữ liệu thực tế vẫn thuộc các mục API còn lại.
+  - [x] **02c. Helper ghi sự kiện trong transaction:** MANDATORY, commit/rollback cùng caller và không nuốt lỗi JSON/JDBC; đã kiểm bổ sung JSONB/schema, hai người nhận, FK/CHECK và lỗi serialize trên PostgreSQL 16.16 ở đợt 13. Sự kiện của từng API nghiệp vụ còn phải được kiểm ở 03–09.
+  - [x] **02d. Truy vấn chính sách quan hệ:** chủ thể chặn, chặn hai chiều, đủ hai dòng bạn bè không chặn đã kiểm; đợt 13 bổ sung chờ/nhả advisory lock khi commit/rollback bằng hai kết nối PostgreSQL thật. Chưa nghiệm thu các API nghiệp vụ quan hệ.
 - [ ] **03. API tìm người bằng SĐT:** server kiểm E.164 và danh tính từ JWT, nối `LookupRateLimiter`; xác minh `400 PHONE_INVALID`, `400 SELF`, `404 NOT_FOUND` cho các trường hợp cần che hồ sơ và `429 RATE_LIMITED` kèm thời gian chờ; trả đúng trạng thái quan hệ và ID/chiều lời mời. Chuẩn hóa ô nhập phía Android được nối tại mục 17.
 - [ ] **04. Gửi lời mời kết bạn:** cấm tự gửi, gửi khi có block, gửi khi đã là bạn; xử lý trùng cùng chiều và ngược chiều bằng `409 REQUEST_ALREADY_PENDING`; hai yêu cầu đồng thời chỉ tạo một lời mời chờ; ghi sự kiện cho đúng hai bên trong cùng transaction.
 - [ ] **05. Xem lời mời đã nhận và đã gửi:** chỉ trả lời mời liên quan tài khoản hiện tại, lọc chiều/trạng thái đúng; không tiết lộ SĐT trong hồ sơ tối thiểu của lời mời; không cho người thứ ba đọc dữ liệu trái quyền.
@@ -863,3 +863,50 @@ Giữ JDK 27 trước. Chỉ xem xét đổi JDK nếu có lỗi tương thích 
 - **02 vẫn `[ ]`:** cần kết quả quan sát chờ/nhả advisory lock hai kết nối, JSONB và commit/rollback/FK/CHECK, JWT/filter trên PostgreSQL thật. Hợp đồng kỹ thuật đã bổ sung; các API 03–09 vẫn phải được nghiệm thu riêng về caller, quyền và sự kiện thực tế.
 - Bộ chạy phải thoát 0, có đủ XML mới của từng suite, failures/errors/skipped đều 0; script kiểm các điều kiện đó và không chấp nhận XML cũ. Chưa có bằng chứng này nên **0/2 mục cấp chính được nghiệm thu cuối đợt**.
 - Commit lần này là bộ kiểm thử/handoff thuộc 01–02, không phải tuyên bố hoàn thành hai mục. Author/Committer `MeanFen <nghiapp11102006@gmail.com>`; chỉ stage các tệp liệt kê trên, giữ V4 và các nháp khác, không push hoặc chuyển sang mục khác.
+
+## Đợt 13 - Chốt nghiệm thu mục 01–02 từ kết quả Windows, 18/11/2026
+
+### Nguồn bằng chứng và cách đối chiếu
+
+Người dùng đã chạy bộ test tại máy Windows, báo **BUILD SUCCESS, exit code 0**, JDK 27 và PostgreSQL 16.16 trong Docker. Đợt này chỉ đối chiếu artifact sẵn có và rà soát script, **không chạy lại Maven/Docker hoặc bộ test PostgreSQL** do hạn chế môi trường của agent.
+
+Đã đọc đủ **11 file TEST-*.xml và 11 log tóm tắt *.txt** trong `backend/target/surefire-reports`, kiểm tên từng suite/testcase theo mã nguồn và script, tổng số test, số failure/error/skipped ở suite và node con. Kết quả các XML khớp log tóm tắt và thông tin người dùng cung cấp: **73 test, failures=0, errors=0, skipped=0**. Các tệp được tạo trong lần chạy khoảng **17:39–17:40 ngày 18/11/2026, UTC+7**; không lấy kết quả từ lần thử 17:36 trước đó để cộng thêm.
+
+XML ghi java.version=27, java.vendor=Oracle Corporation, os.name=Windows 11, user.dir là backend của TeamProject. Log Flyway xác nhận **PostgreSQL 16.16** với các database `phase4_*` trên 127.0.0.1. Smoke log xác nhận apply V1/V3/V4 và Tomcat khởi động cổng ngẫu nhiên; testcase readiness thành công. BUILD SUCCESS/exit code 0 là kết quả Terminal do người dùng cung cấp, còn số test và trạng thái từng suite đã được agent kiểm độc lập từ XML/log.
+
+| Suite | Test | Phạm vi bằng chứng |
+|---|---:|---|
+| ContactsMigrationTest | 6 | Database mới, default/NOT NULL, legacy, cờ đã biết, rollback/retry, baseline V1 |
+| FlywayMigrationTest | 3 | Đổi URL, baseline và lịch sử V2 seed không nằm trong classpath; 2 ca dùng PostgreSQL |
+| LocalDevServerSmokeTest | 1 | Backend/Flyway khởi động và readiness dùng đúng database test |
+| ContactPostgresFoundationTest | 12 | Advisory lock, hai kết nối, policy PostgreSQL, JSONB, MANDATORY, commit/rollback/FK/CHECK/serialize |
+| ContactJwtPostgresTest | 8 | SecurityConfig/filter/JWT Phase 3 với tài khoản và thiết bị trên PostgreSQL |
+| PostgresFixtureGuardTest | 7 | Không nhận cấu hình ngoài fixture localhost; không rơi về .env |
+| ContactPolicyServiceTest | 8 | Hồi quy predicate/guard trên H2 |
+| SyncEventWriterTest | 7 | Hồi quy Spring proxy/transaction trên H2 |
+| ContactDtosTest | 9 | Hợp đồng JSON và hồ sơ tối thiểu |
+| LookupRateLimiterTest | 8 | Giới hạn/thời gian chờ/đồng thời |
+| MissingPhoneParameterTest | 4 | HTTP/mã lỗi và details |
+| **Tổng** | **73** | **29 ca cần PostgreSQL + 44 ca còn lại, không bỏ qua** |
+
+### Đối chiếu điều kiện nghiệm thu
+
+**01 — Đạt:** freshDatabaseMigratesWithoutDemoAndUsesRequiredDefault, manualV1DatabaseIsBaselinedAndUpgraded và các ca Flyway chứng minh tạo mới/nâng cấp/baseline. Ba ca legacy kiểm backfill theo V4 từ main, giữ blocked, không suy ra friendship từ ACCEPTED và bảo toàn is_friend đã biết. failedBackfillRollsBackAndCanBeRetriedWithoutRepair kiểm SQLSTATE 23514, trạng thái sau rollback và retry không repair; log thực tế ghi `Changes successfully rolled back` rồi apply V4 thành công. Smoke test xác nhận đường bootstrap dev/Flyway hoạt động với database cô lập. Không sửa SQL V4 hoặc migration đã áp dụng.
+
+**02 — Đạt trong phạm vi nền tảng:** các test đảo chiều quan sát kết nối thứ hai thực sự chờ advisory lock tại pg_stat_activity, sau đó đi tiếp khi transaction trước commit hoặc rollback; cặp độc lập vẫn chạy. Khóa dòng được lấy sau khóa cặp trong các transaction kiểm thử. JSONB và các loại event đã qua schema PostgreSQL thật; commit hai người nhận, rollback caller, lỗi FK/CHECK/serialize và MANDATORY đều có testcase đạt. JWT test dùng chính SecurityConfig/JwtService/filter Phase 3, kiểm actor từ token, thiếu/sai/hết hạn/token tạm, thiết bị thu hồi/token_valid_after và tài khoản không ACTIVE. DTO/lỗi và hợp đồng kỹ thuật đã được đối chiếu cùng docs/API_CONTRACT.md.
+
+Các test H2 chỉ giữ vai trò hồi quy; việc chốt phần PostgreSQL dựa trên **29 ca PostgreSQL thực tế**, không suy ra từ H2. Những dòng ERROR trong testcase backfill là lỗi cố ý để kiểm rollback, không phải failure của bộ test; XML của testcase đó không có node failure/error/skipped. Hai dumpstream chứa warning classpath Surefire, không phải test thất bại; không đổi JDK hoặc thêm cờ JVM chỉ để che warning khi kết quả đã đạt.
+
+### Rà soát thay đổi script
+
+- Giữ bản sửa đã chạy thành công của người dùng: **UTF-8 có BOM**, thay docker port/regex capture bằng **docker inspect → NetworkSettings.Ports.'5432/tcp' → HostIp=127.0.0.1 → HostPort**. Chỉ còn một dòng tạo jdbcUrl từ HostPort; không còn dòng cũ dùng `$Matches[1]` ghi đè kết quả.
+- Không thay cơ chế container/database riêng, mật khẩu test qua môi trường, kiểm XML mới và kiểm failures/errors/skipped, hay dọn tài nguyên trong finally. Không dùng .env/Supabase.
+- Agent chỉ chỉnh lại thụt lề một dòng inspect, không đổi hành vi bản đã chạy. Giữ BOM sau khi lưu. Kiểm PowerShell Parser: **0 lỗi cú pháp**; ba self-check thuần dữ liệu cho đoạn JSON inspect đạt (chọn đúng loopback dù có mapping khác, từ chối thiếu loopback, từ chối port không phải số). Không gọi Docker/Maven trong các self-check này và không tính chúng vào 73 test.
+
+### Bảo toàn, cập nhật và điểm dừng
+
+- Chỉ thay đổi `backend/scripts/test-phase4-foundation.ps1` và file báo cáo tiến độ này. Chỉ đánh dấu `[x]` hai mục cấp chính **01 và 02**; không đánh dấu hoặc triển khai mục tiếp theo. Giữ các đợt trước làm lịch sử: trạng thái bị chặn ở đợt 10–12 đã được thay bằng bằng chứng Windows của đợt 13.
+- Giữ nguyên 34 tệp nháp khác, stash c1f69ff, .env và V4. Lưu hash artifact trước khi đọc; xác minh không sửa/xóa 24 tệp trong surefire-reports. Không commit XML, properties, log sinh ra hoặc credential; `backend/target` vẫn được ignore.
+- Commit chốt nghiệm thu dùng Author và Committer `MeanFen <nghiapp11102006@gmail.com>`, không push hoặc sửa lịch sử.
+- **Hai mục 01–02 đã nghiệm thu.** Giới hạn legacy vẫn giữ nguyên: blocked cũ thiếu cờ friendship được xử lý bảo thủ thành block-only, không cam kết phục hồi mọi tình bạn lịch sử. Đây không còn là điều kiện thiếu của bộ nghiệm thu đã chốt; nếu cần khôi phục dữ liệu thực tế phải đối soát riêng.
+- Nghiệm thu này không xác nhận API 03–09, UI/Android, toàn bộ Phase 4 hoặc production/Supabase đã đạt. Chưa có thay đổi giao diện mới để bấm thử; kết quả HTTP đã kiểm là smoke readiness backend. Dừng chờ yêu cầu tiếp theo.

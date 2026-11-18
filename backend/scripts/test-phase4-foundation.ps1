@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param([string]$Maven = 'mvn', [string]$PostgresImage = 'postgres:16')
 
 # Bộ nghiệm thu chỉ dùng PostgreSQL container tạm; không đọc .env hoặc kết nối Supabase.
@@ -33,9 +33,20 @@ try {
     if (-not $ready) { throw 'PostgreSQL chưa sẵn sàng trong 60 giây.' }
 
     # Cổng ngẫu nhiên chỉ bind loopback; mỗi test tiếp tục tạo database riêng bên trong container này.
-    $binding = (& docker port $container '5432/tcp' | Select-Object -First 1)
-    if ($LASTEXITCODE -ne 0 -or $binding -notmatch '^127\.0\.0\.1:(\d+)$') { throw 'Không lấy được cổng loopback của container test.' }
-    $jdbcUrl = 'jdbc:postgresql://127.0.0.1:' + $Matches[1] + '/postgres'
+    $inspectJson = & docker inspect $container
+    if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect test container.' }
+
+    $info = ($inspectJson -join "`n") | ConvertFrom-Json
+    $ports = @($info[0].NetworkSettings.Ports.'5432/tcp')
+    $loopback = $ports |
+        Where-Object { $_.HostIp -eq '127.0.0.1' } |
+        Select-Object -First 1
+
+    if (-not $loopback -or $loopback.HostPort -notmatch '^\d+$') {
+        throw 'Missing loopback port mapping for PostgreSQL.'
+    }
+
+    $jdbcUrl = 'jdbc:postgresql://127.0.0.1:' + $loopback.HostPort + '/postgres'
     $tests = 'ContactsMigrationTest,FlywayMigrationTest,LocalDevServerSmokeTest,ContactPostgresFoundationTest,ContactJwtPostgresTest,PostgresFixtureGuardTest,ContactPolicyServiceTest,SyncEventWriterTest,ContactDtosTest,LookupRateLimiterTest,MissingPhoneParameterTest'
     $testStart = [DateTime]::UtcNow
     & $Maven -B -ntp -f backend/pom.xml "-Dphase4.pg.url=$jdbcUrl" "-Dtest=$tests" test
