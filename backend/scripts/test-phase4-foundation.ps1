@@ -1,5 +1,5 @@
 ﻿[CmdletBinding()]
-param([string]$Maven = 'mvn', [string]$PostgresImage = 'postgres:16')
+param([string]$Maven = 'mvn', [string]$PostgresImage = 'postgres:16', [switch]$ContactsApi)
 
 # Bộ nghiệm thu chỉ dùng PostgreSQL container tạm; không đọc .env hoặc kết nối Supabase.
 $ErrorActionPreference = 'Stop'
@@ -47,12 +47,6 @@ try {
     }
 
     $jdbcUrl = 'jdbc:postgresql://127.0.0.1:' + $loopback.HostPort + '/postgres'
-    $tests = 'ContactsMigrationTest,FlywayMigrationTest,LocalDevServerSmokeTest,ContactPostgresFoundationTest,ContactJwtPostgresTest,PostgresFixtureGuardTest,ContactPolicyServiceTest,SyncEventWriterTest,ContactDtosTest,LookupRateLimiterTest,MissingPhoneParameterTest'
-    $testStart = [DateTime]::UtcNow
-    & $Maven -B -ntp -f backend/pom.xml "-Dphase4.pg.url=$jdbcUrl" "-Dtest=$tests" test
-    $exitCode = $LASTEXITCODE
-    if ($exitCode -ne 0) { throw "Maven test thất bại, mã thoát $exitCode; xem backend/target/surefire-reports." }
-    # Không dùng exit code 0 hoặc XML cũ để nhận nhầm test bị bỏ qua là đã nghiệm thu.
     $expected = @{
         'com.utechat.backend.contacts.ContactsMigrationTest' = 6
         'com.utechat.backend.config.FlywayMigrationTest' = 3
@@ -66,6 +60,26 @@ try {
         'com.utechat.backend.contacts.LookupRateLimiterTest' = 8
         'com.utechat.backend.contacts.MissingPhoneParameterTest' = 4
     }
+    # Tùy chọn 03–04 giữ nguyên bộ 73 test cũ và thêm hai suite API cùng kiểm tra body, không chạy các nháp 05–09.
+    if ($ContactsApi) {
+        $expected['com.utechat.backend.contacts.ContactLookupApiTest'] = 22
+        $expected['com.utechat.backend.contacts.ContactSendApiTest'] = 20
+        $expected['com.utechat.backend.contacts.ContactInputValidationTest'] = 2
+    }
+    $tests = ($expected.Keys | ForEach-Object { ($_ -split '\.')[-1] }) -join ','
+    # Giữ artifact lần trước trước khi Surefire ghi báo cáo của lần chạy mới.
+    $reportsPath = Join-Path $repoRoot 'backend/target/surefire-reports'
+    if (Test-Path -LiteralPath $reportsPath) {
+        $backupPath = Join-Path $repoRoot ("backend/target/phase4-report-backups/" + $container)
+        New-Item -ItemType Directory -Force $backupPath | Out-Null
+        Get-ChildItem -LiteralPath $reportsPath -File | Copy-Item -Destination $backupPath
+        Write-Output ("Đã sao lưu báo cáo lần trước vào: " + $backupPath)
+    }
+    $testStart = [DateTime]::UtcNow
+    & $Maven -B -ntp -f backend/pom.xml "-Dphase4.pg.url=$jdbcUrl" "-Dtest=$tests" test
+    $exitCode = $LASTEXITCODE
+    if ($exitCode -ne 0) { throw "Maven test thất bại, mã thoát $exitCode; xem backend/target/surefire-reports." }
+    # Không dùng exit code 0 hoặc XML cũ để nhận nhầm test bị bỏ qua là đã nghiệm thu.
     $total = 0
     foreach ($suite in $expected.Keys) {
         $report = Get-Item -LiteralPath (Join-Path $repoRoot "backend/target/surefire-reports/TEST-$suite.xml")
@@ -78,7 +92,8 @@ try {
         $total += [int]$result.tests
         Write-Output ("PASS {0}: {1} test, không bỏ qua" -f $suite, $result.tests)
     }
-    Write-Output ("PASS tổng {0} test trong bộ nghiệm thu 01–02; XML ở backend/target/surefire-reports." -f $total)
+    $scopeLabel = if ($ContactsApi) { '03–04 cùng hồi quy 01–02' } else { '01–02' }
+    Write-Output ("PASS tổng {0} test trong bộ {1}; XML ở backend/target/surefire-reports." -f $total, $scopeLabel)
 } catch {
     $exitCode = 1
     Write-Error -Message $_.Exception.Message -ErrorAction Continue

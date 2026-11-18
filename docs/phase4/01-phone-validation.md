@@ -2,7 +2,7 @@
 
 Ngày thực hiện: 17/11/2026. Đây là file báo cáo chung duy nhất, được cập nhật sau từng đợt nhỏ.
 
-Cập nhật mới nhất: 18/11/2026 - đợt 13, đã đối chiếu kết quả Windows: 73 test đạt, 0 failures/errors/skipped trên JDK 27 và PostgreSQL 16.16; nghiệm thu hai mục cấp chính 01–02.
+Cập nhật mới nhất: 18/11/2026 - đợt 14, triển khai code và bộ test API 03–04; build Maven/JDK 27 và 46 test không cần PostgreSQL đạt, chờ chạy bộ 117 test trên Windows để nghiệm thu 03–04. Mục 01–02 giữ trạng thái đã nghiệm thu.
 
 **Nơi làm việc hiện tại:** `D:\HCMUTE\Y3\S1\T2\LapTrinhDiDong\TeamProject`, nhánh `phase4_NP`.
 Từ lần thống nhất worktree dưới đây chỉ tiếp tục làm việc trong thư mục này. Các đoạn mô tả dùng worktree review ở đợt 01/02 là lịch sử.
@@ -213,7 +213,9 @@ Có 20 hạng mục để theo dõi, không mặc định tương ứng đúng 2
   - [x] **02c. Helper ghi sự kiện trong transaction:** MANDATORY, commit/rollback cùng caller và không nuốt lỗi JSON/JDBC; đã kiểm bổ sung JSONB/schema, hai người nhận, FK/CHECK và lỗi serialize trên PostgreSQL 16.16 ở đợt 13. Sự kiện của từng API nghiệp vụ còn phải được kiểm ở 03–09.
   - [x] **02d. Truy vấn chính sách quan hệ:** chủ thể chặn, chặn hai chiều, đủ hai dòng bạn bè không chặn đã kiểm; đợt 13 bổ sung chờ/nhả advisory lock khi commit/rollback bằng hai kết nối PostgreSQL thật. Chưa nghiệm thu các API nghiệp vụ quan hệ.
 - [ ] **03. API tìm người bằng SĐT:** server kiểm E.164 và danh tính từ JWT, nối `LookupRateLimiter`; xác minh `400 PHONE_INVALID`, `400 SELF`, `404 NOT_FOUND` cho các trường hợp cần che hồ sơ và `429 RATE_LIMITED` kèm thời gian chờ; trả đúng trạng thái quan hệ và ID/chiều lời mời. Chuẩn hóa ô nhập phía Android được nối tại mục 17.
+  - Đợt 14: đã hoàn thiện code từ nháp, thêm 22 test HTTP/JWT/PostgreSQL, build thành công. Chưa có kết quả chạy các test PostgreSQL mới; giữ `[ ]`, không dùng kết quả unit/regression để nghiệm thu endpoint.
 - [ ] **04. Gửi lời mời kết bạn:** cấm tự gửi, gửi khi có block, gửi khi đã là bạn; xử lý trùng cùng chiều và ngược chiều bằng `409 REQUEST_ALREADY_PENDING`; hai yêu cầu đồng thời chỉ tạo một lời mời chờ; ghi sự kiện cho đúng hai bên trong cùng transaction.
+  - Đợt 14: đã hoàn thiện code từ nháp, thêm 20 test HTTP/JWT/PostgreSQL và 2 test validation body; 2 test validation cùng regression đã đạt. Còn chờ PostgreSQL cho concurrency, event/rollback và luồng HTTP đầy đủ; chưa nghiệm thu toàn mục.
 - [ ] **05. Xem lời mời đã nhận và đã gửi:** chỉ trả lời mời liên quan tài khoản hiện tại, lọc chiều/trạng thái đúng; không tiết lộ SĐT trong hồ sơ tối thiểu của lời mời; không cho người thứ ba đọc dữ liệu trái quyền.
 - [ ] **06. Chấp nhận lời mời:** chỉ người nhận được thực hiện, kiểm tra block; cập nhật lời mời, tạo hai dòng bạn bè và sự kiện nguyên tử; chấp nhận lặp không tạo trùng; chấp nhận lại lời mời cũ sau unfriend không tạo lại bạn bè; kiểm thử accept đồng thời với block.
 - [ ] **07. Từ chối và hủy lời mời:** chỉ người nhận được reject, chỉ người gửi được cancel; kiểm chuyển trạng thái hợp lệ, thao tác lặp và ghi sự kiện; accept sau reject/cancel phải bị từ chối nhất quán.
@@ -910,3 +912,74 @@ Các test H2 chỉ giữ vai trò hồi quy; việc chốt phần PostgreSQL d�
 - Commit chốt nghiệm thu dùng Author và Committer `MeanFen <nghiapp11102006@gmail.com>`, không push hoặc sửa lịch sử.
 - **Hai mục 01–02 đã nghiệm thu.** Giới hạn legacy vẫn giữ nguyên: blocked cũ thiếu cờ friendship được xử lý bảo thủ thành block-only, không cam kết phục hồi mọi tình bạn lịch sử. Đây không còn là điều kiện thiếu của bộ nghiệm thu đã chốt; nếu cần khôi phục dữ liệu thực tế phải đối soát riêng.
 - Nghiệm thu này không xác nhận API 03–09, UI/Android, toàn bộ Phase 4 hoặc production/Supabase đã đạt. Chưa có thay đổi giao diện mới để bấm thử; kết quả HTTP đã kiểm là smoke readiness backend. Dừng chờ yêu cầu tiếp theo.
+
+## Đợt 14 - Tra cứu SĐT và gửi lời mời: mục 03–04, 18/11/2026
+
+### Chọn phạm vi và bảo toàn
+
+Chọn đúng hai mục cấp chính **03 và 04**, tiếp nối 01–02 đã nghiệm thu tại commit 6faf6c8. Đọc và tái sử dụng code lookup/send cùng các helper DTO/query/event từ bản nháp ContactsService/ContactController, không viết lại các API khác. Stash c1f69ff và các stash trước đó được giữ nguyên, không tạo project/worktree hoặc tự push.
+
+Hai tệp Java chung còn chứa nháp 05–09. Chỉ đưa phần lookup/send và helper cần thiết vào index/commit; các phương thức nháp còn lại giữ nguyên trong working tree, không được đưa vào lịch sử đợt này. Snapshot source đúng phạm vi đã được javac --release 17 biên dịch riêng trong .task-cache; runner unit ưu tiên nạp các class này để kiểm phần dự kiến commit. Sau commit, hai tệp có thể vẫn hiển thị M do các phần nháp 05–09, không phải xung đột Git. Không đánh dấu hoặc triển khai thêm mục cấp chính thứ ba.
+
+Lưu hash 34 tệp chưa commit và bản đầy đủ hai tệp Java trong `.task-cache/phase4-03-04`; 32 tệp nháp khác không đổi. Đối chiếu phần source từ phương thức requests trở xuống trong ContactsService với bản trước đợt: nội dung nháp 05–09 giữ nguyên. .env và các migration không bị sửa, không dùng credential Supabase để chạy test.
+
+### Nội dung thực hiện
+
+**03:** GET /api/users/lookup dùng actor của JWT, kiểm E.164 ở server trước khi tính lượt; nối limiter 10 lượt/60 giây theo tài khoản, kể cả các lần tra cứu đúng cấu trúc nhưng không tìm thấy/tự tìm. Không tự chuyển số VN chưa chuẩn hóa; phần nối ContactsValidator với ô nhập vẫn thuộc mục 17. Sau khi biết ID đối phương, lookup lấy khóa cặp trong transaction rồi đọc lại hồ sơ/SĐT/quyền riêng tư và quan hệ; chặn hai chiều, discoverable=false, không ACTIVE hoặc không tồn tại cùng trả NOT_FOUND. DTO giữ đúng isContact, trạng thái friend/pending/stranger và ID/chiều pending; không ghi contact/request/event.
+
+**04:** POST /api/contact-requests chỉ dùng addresseeId từ body, actor từ JWT. UUID thiếu/sai/rút gọn trả 400 VALIDATION, UUID đầy đủ viết hoa/thường được nhận. Tái sử dụng khóa cặp trước các thao tác ghi, chặn self/block/already friends; gửi trùng cùng/ngược chiều trả 409 cùng existingRequestId/direction, không tự accept. Lời mời mới và hai CONTACT_REQUEST_CREATED cùng transaction qua SyncEventWriter proxy; lỗi ghi bên thứ hai phải rollback cả lời mời lẫn sự kiện đầu. Quyền nhận tin/discoverable không thay thế block khi caller đã biết UUID; không gửi SĐT trong hồ sơ lời mời.
+
+### Tệp thuộc phạm vi commit
+
+| Tệp | Thay đổi |
+|---|---|
+| `backend/src/main/java/com/utechat/backend/service/ContactsService.java` | Chỉ đưa lookup/send và helper cần thiết từ nháp vào commit; bổ sung transaction/đọc lại hồ sơ và validation UUID body; các phương thức 05–09 chưa commit |
+| `backend/src/main/java/com/utechat/backend/controller/ContactController.java` | Chỉ đưa GET lookup và POST gửi lời mời vào commit, principal JWT, phone query rõ tên và body validation |
+| `backend/src/test/java/com/utechat/backend/contacts/ContactApiSupport.java` | Fixture PostgreSQL riêng, SecurityConfig/JwtService/filter thật, TransactionManager và SyncEventWriter Spring proxy; không bypass chữ ký bằng authentication() |
+| `backend/src/test/java/com/utechat/backend/contacts/ContactLookupApiTest.java` | 22 test: JWT, E.164/biên độ dài, SELF, exact match, privacy/block/status, JSON, friend/incoming/outgoing, limiter/cách tính lượt, chống giả actor và không ghi dữ liệu |
+| `backend/src/test/java/com/utechat/backend/contacts/ContactSendApiTest.java` | 20 test: JWT/body/self/inactive/block/friends, payload/sự kiện, duplicate, hai HTTP request đồng thời cùng/ngược chiều và lỗi sự kiện bên thứ hai/rollback/retry |
+| `backend/src/test/java/com/utechat/backend/contacts/ContactInputValidationTest.java` | Hai test unit validation UUID trong body: canonical hoa/thường; thiếu/sai/rút gọn trả 400 VALIDATION |
+| `backend/scripts/test-phase4-foundation.ps1` | Giữ default 73 test, thêm -ContactsApi để chọn 117; dùng một bảng expected cho selector và kiểm XML; sao lưu báo cáo cũ trước khi Surefire ghi báo cáo mới |
+| `docs/API_CONTRACT.md` | Làm rõ E.164/cách tính lượt và che hồ sơ, UUID body, người gửi JWT, duplicate và nguyên tử lời mời/sự kiện |
+| `docs/phase4/01-phone-validation.md` | Báo cáo tiến độ duy nhất và trạng thái chờ nghiệm thu 03/04 |
+
+### Kiểm thử thực tế
+
+- Dùng **Maven 3.9.16 và JDK 27**, --release 17 đúng POM hiện tại. `mvn -o -B -ntp -f backend/pom.xml test-compile` **BUILD SUCCESS**, đã biên dịch cả code/test mới; không thay JDK hoặc phiên bản dependency.
+- Maven chạy 44 test regression chọn lọc: **44 test, 0 failures/errors/skipped, BUILD SUCCESS**. Sau khi thêm validation body, JUnit Platform chạy trên snapshot class đúng phần dự kiến commit: **46 test thành công, 0 failed/skipped** = 44 regression + 2 validation mới. Đây là 46 test phân biệt, không cộng hai lần thành 90.
+- 46 test không cần PostgreSQL gồm H2/policy, transaction helper, DTO, limiter, HTTP lỗi tham số, guard và đổi URL. **Chưa có kết quả 42 test API trên PostgreSQL**, không suy ra endpoint/concurrency/rollback thực tế đã đạt chỉ từ compile hoặc H2.
+- Script PowerShell: Parser 0 lỗi cú pháp; self-check default chọn 11 suite/73 test, -ContactsApi chọn 14 suite/117 test. Giữ UTF-8 BOM và cách lấy port bằng docker inspect đã nghiệm thu. Đoạn sao lưu báo cáo được kiểm bằng copy/hash 25 artifact hiện có, không gọi Docker hoặc Maven.
+- Đã chạy `test-phase4-foundation.ps1 -ContactsApi` với Maven cache/JDK 27: dừng mã 1 ở Docker preflight, không tạo container. Lỗi thực tế là không tìm thấy named pipe trong phiên agent, không kết luận Docker ở Terminal người dùng bị hỏng.
+- Thử tận dụng Zonky/native PostgreSQL vừa có trong cache, không dùng .env; engine không khởi tạo được vì initdb.exe không tạo được tiến trình (error=623). Chưa chạy được SQL/test API trong lần thử này, không coi artifact engine có mặt là bằng chứng đã chạy PostgreSQL.
+- Maven có warning varargs ở HealthControllerTest sẵn có; không sửa tệp ngoài phạm vi. Không có bằng chứng JDK 27 không tương thích và không đổi JDK.
+
+Lỗi môi trường tiêu biểu:
+
+```text
+failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine; check if the path is correct and if the daemon is running: open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified.
+Cannot run program "...\bin\initdb.exe": CreateProcess failed, error=623
+```
+
+### Sự cố báo cáo sinh ra và cách xử lý
+
+Trong lần Maven chạy 44 regression, agent truyền `-Dsurefire.reportsDirectory=...` để định ghi báo cáo riêng nhưng Surefire 3.2.5 không có binding user property này trong cấu hình hiện tại. Maven đã ghi đè **7 cặp *.txt/TEST-*.xml** tại thư mục báo cáo mặc định, trong đó suite Flyway của lần chạy này chỉ có test đổi URL. Đây là lỗi thao tác của agent, không phải failure của test hoặc thay đổi mã nguồn/stash.
+
+Không khôi phục giả các XML cũ: chúng không còn byte gốc ở working directory. Lịch sử nghiệm thu 73 test tại đợt 13 vẫn giữ nguyên trong báo cáo và commit 6faf6c8; các artifact không bị ghi đè giữ nguyên. Đã sao lưu toàn bộ 25 artifact hiện có vào .task-cache và kiểm thêm bản backup trong backend/target/phase4-report-backups. Những lần sau dùng test-compile và runner JUnit riêng cho kiểm tra cục bộ, không dùng lại property không có tác dụng. Script Windows đã bổ sung backup trước Maven test; cần lấy **kết quả mới đầy đủ của bộ 117**, không cộng các XML khác lần chạy hoặc xem bộ artifact hiện tại là bộ 73 nguyên bản.
+
+### Lệnh kiểm thử trên Windows
+
+```powershell
+Set-Location 'D:\HCMUTE\Y3\S1\T2\LapTrinhDiDong\TeamProject'
+$env:JAVA_HOME = 'C:\Program Files\Java\jdk-27'
+.\backend\scripts\test-phase4-foundation.ps1 -ContactsApi
+$LASTEXITCODE
+```
+
+Nếu mvn chưa có trong PATH, truyền `-Maven` như đợt trước bằng đường dẫn Maven 3.9.16 trên máy. Script dùng PostgreSQL Docker riêng và không đọc .env; chọn **117 test dự kiến** = 73 nền đã nghiệm thu + 22 lookup + 20 send + 2 validation. Trong đó 71 ca cần PostgreSQL, 46 ca còn lại. Đây là số test cần chạy, **không phải tuyên bố 117 test đã đạt**. XML mới phải đủ các suite, failures/errors/skipped đều 0; backup lần cũ nằm dưới backend/target/phase4-report-backups.
+
+### Trạng thái bàn giao và điểm dừng
+
+- **03:** code và test đã chuẩn bị/build được, nhưng còn chờ test PostgreSQL của endpoint, privacy/trạng thái, giới hạn và JWT; giữ `[ ]`.
+- **04:** code và test đã chuẩn bị/build được, validation unit đạt; còn chờ HTTP/PostgreSQL, duplicate/concurrency và atomicity sự kiện; giữ `[ ]`.
+- Chưa có thay đổi UI để bấm thử với backend; nối ô tìm người vẫn thuộc mục 17. Không triển khai hoặc đưa nháp API 05–09 vào commit. Các kiểm thử 01–02 trong script chỉ là hồi quy, không phải chọn thêm mục cấp chính.
+- Chỉ commit đúng code 03–04/test/harness và tài liệu liên quan bằng Author và Committer `MeanFen <nghiapp11102006@gmail.com>`. Không push, không sửa lịch sử, không xóa stash/backup. Dừng để người dùng chạy bộ Windows và cung cấp kết quả nghiệm thu; chưa chuyển sang mục khác.
