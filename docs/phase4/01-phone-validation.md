@@ -198,7 +198,7 @@ Link nhánh dự kiến: https://github.com/Project-Mobile-TEAM/Project_Mobile/t
 
 ## Checklist các hạng mục còn lại của Phase 4
 
-Hai thành phần đã kiểm thử riêng là chuẩn hóa SĐT (28 test) và giới hạn tra cứu (8 test). **Mục 01–02 đã nghiệm thu tại đợt 13; API backend 03–04 tại đợt 15; mục 05–06 tại đợt 17 bằng bộ Windows 159 test.** Luồng tìm người trên Android chưa hoàn chỉnh; chuẩn hóa ô nhập và gọi API từ màn hình còn thuộc mục 17. Các mục 07–20 vẫn chưa được nghiệm thu toàn mục, dù một số đã có code nháp trong `TeamProject`.
+Hai thành phần đã kiểm thử riêng là chuẩn hóa SĐT (28 test) và giới hạn tra cứu (8 test). **Mục 01–02 đã nghiệm thu tại đợt 13; API backend 03–04 tại đợt 15; mục 05–06 tại đợt 17; mục 07–08 tại đợt 19 bằng bộ Windows 215 test.** Luồng tìm người trên Android chưa hoàn chỉnh; chuẩn hóa ô nhập và gọi API từ màn hình còn thuộc mục 17. Các mục 09–20 vẫn chưa được nghiệm thu toàn mục, dù một số đã có code nháp trong `TeamProject`.
 
 Có 20 hạng mục để theo dõi, không mặc định tương ứng đúng 20 lượt thực hiện. Từ đợt 10, mỗi lượt chọn tối đa hai hạng mục cấp chính 01–20 theo thứ tự phụ thuộc; các phần con không được tính thành hạng mục cấp chính. Trước khi viết, đọc lại bản nháp liên quan để sửa và tái sử dụng phần phù hợp. Chỉ đánh dấu `[x]` khi đã có bằng chứng đạt toàn bộ điều kiện của mục đó; nếu bị chặn thì ghi nguyên nhân và phần còn thiếu.
 
@@ -220,10 +220,10 @@ Có 20 hạng mục để theo dõi, không mặc định tương ứng đúng 2
   - Đợt 17: đối chiếu đủ 17 testcase API/JWT/PostgreSQL đạt trong bộ Windows 159 test. Đã kiểm chủ danh sách từ JWT, chiều/trạng thái, cách ly người thứ ba, hồ sơ tối thiểu, dữ liệu inactive/privacy, filter sai, thứ tự ổn định và API đọc không ghi dữ liệu.
 - [x] **06. Chấp nhận lời mời:** chỉ người nhận được thực hiện, kiểm tra block; cập nhật lời mời, tạo hai dòng bạn bè và sự kiện nguyên tử; chấp nhận lặp không tạo trùng; chấp nhận lại lời mời cũ sau unfriend không tạo lại bạn bè; kiểm thử accept đồng thời với block.
   - Đợt 17: xác nhận 25 testcase API/JWT/PostgreSQL đạt, gồm JSONB/event, đồng thời, CHECK/rollback/retry và luồng tích hợp 03–06. Hai ca accept/block kiểm với fixture transaction SQL dùng khóa cặp; đây là nghiệm thu hành vi accept, chưa nghiệm thu HTTP/sự kiện của API block mục 09. Giữ yêu cầu kiểm tích hợp với API block thật khi làm 09.
-- [ ] **07. Từ chối và hủy lời mời:** chỉ người nhận được reject, chỉ người gửi được cancel; kiểm chuyển trạng thái hợp lệ, thao tác lặp và ghi sự kiện; accept sau reject/cancel phải bị từ chối nhất quán.
-  - Đợt 18: hoàn thiện respond từ nháp, thêm 27 test HTTP/JWT/PostgreSQL cho vai trò, trạng thái, lặp, JSONB/event, rollback và đồng thời với accept. Build đạt, chưa có kết quả PostgreSQL mới; giữ `[ ]`, chờ bộ Windows -FriendsApi.
-- [ ] **08. Danh sách bạn bè và hủy kết bạn:** trả đúng bạn bè của tài khoản; unfriend cập nhật cả hai chiều, bảo toàn dòng chặn và hạ `is_friend` trên dòng chặn còn lại; ghi sự kiện cho trạng thái thực sự thay đổi, không tạo trùng khi thao tác lặp.
-  - Đợt 18: tái sử dụng danh sách/unfriend và payload từ nháp, thêm 29 test HTTP/JWT/PostgreSQL cho lọc, DTO/quyền riêng tư, chặn/asymmetry, lặp, rollback, đồng thời và tích hợp 03–08. Chỉ biên dịch/discover, chưa chạy PostgreSQL mới; giữ `[ ]`.
+- [x] **07. Từ chối và hủy lời mời:** chỉ người nhận được reject, chỉ người gửi được cancel; kiểm chuyển trạng thái hợp lệ, thao tác lặp và ghi sự kiện; accept sau reject/cancel phải bị từ chối nhất quán.
+  - Đợt 19: đối chiếu đủ 27 testcase HTTP/JWT/PostgreSQL đạt trong bộ Windows 215; vai trò/trạng thái, lặp, JSONB hai bên, CHECK/rollback/retry, tranh accept/reject/cancel và luồng gửi lại đều đạt.
+- [x] **08. Danh sách bạn bè và hủy kết bạn:** trả đúng bạn bè của tài khoản; unfriend cập nhật cả hai chiều, bảo toàn dòng chặn và hạ `is_friend` trên dòng chặn còn lại; ghi sự kiện cho trạng thái thực sự thay đổi, không tạo trùng khi thao tác lặp.
+  - Đợt 19: xác nhận đủ 29 testcase HTTP/JWT/PostgreSQL đạt; danh sách/DTO/quyền, block/asymmetry, thao tác lặp, rollback và unfriend đồng thời/lịch sử ACCEPTED đều đạt. Race block vẫn dùng fixture SQL; phải kiểm lại với HTTP block thật ở 09.
 - [ ] **09. Chặn, danh sách chặn và bỏ chặn:** lưu quyết định chặn một chiều nhưng cản tương tác hai chiều; hủy lời mời chờ khi chặn; kiểm chặn người lạ, chặn bạn, hai bạn cùng chặn rồi bỏ chặn và unfriend trong lúc chặn; bỏ chặn không khôi phục quan hệ đã hủy.
 
 ### Dữ liệu Android
@@ -1200,3 +1200,18 @@ Bypass chỉ cho tiến trình chạy script, không đổi chính sách toàn m
 - So sánh phần block/unblock của service trước/sau: nội dung nháp giữ nguyên; ba handler 09 không bị sửa và không đưa vào index. Chỉ stage snapshot có tám endpoint 03–08 cùng helper cần thiết, hai test mới, script, hợp đồng và báo cáo. Hai tệp Java có thể vẫn hiển thị M sau commit vì giữ nháp 09 trong working tree.
 - **07–08 vẫn `[ ]`, chưa nghiệm thu toàn mục** do thiếu kết quả PostgreSQL mới; không hạ tiêu chuẩn bằng code/build/46 regression. Mục 01–06 giữ nghiệm thu trước đó. Chưa có UI mới để bấm thử; chưa nghiệm thu Android/hosted và chưa triển khai 09.
 - Commit phần chuẩn bị 07–08 bằng Author và Committer `MeanFen <nghiapp11102006@gmail.com>`, không sửa lịch sử hoặc push. Dừng để người dùng chạy bộ Windows và cung cấp kết quả; không làm hạng mục thứ ba.
+
+## Đợt 19 - Nghiệm thu 07–08 từ kết quả Windows, 18/11/2026
+
+Người dùng cung cấp thông báo **PASS tổng 215 test, các suite PASS, $LASTEXITCODE=0** của -FriendsApi. Đối chiếu độc lập đủ **18 XML và 18 log tóm tắt** mới tại surefire-reports, khoảng **21:04:37–21:05:31 UTC+7**: tổng 215, failures/errors/skipped đều 0, không có node lỗi hoặc bỏ qua, tên/số testcase khớp source, không trùng; từng TXT khớp XML. Cả 18 suite ghi JDK 27; log của **27/27 actions và 29/29 friends** xác nhận **PostgreSQL 16.16** và database phase4_* riêng trên loopback. Không chạy lại Maven/Docker/test để đối chiếu, không cộng 46 regression cục bộ vào tổng.
+
+| Phạm vi | Test | Bằng chứng |
+|---|---:|---|
+| ContactRequestActionsApiTest | 27 | Đúng quyền reject/cancel; trạng thái và lặp; JSONB hai bên; lỗi sự kiện thứ hai rollback/retry; tranh accept/reject/cancel; luồng gửi lại |
+| ContactFriendsApiTest | 29 | Chủ danh sách/DTO/privacy; unfriend hai chiều và bảo toàn chặn/createdAt; event đúng chiều; CHECK/rollback/retry; đồng thời, lịch sử ACCEPTED và luồng kết bạn lại |
+| 16 suite hồi quy 01–06 | 159 | Đủ bộ trước, cùng lần chạy và đều đạt |
+| **Tổng** | **215** | **169 ca cần PostgreSQL + 46 ca còn lại, không bỏ qua** |
+
+**07–08 đạt điều kiện nghiệm thu trong phạm vi API của hai mục.** Hai lỗi CHECK của actions/friends là điều kiện thử có chủ đích để kiểm rollback, không phải test failure. Hai chiều unfriend chỉ ghi event khi trạng thái thực sự đổi; block-only còn lại mất cờ friend và không lộ phone. Accept lịch sử không phục hồi quan hệ sau unfriend. Kiểm đồng thời với block tại 08 dùng fixture transaction SQL cùng khóa cặp, chưa xác nhận API block 09; yêu cầu kiểm lại tích hợp HTTP thật được giữ nguyên cho đợt 09. Bộ này kiểm MVC/JWT/SQL thật, chưa nghiệm thu UI Android hoặc production/HTTPS.
+
+Không thấy khác biệt cần sửa trong code 07–08 của a052452: service/controller ngoài phần block nháp trùng commit, source test/harness/hợp đồng không có thay đổi chưa commit. Dumpstream mới lúc 21:04:35 chỉ có warning classpath Surefire như trước. Cập nhật checklist 07/08 `[x]`, giữ lịch sử bị chặn của đợt 18. Chỉ commit báo cáo bằng Author/Committer MeanFen, không push; giữ nguyên stash, các tệp nháp và artifact. Theo yêu cầu mới, sau nghiệm thu này tiếp tục chọn tối đa hai mục cấp chính tiếp theo, không coi việc đóng bằng chứng 07–08 là triển khai lại tính năng.
