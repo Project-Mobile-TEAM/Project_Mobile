@@ -1,5 +1,5 @@
 ﻿[CmdletBinding()]
-param([string]$Maven = 'mvn', [string]$PostgresImage = 'postgres:16', [switch]$ContactsApi, [switch]$RequestsApi)
+param([string]$Maven = 'mvn', [string]$PostgresImage = 'postgres:16', [switch]$ContactsApi, [switch]$RequestsApi, [switch]$FriendsApi)
 
 # Bộ nghiệm thu chỉ dùng PostgreSQL container tạm; không đọc .env hoặc kết nối Supabase.
 $ErrorActionPreference = 'Stop'
@@ -60,16 +60,21 @@ try {
         'com.utechat.backend.contacts.LookupRateLimiterTest' = 8
         'com.utechat.backend.contacts.MissingPhoneParameterTest' = 4
     }
-    # Bộ 03–04 thêm API/body vào 73 test nền; bộ 05–06 kế thừa cả phần hồi quy này.
-    if ($ContactsApi -or $RequestsApi) {
+    # Các bộ nghiệp vụ sau kế thừa API/body 03–04 cùng 73 test nền.
+    if ($ContactsApi -or $RequestsApi -or $FriendsApi) {
         $expected['com.utechat.backend.contacts.ContactLookupApiTest'] = 22
         $expected['com.utechat.backend.contacts.ContactSendApiTest'] = 20
         $expected['com.utechat.backend.contacts.ContactInputValidationTest'] = 2
     }
     # Mục 05–06 chạy cùng toàn bộ hồi quy 01–04; không chọn suite nháp của API 07–09.
-    if ($RequestsApi) {
+    if ($RequestsApi -or $FriendsApi) {
         $expected['com.utechat.backend.contacts.ContactRequestListApiTest'] = 17
         $expected['com.utechat.backend.contacts.ContactAcceptApiTest'] = 25
+    }
+    # Mục 07–08 thêm reject/cancel và friends/unfriend; không chọn suite nháp của API block 09.
+    if ($FriendsApi) {
+        $expected['com.utechat.backend.contacts.ContactRequestActionsApiTest'] = 27
+        $expected['com.utechat.backend.contacts.ContactFriendsApiTest'] = 29
     }
     $tests = ($expected.Keys | ForEach-Object { ($_ -split '\.')[-1] }) -join ','
     # Giữ artifact lần trước trước khi Surefire ghi báo cáo của lần chạy mới.
@@ -97,7 +102,7 @@ try {
         $total += [int]$result.tests
         Write-Output ("PASS {0}: {1} test, không bỏ qua" -f $suite, $result.tests)
     }
-    $scopeLabel = if ($RequestsApi) { '05–06 cùng hồi quy 01–04' } elseif ($ContactsApi) { '03–04 cùng hồi quy 01–02' } else { '01–02' }
+    $scopeLabel = if ($FriendsApi) { '07–08 cùng hồi quy 01–06' } elseif ($RequestsApi) { '05–06 cùng hồi quy 01–04' } elseif ($ContactsApi) { '03–04 cùng hồi quy 01–02' } else { '01–02' }
     Write-Output ("PASS tổng {0} test trong bộ {1}; XML ở backend/target/surefire-reports." -f $total, $scopeLabel)
 } catch {
     $exitCode = 1

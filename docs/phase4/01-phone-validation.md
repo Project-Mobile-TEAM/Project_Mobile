@@ -221,7 +221,9 @@ Có 20 hạng mục để theo dõi, không mặc định tương ứng đúng 2
 - [x] **06. Chấp nhận lời mời:** chỉ người nhận được thực hiện, kiểm tra block; cập nhật lời mời, tạo hai dòng bạn bè và sự kiện nguyên tử; chấp nhận lặp không tạo trùng; chấp nhận lại lời mời cũ sau unfriend không tạo lại bạn bè; kiểm thử accept đồng thời với block.
   - Đợt 17: xác nhận 25 testcase API/JWT/PostgreSQL đạt, gồm JSONB/event, đồng thời, CHECK/rollback/retry và luồng tích hợp 03–06. Hai ca accept/block kiểm với fixture transaction SQL dùng khóa cặp; đây là nghiệm thu hành vi accept, chưa nghiệm thu HTTP/sự kiện của API block mục 09. Giữ yêu cầu kiểm tích hợp với API block thật khi làm 09.
 - [ ] **07. Từ chối và hủy lời mời:** chỉ người nhận được reject, chỉ người gửi được cancel; kiểm chuyển trạng thái hợp lệ, thao tác lặp và ghi sự kiện; accept sau reject/cancel phải bị từ chối nhất quán.
+  - Đợt 18: hoàn thiện respond từ nháp, thêm 27 test HTTP/JWT/PostgreSQL cho vai trò, trạng thái, lặp, JSONB/event, rollback và đồng thời với accept. Build đạt, chưa có kết quả PostgreSQL mới; giữ `[ ]`, chờ bộ Windows -FriendsApi.
 - [ ] **08. Danh sách bạn bè và hủy kết bạn:** trả đúng bạn bè của tài khoản; unfriend cập nhật cả hai chiều, bảo toàn dòng chặn và hạ `is_friend` trên dòng chặn còn lại; ghi sự kiện cho trạng thái thực sự thay đổi, không tạo trùng khi thao tác lặp.
+  - Đợt 18: tái sử dụng danh sách/unfriend và payload từ nháp, thêm 29 test HTTP/JWT/PostgreSQL cho lọc, DTO/quyền riêng tư, chặn/asymmetry, lặp, rollback, đồng thời và tích hợp 03–08. Chỉ biên dịch/discover, chưa chạy PostgreSQL mới; giữ `[ ]`.
 - [ ] **09. Chặn, danh sách chặn và bỏ chặn:** lưu quyết định chặn một chiều nhưng cản tương tác hai chiều; hủy lời mời chờ khi chặn; kiểm chặn người lạ, chặn bạn, hai bạn cùng chặn rồi bỏ chặn và unfriend trong lúc chặn; bỏ chặn không khôi phục quan hệ đã hủy.
 
 ### Dữ liệu Android
@@ -1136,3 +1138,65 @@ Hai ca `committedBlockIsRecheckedAfterAcceptanceWaitsForPairLock` và `concurren
 - Cập nhật duy nhất **docs/phase4/01-phone-validation.md**: phần mở đầu/checklist đánh dấu `[x]` 05/06, thêm bằng chứng đợt 17; giữ ghi nhận bị chặn đợt 16 làm lịch sử. Chuẩn hóa hai lệnh -RequestsApi trong phần hướng dẫn đợt 16 theo yêu cầu PowerShell 5.1: thêm JAVA_HOME/bin vào Path và gọi `powershell.exe -NoProfile -ExecutionPolicy Bypass -File` với đúng switch; thêm quy tắc áp dụng từ nay. Bypass chỉ cho tiến trình con, không thay ExecutionPolicy toàn máy. Không yêu cầu chạy lại bộ 159 đã đạt.
 - Đối chiếu SHA-256 bảo toàn **34 tệp nháp chưa commit** và **37 artifact surefire-reports hiện tại**, không commit XML/log/properties/credential. Giữ nguyên ba stash, gồm c1f69ff, và mọi backup; không đọc/in giá trị .env, không tạo project/worktree hoặc sửa lịch sử.
 - **05–06 đã nghiệm thu; 01–04 tiếp tục đạt hồi quy.** Chưa nghiệm thu API 07–09, Android, giao diện hoặc production. Không còn điều kiện PostgreSQL bị thiếu của 05–06; tích hợp với HTTP block thật vẫn thuộc nghiệm thu 09. Chỉ commit báo cáo bằng Author và Committer `MeanFen <nghiapp11102006@gmail.com>`, không push. Dừng, chưa triển khai mục tiếp theo.
+
+## Đợt 18 - Từ chối/hủy lời mời và bạn bè/unfriend: mục 07–08, 18/11/2026
+
+### Phạm vi và thay đổi
+
+Chọn đúng **07 và 08**, tiếp nối 01–06 đã nghiệm thu tại 9d1a928, chỉ làm việc trong TeamProject trên phase4_NP. Đọc và tái sử dụng respond, contacts, contactEvent, unfriend của bản nháp; không tạo project/worktree hoặc mở rộng API 09.
+
+**07:** đưa hai handler reject/cancel và phần respond tương ứng vào phạm vi commit. Chỉ addressee được reject, requester được cancel; kiểm vai trò trước khóa cặp, sau đó khóa dòng/đọc lại trạng thái. PENDING chuyển REJECTED/CANCELED và respondedAt, ghi đúng hai CONTACT_REQUEST_UPDATED nguyên tử; không sửa contacts. Thao tác cùng trạng thái lặp không đổi respondedAt/event; chuyển từ trạng thái đóng khác trả INVALID_STATE, accept sau reject/cancel cũng vậy. Reject trả DTO 200, cancel trả 204 rỗng. Giữ chữ ký respond có sẵn: nhánh ACCEPTED chuyển về accept đã nghiệm thu, loại bản sao logic tạo bạn cũ; trạng thái hành động khác bị từ chối trước JDBC.
+
+**08:** danh sách bạn bè dựa trên owner từ JWT, is_friend=true/blocked=false chiều mình và target ACTIVE, DTO contact đúng hợp đồng. Thêm ID làm khóa phụ khi trùng tên. Unfriend lấy khóa cặp, xử lý hai chiều theo thứ tự UUID thống nhất với accept: xóa dòng không chặn, với dòng chặn chỉ hạ is_friend, giữ blocked/createdAt. CONTACT_UPDATED phản ánh đúng trạng thái sau thao tác cho từng chủ dòng thực sự đổi; block-only không lộ SĐT và không sinh event khi không đổi. Lặp/stranger không ghi thừa, không hủy pending hoặc phục hồi tình bạn từ ACCEPTED lịch sử. Shared query có nhánh đọc dòng chặn để dựng payload unfriend; chưa đưa GET blocked/block/unblock của 09 vào controller đã commit.
+
+| Tệp thuộc phạm vi commit | Nội dung |
+|---|---|
+| `backend/src/main/java/com/utechat/backend/service/ContactsService.java` | Promote respond/contacts/contactEvent/unfriend từ nháp, hợp nhất accept, thứ tự/điều kiện cập nhật và sự kiện; giữ block/unblock ngoài index |
+| `backend/src/main/java/com/utechat/backend/controller/ContactController.java` | Thêm reject/cancel/friends/unfriend; tổng tám handler 03–08 trong commit, ba handler 09 vẫn là nháp |
+| `backend/src/test/java/com/utechat/backend/contacts/ContactRequestActionsApiTest.java` | 27 test JWT/quyền/trạng thái, payload, rollback/retry, đồng thời và luồng gửi/reject/gửi lại/cancel |
+| `backend/src/test/java/com/utechat/backend/contacts/ContactFriendsApiTest.java` | 29 test lọc/DTO/actor/privacy, unfriend hai chiều/block/lặp, JSONB, rollback, đồng thời và luồng tích hợp |
+| `backend/scripts/test-phase4-foundation.ps1` | Thêm -FriendsApi cho 215 test/18 suite, bao gồm toàn bộ 01–06; giữ các switch 73/117/159 cũ |
+| `docs/API_CONTRACT.md` | Quyền, trạng thái/lặp, response, giới hạn danh sách theo chiều chủ, unfriend/event/rollback |
+| `docs/phase4/01-phone-validation.md` | Báo cáo duy nhất và checklist chờ PostgreSQL của 07–08 |
+
+### Kiểm thử thực tế
+
+- Dùng **JDK 27, Maven 3.9.16**, chạy `mvn -o -B -ntp -f backend/pom.xml test-compile` qua mvn.cmd trong wrapper cache: **BUILD SUCCESS, exit code 0**, 29 source chính và 25 source test, release 17. Không đổi JDK/dependency; warning varargs của HealthControllerTest sẵn có giữ nguyên ngoài phạm vi.
+- Snapshot ContactsService/ContactController đúng phạm vi index **biên dịch riêng thành công bằng javac --release 17 -parameters**, không cần nháp API 09 để compile. JUnit Platform discovery nhận đúng **56 test mới**, không execute hoặc kết nối PostgreSQL; discovery không được tính là test đã đạt.
+- Runner JUnit riêng ưu tiên class snapshot chạy **46 regression đạt, 0 failed/skipped/aborted**, exit code 0. Đây là helper/DTO/limiter/lỗi tham số/guard/URL đã có, gồm các test H2; không phải kết quả 56 test nghiệp vụ mới và không dùng để nghiệm thu PostgreSQL.
+- Script kiểm tĩnh: Parser **0 lỗi**, **UTF-8 BOM** giữ nguyên; selector đối chiếu số testcase theo source cho default **11 suite/73**, -ContactsApi **14/117**, -RequestsApi **16/159**, -FriendsApi **18/215** đều đúng. Không thực thi script -FriendsApi trong phiên này.
+- Kiểm tra môi trường bằng `docker version --format '{{.Server.Version}}'` trả **exit code 1**, lỗi thực tế dưới đây. Đây là từ chối truy cập named pipe trong phiên agent, không kết luận Docker ở Terminal người dùng hỏng hoặc lỗi database/JDK/DNS. Không dùng .env/Supabase và không thay PostgreSQL bằng H2.
+
+```text
+permission denied while trying to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine
+```
+
+**Chưa chạy 56 test PostgreSQL mới.** Những điều kiện còn phải kiểm khi chạy Windows gồm: reject/cancel đúng vai trò và thao tác lặp, accept sau đóng lời mời, payload JSONB và hai người nhận; lỗi CHECK sự kiện thứ hai rollback respondedAt/trạng thái rồi retry; hai reject/cancel lặp và accept/reject/cancel tranh cùng cặp chỉ chuyển trạng thái một lần. Mục 08 còn cần kết quả danh sách/quyền/DTO thật, bảo toàn block và createdAt, event theo từng chiều thay đổi, lỗi CHECK khi hạ cờ ở dòng thứ hai hoặc khi ghi sự kiện thứ hai rollback toàn bộ, unfriend cùng/ngược chiều đồng thời và race với ACCEPTED lịch sử.
+
+Có test tích hợp gửi → reject → gửi lại → cancel → đọc lại hai danh sách; và gửi → accept → danh sách bạn hai bên → unfriend → lookup STRANGER → accept lịch sử không phục hồi → lời mời mới/accept mới tạo lại bạn. Các luồng này hiện mới biên dịch, **chưa tuyên bố đã chạy thành công**. Một test unfriend/block đồng thời dùng transaction SQL fixture tuân khóa cặp để kiểm bảo toàn block-only; không gọi/nghiệm thu HTTP/sự kiện API block 09. Khi làm 09 cần kiểm lại với API block thật, tương tự giới hạn của mục 06.
+
+### Lệnh Windows để kiểm chứng
+
+```powershell
+Set-Location 'D:\HCMUTE\Y3\S1\T2\LapTrinhDiDong\TeamProject'
+$env:JAVA_HOME = 'C:\Program Files\Java\jdk-27'
+$env:Path = "$env:JAVA_HOME\bin;$env:Path"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\backend\scripts\test-phase4-foundation.ps1" -FriendsApi
+$LASTEXITCODE
+```
+
+Nếu mvn chưa nằm trong PATH, giữ cấu hình JAVA_HOME/Path trên và chạy:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\backend\scripts\test-phase4-foundation.ps1" -FriendsApi -Maven 'C:\Users\Phuocnghia_admin\.m2\wrapper\dists\apache-maven-3.9.16\0daed3be3ebd1c706f0e69e8b07c6b73f5cc4ea3dfce72a8d0ec2e849ca2ddb0\bin\mvn.cmd'
+$LASTEXITCODE
+```
+
+Bypass chỉ cho tiến trình chạy script, không đổi chính sách toàn máy. Bộ **215 test dự kiến = 159 hồi quy + 27 actions + 29 friends**, gồm **169 ca cần PostgreSQL và 46 ca còn lại**; đây chưa phải kết quả đã đạt. Chỉ cần chạy -FriendsApi vì đã bao gồm 01–06. Cần BUILD SUCCESS/exit 0, đủ 18 XML mới và failures/errors/skipped đều 0; không cộng số từ các lần chạy khác nhau. Script vẫn tạo Docker/database cô lập và backup artifact trước Surefire.
+
+### Bảo toàn và điểm dừng
+
+- Snapshot/hash trước thay đổi nằm trong .task-cache/phase4-07-08. Giữ **32 tệp nháp ngoài hai tệp Java chung**, ba stash gồm c1f69ff, mọi backup và **37 artifact surefire-reports** của bộ Windows 159 đã nghiệm thu. Không đọc/in giá trị .env, không sửa migration, không ghi đè hoặc commit XML/log/credential.
+- So sánh phần block/unblock của service trước/sau: nội dung nháp giữ nguyên; ba handler 09 không bị sửa và không đưa vào index. Chỉ stage snapshot có tám endpoint 03–08 cùng helper cần thiết, hai test mới, script, hợp đồng và báo cáo. Hai tệp Java có thể vẫn hiển thị M sau commit vì giữ nháp 09 trong working tree.
+- **07–08 vẫn `[ ]`, chưa nghiệm thu toàn mục** do thiếu kết quả PostgreSQL mới; không hạ tiêu chuẩn bằng code/build/46 regression. Mục 01–06 giữ nghiệm thu trước đó. Chưa có UI mới để bấm thử; chưa nghiệm thu Android/hosted và chưa triển khai 09.
+- Commit phần chuẩn bị 07–08 bằng Author và Committer `MeanFen <nghiapp11102006@gmail.com>`, không sửa lịch sử hoặc push. Dừng để người dùng chạy bộ Windows và cung cấp kết quả; không làm hạng mục thứ ba.

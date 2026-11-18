@@ -159,4 +159,52 @@ public class ContactsService {
         events.write(owner, "CONTACT_UPDATED", "CONTACT", other.toString(), Map.of(
                 "contactUserId", other.toString(), "isFriend", true, "blocked", false, "removed", false, "user", user));
     }
+    /** Đọc cặp bất biến để tìm khóa; sau khi khóa phải đọc lại trạng thái và kiểm đúng vai trò. */
+    public ContactRequestDto respond(UUID actor,UUID key,String next) {
+        // Giữ chữ ký nháp cũ nhưng dùng chung accept đã nghiệm thu, không giữ hai nhánh tạo bạn khác nhau.
+        if ("ACCEPTED".equals(next)) return accept(actor, key);
+        if (!"REJECTED".equals(next) && !"CANCELED".equals(next)) throw error(HttpStatus.BAD_REQUEST, "VALIDATION");
+        return tx.execute(s -> {
+            var preliminary=request(key,false);
+            UUID a=id(preliminary.requester().id()), b=id(preliminary.addressee().id());
+            // Không cho người thứ ba giữ khóa cặp của hai người khác bằng một request trái quyền.
+            if(!actor.equals("CANCELED".equals(next)?a:b)) throw error(HttpStatus.FORBIDDEN,"FORBIDDEN");
+            pair(a,b); var r=request(key,true);
+            if(next.equals(r.status())) return r; // Lặp thao tác không ghi thêm quan hệ hoặc sự kiện.
+            if(!"PENDING".equals(r.status())) throw error(HttpStatus.CONFLICT,"INVALID_STATE");
+            db.update("UPDATE contact_requests SET status=?,responded_at=now() WHERE id=?",next,key);
+            // Reject/cancel vẫn được phép khi có block; không tạo hoặc xóa quan hệ contact tại đây.
+            var updated=request(key,false); requestEvent(updated,"CONTACT_REQUEST_UPDATED"); return updated;
+        });
+    }
+    /** Danh sách phản ánh dòng do chủ tài khoản sở hữu; quyền tương tác luôn kiểm chặn cả hai chiều. */
+    public List<ContactDto> contacts(UUID actor,boolean blocked) {
+        return db.query("SELECT u.id,CASE WHEN c.is_friend THEN u.phone_e164 ELSE NULL END phone,u.display_name,u.avatar_url,c.blocked,c.created_at "
+                +"FROM contacts c JOIN users u ON u.id=c.contact_user_id WHERE c.owner_id=? AND c.blocked=? "
+                +"AND (c.blocked OR c.is_friend) AND u.status='ACTIVE' ORDER BY u.display_name,u.id", (r,i)->new ContactDto(r.getString("id"),r.getString("phone"),
+                r.getString("display_name"),r.getString("avatar_url"),r.getBoolean("blocked"),r.getTimestamp("created_at").toInstant().toString()),actor,blocked);
+    }
+    /** Payload thể hiện trạng thái sau thay đổi, không chỉ lệnh thao tác; giữ riêng isFriend để không mất thông tin. */
+    private void contactEvent(UUID owner,UUID other) {
+        var rows=db.queryForList("SELECT is_friend,blocked FROM contacts WHERE owner_id=? AND contact_user_id=?",owner,other);
+        Map<String,Object> payload=new LinkedHashMap<>(); payload.put("contactUserId",other.toString()); payload.put("removed",rows.isEmpty());
+        payload.put("blocked",!rows.isEmpty()&&Boolean.TRUE.equals(rows.get(0).get("blocked")));
+        payload.put("isFriend",!rows.isEmpty()&&Boolean.TRUE.equals(rows.get(0).get("is_friend")));
+        if(!rows.isEmpty()) contacts(owner,Boolean.TRUE.equals(rows.get(0).get("blocked"))).stream().filter(c->c.id().equals(other.toString())).findFirst().ifPresent(c->payload.put("user",c));
+        events.write(owner,"CONTACT_UPDATED","CONTACT",other.toString(),payload);
+    }
+    /** Hủy bạn không được xóa quyết định chặn; phát sự kiện cả khi chỉ thay đổi is_friend trên dòng chặn. */
+    public void unfriend(UUID actor,UUID target) {
+        tx.executeWithoutResult(s -> {
+            pair(actor,target);
+            // Cùng thứ tự chủ dòng như accept, dù hai người gửi unfriend ngược chiều đồng thời.
+            UUID lo=actor.compareTo(target)<0?actor:target, hi=lo.equals(actor)?target:actor;
+            for(UUID owner:List.of(lo,hi)) {
+                UUID other=owner.equals(actor)?target:actor;
+                int removed=db.update("DELETE FROM contacts WHERE owner_id=? AND contact_user_id=? AND NOT blocked",owner,other);
+                int changed=db.update("UPDATE contacts SET is_friend=FALSE WHERE owner_id=? AND contact_user_id=? AND blocked AND is_friend",owner,other);
+                if(removed+changed>0) contactEvent(owner,other);
+            }
+        });
+    }
 }

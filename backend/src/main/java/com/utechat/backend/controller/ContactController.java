@@ -8,7 +8,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
-/** Bốn endpoint tra cứu, gửi/xem/chấp nhận lời mời dùng actor từ JWT; service kiểm quyền. */
+/** Tám endpoint danh bạ/lời mời dùng actor JWT; quyền và transaction được kiểm tại service. */
 @RestController
 @RequestMapping("/api")
 public class ContactController {
@@ -23,4 +23,14 @@ public class ContactController {
     @GetMapping("/contact-requests") public List<ContactRequestDto> requests(@AuthenticationPrincipal AuthenticatedActor a,@RequestParam(name="status",required=false) String status,@RequestParam(name="type",required=false) String type) { return service.requests(a.userId(),status,type); }
     /** Người nhận lấy từ JWT; service giữ transaction và kiểm lại trạng thái/chặn trước khi chấp nhận. */
     @PostMapping("/contact-requests/{id}/accept") public ContactRequestDto accept(@AuthenticationPrincipal AuthenticatedActor a,@PathVariable(name="id") String id) { return service.accept(a.userId(),ContactsService.id(id)); }
+    /** Chỉ người nhận được reject; service kiểm vai trò và trạng thái trong cùng transaction. */
+    @PostMapping("/contact-requests/{id}/reject") public ContactRequestDto reject(@AuthenticationPrincipal AuthenticatedActor a,@PathVariable(name="id") String id) { return service.respond(a.userId(),ContactsService.id(id),"REJECTED"); }
+    /** DELETE hủy lời mời chỉ dành cho người gửi; thành công trả 204, không có response body. */
+    @DeleteMapping("/contact-requests/{id}") @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void cancel(@AuthenticationPrincipal AuthenticatedActor a,@PathVariable(name="id") String id) { service.respond(a.userId(),ContactsService.id(id),"CANCELED"); }
+    /** Danh sách theo chủ sở hữu JWT, chỉ lấy dòng bạn bè không bị chủ tài khoản chặn. */
+    @GetMapping("/contacts") public List<ContactDto> friends(@AuthenticationPrincipal AuthenticatedActor a) { return service.contacts(a.userId(),false); }
+    /** Unfriend tác động hai chiều nhưng giữ quyết định chặn; actor luôn lấy từ JWT. */
+    @DeleteMapping("/contacts/{id}") @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void unfriend(@AuthenticationPrincipal AuthenticatedActor a,@PathVariable(name="id") String id) { service.unfriend(a.userId(),ContactsService.id(id)); }
 }
