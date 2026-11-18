@@ -2,7 +2,7 @@
 
 Ngày thực hiện: 17/11/2026. Đây là file báo cáo chung duy nhất, được cập nhật sau từng đợt nhỏ.
 
-Cập nhật mới nhất: 18/11/2026 — đợt 05, helper ghi sự kiện trong transaction (02c).
+Cập nhật mới nhất: 18/11/2026 — đợt 06, chính sách chặn và quan hệ bạn bè (02d).
 
 **Nơi làm việc hiện tại:** `D:\HCMUTE\Y3\S1\T2\LapTrinhDiDong\TeamProject`, nhánh `phase4_NP`.
 Từ lần thống nhất worktree dưới đây chỉ tiếp tục làm việc trong thư mục này. Các đoạn mô tả dùng worktree review ở đợt 01/02 là lịch sử.
@@ -209,6 +209,7 @@ Có 20 hạng mục để theo dõi, không mặc định tương ứng đúng 2
   - [x] **02a. Lỗi thiếu query bắt buộc:** thiếu `phone` trả `400 PHONE_INVALID`; thiếu tham số khác trả `400 VALIDATION`; 4 test Spring MVC đạt. Các phần còn lại của mục 02 vẫn chưa nghiệm thu.
   - [x] **02b. DTO JSON danh bạ và lời mời:** chốt năm record, kiểm đúng tên trường, boolean, ID/chiều lời mời và hồ sơ tối thiểu không chứa SĐT; 9 test Jackson đạt. Chưa nghiệm thu DTO Android, endpoint hoặc chính sách trả dữ liệu của service.
   - [x] **02c. Helper ghi sự kiện trong transaction:** `SyncEventWriter` yêu cầu transaction đang có, cùng commit/rollback với caller, không nuốt lỗi JSON/JDBC; 7 test Spring proxy và JDBC trên H2 đạt. Chưa nghiệm thu schema/JSONB PostgreSQL hoặc sự kiện của các thao tác quan hệ thật.
+  - [x] **02d. Truy vấn chính sách quan hệ:** xác định chủ thể chặn, kiểm chặn hai chiều và yêu cầu đủ hai dòng bạn bè không chặn; 8 test JDBC/guard đạt trên H2. Chưa nghiệm thu advisory lock, đồng thời hoặc nghiệp vụ API trên PostgreSQL.
 - [ ] **03. API tìm người bằng SĐT:** server kiểm E.164 và danh tính từ JWT, nối `LookupRateLimiter`; xác minh `400 PHONE_INVALID`, `400 SELF`, `404 NOT_FOUND` cho các trường hợp cần che hồ sơ và `429 RATE_LIMITED` kèm thời gian chờ; trả đúng trạng thái quan hệ và ID/chiều lời mời. Chuẩn hóa ô nhập phía Android được nối tại mục 17.
 - [ ] **04. Gửi lời mời kết bạn:** cấm tự gửi, gửi khi có block, gửi khi đã là bạn; xử lý trùng cùng chiều và ngược chiều bằng `409 REQUEST_ALREADY_PENDING`; hai yêu cầu đồng thời chỉ tạo một lời mời chờ; ghi sự kiện cho đúng hai bên trong cùng transaction.
 - [ ] **05. Xem lời mời đã nhận và đã gửi:** chỉ trả lời mời liên quan tài khoản hiện tại, lọc chiều/trạng thái đúng; không tiết lộ SĐT trong hồ sơ tối thiểu của lời mời; không cho người thứ ba đọc dữ liệu trái quyền.
@@ -432,3 +433,57 @@ Lệnh Maven là hướng dẫn chạy lại, chưa được xác nhận chạy 
 - Mục 01 và mục 02 tổng thể vẫn chưa đánh dấu hoàn thành. Chưa chạy full Maven/Gradle build, PostgreSQL, APK hoặc emulator.
 - Chỉ commit bốn tệp liệt kê trên với Author và Committer `MeanFen <nghiapp11102006@gmail.com>`; các bản nháp khác vẫn giữ ngoài commit.
 - Không push, không sửa lịch sử hoặc chuyển sang phần tiếp theo trong đợt này. Dừng cho người dùng tự kiểm tra và push bằng Terminal.
+
+## Đợt 06 — Chính sách chặn và quan hệ bạn bè (02d), 18/11/2026
+
+### Phạm vi và tệp thay đổi
+
+Chỉ nghiệm thu phần truy vấn chính sách quan hệ trong `ContactPolicyService` từ bản nháp. Đã kiểm tra các chỗ gọi trong `ContactsService` bản nháp và giữ tương thích các chữ ký hiện có; không commit controller/service nghiệp vụ hoặc migration của bản nháp.
+
+| Tệp | Thay đổi |
+|---|---|
+| `backend/src/main/java/com/utechat/backend/service/ContactPolicyService.java` | Bổ sung `isBlockedBy`, chốt `isBlockedEitherWay`, chuyển `areAcceptedFriends` sang một câu SQL kiểm đủ hai dòng `is_friend=true, blocked=false`; giữ phần khóa cặp có sẵn và ghi rõ giới hạn kiểm chứng |
+| `backend/src/test/java/com/utechat/backend/contacts/ContactPolicyServiceTest.java` | 8 test trên H2 JDBC, không giả lập hàm advisory lock PostgreSQL |
+| `docs/phase4/01-phone-validation.md` | Đánh dấu riêng 02d, cập nhật kết quả và các phần chưa nghiệm thu |
+
+`isBlockedBy(A,B)` chỉ xét dòng do A sở hữu. `isBlockedEitherWay(A,B)` xét cả hai chiều. `areAcceptedFriends(A,B)` chỉ trả true khi có đủ hai dòng bạn bè không chặn; dựa trên PK `(owner_id, contact_user_id)`, mỗi cặp khác nhau có tối đa hai dòng.
+
+Bản nháp cũ kiểm chặn bằng một query rồi đếm bạn bè bằng query khác. Đợt này gộp điều kiện vào một query để không ghép hai kết quả từ trước và sau thay đổi chặn. Điều này không thay thế việc lấy khóa cặp và transaction ở thao tác ghi.
+
+### Kiểm thử thực tế
+
+| Test mới | Kết quả |
+|---|---|
+| Người lạ không có quan hệ bạn bè hoặc chặn | Đạt |
+| Một dòng chặn có đúng một chủ sở hữu nhưng cản tương tác cả hai chiều | Đạt |
+| Chặn liên quan tài khoản thứ ba không ảnh hưởng cặp bạn bè đang xét | Đạt |
+| Chỉ có một dòng bạn bè thì chưa được coi là bạn bè hai chiều | Đạt |
+| Hai dòng bạn bè không chặn được nhận diện đúng khi đổi thứ tự người dùng | Đạt |
+| Chặn bạn bè giữ `is_friend` nhưng cấm tương tác bạn bè | Đạt |
+| Hai người bạn cùng chặn nhau vẫn giữ cờ bạn bè nhưng chưa được tương tác | Đạt |
+| Gọi `lockPair` ngoài transaction bị guard từ chối trước khi truy vấn JDBC | Đạt |
+
+- Biên dịch Java với `javac --release 17 -encoding UTF-8`: đạt.
+- Chạy JUnit Platform Launcher 1.10.3 / Jupiter 5.10.3: **36 test backend đạt**, gồm 8 policy, 7 sync writer, 9 DTO, 8 rate limiter và 4 missing parameter; 0 thất bại, 0 bỏ qua.
+- Sau khi gộp truy vấn kiểm tra bạn bè thành một câu SQL, đã biên dịch lại và chạy lại đủ 36 test backend: đạt.
+- Chạy lại `ContactsValidatorTest` bằng JUnit 4.13.2: **OK (28 tests)**.
+- Tổng **64 test chọn lọc đạt**, gồm **8 mới và 56 hồi quy**. Không suy ra toàn bộ ứng dụng đã pass.
+- Dùng H2 2.2.224 và Spring Framework 6.1.12 từ cache cùng dependency đã có; không thêm dependency mới. Runner tạm ở `.task-cache/input-error-tests`, không commit. Runner riêng có cảnh báo SLF4J thiếu provider nhưng test đạt.
+
+Lệnh chuẩn từ `backend` khi Maven đủ dependency:
+
+```powershell
+.\mvnw.cmd test "-Dtest=ContactPolicyServiceTest,SyncEventWriterTest,ContactDtosTest,LookupRateLimiterTest,MissingPhoneParameterTest"
+```
+
+Lệnh Maven trên là hướng dẫn chạy lại, chưa được xác nhận chạy thành công trong đợt này. Bằng chứng thực tế đến từ chạy JUnit trực tiếp với các JAR trong cache và H2 JDBC.
+
+### Giới hạn và điểm dừng
+
+- Test H2 tạo bảng `contacts` tối thiểu để chạy các predicate đọc; không chạy migration V1/V4, FK/RLS hoặc nghiệm thu schema PostgreSQL.
+- `lockPair` vẫn giữ logic PostgreSQL từ bản nháp để tương thích caller: yêu cầu transaction và dùng khóa của cặp UUID chuẩn hóa. Test đợt này chỉ xác minh guard ngoài transaction, không gọi `pg_advisory_xact_lock`.
+- Chưa kiểm chứng lấy/nhả advisory lock, tranh chấp đồng thời hoặc deadlock trên PostgreSQL; chưa đánh dấu hoàn thành phần khóa cặp của mục 02.
+- Chưa chạy luồng block/unblock/unfriend thật; các test chỉ kiểm dữ liệu fixture và quyết định chính sách. Chưa kiểm trạng thái ACTIVE/DELETED hay phân quyền JWT ở API.
+- Mục 01 và mục 02 tổng thể vẫn chưa hoàn thành. Chưa chạy full Maven/Gradle build, PostgreSQL, APK hoặc emulator.
+- Chỉ commit ba tệp trên với Author và Committer `MeanFen <nghiapp11102006@gmail.com>`. Các bản nháp khác được bảo toàn ngoài commit.
+- Không push, không sửa lịch sử, không tạo project/worktree hoặc báo cáo khác. Dừng để người dùng tự kiểm tra và push bằng Terminal.
