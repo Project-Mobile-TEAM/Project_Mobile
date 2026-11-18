@@ -2,7 +2,7 @@
 
 Ngày thực hiện: 17/11/2026. Đây là file báo cáo chung duy nhất, được cập nhật sau từng đợt nhỏ.
 
-Cập nhật mới nhất: 18/11/2026 — đợt 06, chính sách chặn và quan hệ bạn bè (02d).
+Cập nhật mới nhất: 18/11/2026 — đợt 07, DTO Android đọc hợp đồng JSON (10a).
 
 **Nơi làm việc hiện tại:** `D:\HCMUTE\Y3\S1\T2\LapTrinhDiDong\TeamProject`, nhánh `phase4_NP`.
 Từ lần thống nhất worktree dưới đây chỉ tiếp tục làm việc trong thư mục này. Các đoạn mô tả dùng worktree review ở đợt 01/02 là lịch sử.
@@ -223,6 +223,7 @@ Có 20 hạng mục để theo dõi, không mặc định tương ứng đúng 2
 **Phụ thuộc bắt buộc:** thiết kế và kiểm chứng cơ chế phiên, executor và phản hồi cũ của mục 14 trước khi ghi cache trong mục 12–13. Fake Repository và Injection được mở rộng cùng các phần sử dụng chúng.
 
 - [ ] **10. Retrofit, DTO Android và ánh xạ lỗi:** khai báo đủ 11 endpoint, dùng client/Bearer hiện có; ánh xạ đúng JSON backend, `isContact`, trạng thái quan hệ, ID/chiều lời mời, `retryAfterSeconds`; có kiểm thử tương thích hợp đồng và lỗi mạng.
+  - [x] **10a. DTO Android và JSON Gson:** đọc đúng lookup, lời mời, danh sách contact và details của lỗi 409/429; body gửi chỉ gồm addresseeId; 10 test Gson đạt. Chưa nghiệm thu Retrofit, HTTP thực tế hoặc xử lý lỗi ở Repository.
 - [ ] **11. Room DAO và cập nhật cache bằng transaction:** đối soát để xóa dữ liệu hết hiệu lực, giữ hồ sơ và quyền riêng tư khi DTO thiếu trường; lưu dòng chặn và hồ sơ tối thiểu nguyên tử; giữ schema v1 theo kế hoạch; kiểm truy vấn và rollback bằng Room in-memory thật.
 - [ ] **12. Repository cho tìm kiếm và lời mời:** nối REST với Room, bảo vệ callback theo phiên và độ mới; cập nhật lời mời sau thao tác; accept không tự tạo bạn từ lịch sử `ACCEPTED` mà đối soát danh sách server; giữ các chữ ký cũ còn được sử dụng.
 - [ ] **13. Repository cho bạn bè và chặn:** cập nhật cache đúng sau unfriend/block/unblock; phản hồi tải lại cũ không ghi đè thao tác mới; phân biệt thao tác đã lưu nhưng refresh thất bại với kết quả ghi chưa xác định do mất phản hồi; không suy đoán quan hệ bạn bè.
@@ -487,3 +488,59 @@ Lệnh Maven trên là hướng dẫn chạy lại, chưa được xác nhận c
 - Mục 01 và mục 02 tổng thể vẫn chưa hoàn thành. Chưa chạy full Maven/Gradle build, PostgreSQL, APK hoặc emulator.
 - Chỉ commit ba tệp trên với Author và Committer `MeanFen <nghiapp11102006@gmail.com>`. Các bản nháp khác được bảo toàn ngoài commit.
 - Không push, không sửa lịch sử, không tạo project/worktree hoặc báo cáo khác. Dừng để người dùng tự kiểm tra và push bằng Terminal.
+
+## Đợt 07 — DTO Android đọc hợp đồng JSON (10a), 18/11/2026
+
+### Phạm vi và tệp thay đổi
+
+Đã kiểm tra lại các đường dẫn PostgreSQL phổ biến, dependency nhúng trong Maven cache và npm cache; chưa tìm được engine PostgreSQL dùng để nghiệm thu migration trong môi trường này. Vì vậy không đánh dấu mục 01 hoặc thử thay migration PostgreSQL bằng H2.
+
+Đợt này chỉ chốt DTO Android cho JSON đã thống nhất ở backend. Đã đọc các chỗ dùng trong API, Repository, Fake và UI bản nháp; giữ nguyên tên class, field, constructor và kế thừa để không làm gãy lời gọi hiện có. Không triển khai thêm endpoint hoặc ghi Room.
+
+| Tệp | Thay đổi |
+|---|---|
+| `app/src/main/java/com/utechat/data/remote/model/ContactDtos.java` | Đưa DTO Gson từ bản nháp vào phần được kiểm thử riêng; bổ sung chú thích về hồ sơ tối thiểu, phone nullable, thời gian và tên trường direction |
+| `app/src/test/java/com/utechat/data/remote/model/ContactDtosTest.java` | 10 test dùng Gson thật với JSON fixture theo hợp đồng backend |
+| `docs/phase4/01-phone-validation.md` | Đánh dấu riêng 10a, ghi kết quả và giới hạn, giữ mục 10 tổng thể chưa hoàn thành |
+
+Không thêm dependency: Gson đã có qua Retrofit converter của Android. DTO vẫn độc lập với Entity Room và framework Android. `pendingRequestDirection` thuộc lookup; `error.details.direction` thuộc lỗi 409, không dùng lẫn hai tên trường.
+
+### Kiểm thử thực tế
+
+| Test mới | Kết quả |
+|---|---|
+| Lookup người lạ đọc boolean false và các trường pending null | Đạt |
+| Lookup bạn bè đọc đúng isContact=true, avatar và trạng thái FRIEND | Đạt |
+| Lookup lời mời nhận đến giữ đúng ID và chiều INCOMING | Đạt |
+| Lookup lời mời gửi đi giữ đúng ID và chiều OUTGOING | Đạt |
+| Lời mời pending đọc hai hồ sơ Unicode tối thiểu và respondedAt null | Đạt |
+| Lời mời đã phản hồi giữ nguyên chuỗi thời gian ISO-8601 | Đạt |
+| Danh sách contact đọc blocked boolean và phone/avatar nullable | Đạt |
+| Body gửi lời mời chỉ có addresseeId | Đạt |
+| Lỗi 429 giữ code và retryAfterSeconds | Đạt |
+| Lỗi 409 giữ existingRequestId/direction và chấp nhận metadata bổ sung | Đạt |
+
+- Biên dịch Java với `javac --release 17 -encoding UTF-8`: đạt.
+- JUnit 4.13.2 với Gson 2.10.1 chạy `com.utechat.data.remote.model.ContactDtosTest` (10) và `ContactsValidatorTest` (28): **OK (38 tests)**.
+- Biên dịch lại và chạy các test backend đã nghiệm thu bằng JUnit Platform Launcher 1.10.3 / Jupiter 5.10.3: **36 tests successful, 0 failed, 0 skipped**.
+- Tổng **74 test chọn lọc đạt**, gồm **10 mới và 64 hồi quy**.
+- Hồi quy backend dùng Spring Framework 6.1.12, Jackson 2.17.2 và H2 2.2.224 từ cache như các đợt trước; không mở rộng phạm vi nghiệm thu PostgreSQL.
+- Runner/output biên dịch trong `.task-cache`, không commit. Cảnh báo SLF4J thiếu provider chỉ xuất hiện ở runner backend riêng; các test đạt.
+
+Lệnh chuẩn từ thư mục gốc khi môi trường Gradle đủ điều kiện:
+
+```powershell
+.\gradlew.bat testDebugUnitTest --tests "com.utechat.data.remote.model.ContactDtosTest" --tests "com.utechat.ui.contacts.ContactsValidatorTest" --no-daemon
+```
+
+Lệnh Gradle trên là hướng dẫn chạy lại, chưa được xác nhận thành công trong đợt này. Kết quả thực tế là JUnit trực tiếp với các JAR trong cache.
+
+### Giới hạn và điểm dừng
+
+- Test Android dùng JSON fixture theo tên trường đã chốt; chưa gọi trực tiếp backend hoặc kiểm end-to-end Jackson → HTTP/Retrofit → Gson.
+- Đọc DTO lỗi không đồng nghĩa đã ánh xạ đầy đủ HTTP/lỗi mạng sang ContactsResult hoặc thông báo UI; phần đó vẫn ở các mục còn lại.
+- Chưa validate UUID/trạng thái nghiệp vụ trong DTO, parse ISO-8601 sang millis, ghi Room hoặc xử lý callback đổi phiên.
+- Kiểm trường hồ sơ tối thiểu chỉ áp dụng model DTO và fixture; chưa nghiệm thu chính sách trả SĐT của service thật.
+- Mục 01, phần khóa cặp PostgreSQL của mục 02 và mục 10 tổng thể vẫn chưa hoàn thành. Chưa chạy full Maven/Gradle build, PostgreSQL, APK hoặc emulator.
+- Chỉ commit ba tệp liệt kê trên với Author và Committer `MeanFen <nghiapp11102006@gmail.com>`; các bản nháp khác được bảo toàn ngoài commit.
+- Không push hoặc triển khai phần tiếp theo. Dừng để người dùng tự kiểm tra và push bằng Terminal.
