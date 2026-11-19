@@ -19,7 +19,7 @@ import javax.crypto.spec.GCMParameterSpec;
  * ra được; SharedPreferences chỉ chứa Base64(IV + ciphertext). Token được giữ trong bộ nhớ sau lần giải mã đầu.
  * Không bao giờ ghi token vào log, Room hay URL.
  */
-public final class SessionManager {
+public final class SessionManager implements com.utechat.data.repository.CurrentUserIdProvider {
     private static final String KEYSTORE = "AndroidKeyStore";
     private static final String ALIAS = "utechat_session_key";
     private static final String KEY_TOKEN = "token";
@@ -33,6 +33,30 @@ public final class SessionManager {
     private volatile String token; // Cache bộ nhớ để mỗi request không phải giải mã lại.
     private volatile boolean tokenLoaded;
     private String deviceId;
+    // Tăng khi đổi phiên để callback cũ không ghi vào cache của lần đăng nhập mới.
+    private long generation;
+    // Injection gắn việc dọn Room và bộ nhớ; callback chạy trong khóa phiên để xếp DISK đúng thứ tự.
+    private Runnable onSessionChanged = () -> { };
+
+    public synchronized void setOnSessionChanged(Runnable action) {
+        onSessionChanged = java.util.Objects.requireNonNull(action);
+        if (!hasToken()) onSessionChanged.run();
+    }
+
+    /** Khóa không chứa JWT; đổi cả khi cùng tài khoản đăng nhập lại với cùng token. */
+    @Nullable public synchronized String contactsSessionKey() {
+        String owner = getCurrentUserId();
+        return owner == null ? null : generation + ":" + owner;
+    }
+    @Override public synchronized String sessionKey() { return contactsSessionKey(); }
+    @Override public synchronized String getCurrentUserId() { return hasToken() ? getMeId() : null; }
+    // Version dùng cả khi chưa đăng nhập để loại callback login/OTP cũ sau logout.
+    public synchronized String versionKey() { return Long.toString(generation); }
+    @Override public synchronized boolean runIfCurrent(String key, Runnable action) {
+        if (key == null || !key.equals(sessionKey())) return false;
+        action.run();
+        return true;
+    }
 
     private SessionManager(Context context) {
         prefs = context.getSharedPreferences("session", Context.MODE_PRIVATE);
@@ -70,14 +94,31 @@ public final class SessionManager {
     public boolean hasToken() { return getToken() != null; }
 
     public synchronized void saveToken(String newToken) {
-        prefs.edit().putString(KEY_TOKEN, encrypt(newToken)).apply();
+        String encrypted = encrypt(java.util.Objects.requireNonNull(newToken));
+        generation++;
+        prefs.edit().putString(KEY_TOKEN, encrypted).remove(KEY_ME).remove(KEY_DISCOVERABLE).apply();
         token = newToken;
         tokenLoaded = true;
+        onSessionChanged.run();
+    }
+
+    /** Lưu token và actor nguyên tử; dọn cache cũ được xếp trước ghi hồ sơ của phiên mới. */
+    public synchronized void saveAuthenticated(String newToken, String userId, boolean discoverable) {
+        java.util.Objects.requireNonNull(userId);
+        String encrypted = encrypt(java.util.Objects.requireNonNull(newToken));
+        generation++;
+        prefs.edit().putString(KEY_TOKEN, encrypted).putString(KEY_ME, userId)
+                .putBoolean(KEY_DISCOVERABLE, discoverable).apply();
+        token = newToken;
+        tokenLoaded = true;
+        onSessionChanged.run();
     }
 
     /** Nhớ id của mình (khoá đọc hồ sơ cache trong Room) và cờ discoverable mà bảng user_cache không có. */
-    public void saveMe(String userId, boolean discoverable) {
+    public synchronized void saveMe(String userId, boolean discoverable) {
+        boolean changed = !java.util.Objects.equals(userId, getMeId());
         prefs.edit().putString(KEY_ME, userId).putBoolean(KEY_DISCOVERABLE, discoverable).apply();
+        if (changed) { generation++; onSessionChanged.run(); }
     }
     @Nullable public String getMeId() { return prefs.getString(KEY_ME, null); }
     public boolean isMeDiscoverable() { return prefs.getBoolean(KEY_DISCOVERABLE, true); }
@@ -89,11 +130,18 @@ public final class SessionManager {
         return true;
     }
 
+    /** 401 trễ không được xóa lần đăng nhập mới dù server cấp lại cùng chuỗi JWT. */
+    public synchronized boolean clearIfCurrent(String expired, String version) {
+        return versionKey().equals(version) && clearIfCurrent(expired);
+    }
+
     /** Đăng xuất hoặc phiên hết hạn: xoá token (deviceId giữ nguyên để cùng một máy luôn là một thiết bị). */
     public synchronized void clear() {
+        generation++;
         prefs.edit().remove(KEY_TOKEN).remove(KEY_ME).remove(KEY_DISCOVERABLE).apply();
         token = null;
         tokenLoaded = true;
+        onSessionChanged.run();
     }
 
     private static SecretKey key() throws Exception {

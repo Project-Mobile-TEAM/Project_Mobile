@@ -13,6 +13,9 @@ import com.utechat.data.remote.model.AuthDtos.UserDto;
 import com.utechat.data.repository.real.RealAuthRepository;
 import com.utechat.data.session.SessionManager;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.ArrayDeque;
+import java.util.concurrent.Executor;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -31,12 +34,25 @@ public class RealAuthRepositoryTest {
     private UserDao dao;
     private int cacheCleared;
     private RealAuthRepository repo;
+    private final AtomicInteger version = new AtomicInteger();
+    private final AtomicReference<String> owner = new AtomicReference<>("u1");
+    private Runnable onSessionChanged;
 
     @Before public void setUp() {
         session = mock(SessionManager.class);
         when(session.getToken()).thenAnswer(i -> token.get());
         when(session.hasToken()).thenAnswer(i -> token.get() != null);
-        doAnswer(i -> { token.set(null); return null; }).when(session).clear();
+        when(session.getMeId()).thenAnswer(i -> owner.get());
+        when(session.versionKey()).thenAnswer(i -> "v"+version.get());
+        when(session.sessionKey()).thenAnswer(i -> token.get()==null?null:"v"+version.get()+":"+owner.get());
+        doAnswer(i -> { onSessionChanged=i.getArgument(0); return null; }).when(session).setOnSessionChanged(any());
+        doAnswer(i -> { token.set(null); owner.set(null); version.incrementAndGet(); onSessionChanged.run(); return null; }).when(session).clear();
+        doAnswer(i -> { token.set(i.getArgument(0)); owner.set(i.getArgument(1)); version.incrementAndGet(); onSessionChanged.run(); return null; })
+                .when(session).saveAuthenticated(anyString(),anyString(),anyBoolean());
+        doAnswer(i -> {
+            if(!java.util.Objects.equals(i.getArgument(0),session.sessionKey())||i.getArgument(0)==null) return false;
+            ((Runnable)i.getArgument(1)).run(); return true;
+        }).when(session).runIfCurrent(nullable(String.class),any());
         api = mock(AuthApi.class);
         dao = mock(UserDao.class);
         repo = new RealAuthRepository(api, session, dao, Runnable::run, () -> cacheCleared++);
@@ -152,5 +168,65 @@ public class RealAuthRepositoryTest {
         repo.cancelDeletion().observeForever(r -> { });
         enqueued(cancel).onResponse(cancel, Response.success(null));
         assertNull(repo.getProfile().getValue().deletionScheduledAt);
+    }
+
+    /** DISK cố ý giữ tác vụ để tái hiện write cũ xếp trước/sau logout và đăng nhập lại cùng actor. */
+    @SuppressWarnings("unchecked")
+    @Test public void queuedOldProfileCannotWriteAfterSameAccountRelogin() {
+        ArrayDeque<Runnable> queue=new ArrayDeque<>();
+        repo=new RealAuthRepository(api,session,dao,queue::add,()->cacheCleared++);
+        Call<UserDto> me=mock(Call.class); when(api.me()).thenReturn(me);
+        repo.getProfile();
+        UserDto dto=new UserDto(); dto.id="u1"; dto.displayName="Old";
+        enqueued(me).onResponse(me,Response.success(dto));
+        session.saveAuthenticated("old","u1",true);
+        while(!queue.isEmpty()) queue.remove().run();
+        verify(dao,never()).insert(any());
+        assertEquals(1,cacheCleared); assertNull(repo.getCurrentUser().getValue());
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test public void lateDeleteAfterReloginCannotClearNewSession() {
+        Call<Void> deletion=mock(Call.class); when(api.deleteMe(any())).thenReturn(deletion);
+        var result=repo.deleteAccount("fixture");
+        session.saveAuthenticated("new","u2",true);
+        enqueued(deletion).onResponse(deletion,Response.success(null));
+        assertEquals("new",session.getToken()); verify(session,never()).clear(); assertNull(result.getValue());
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test public void lateLoginAfterLogoutCannotRestoreTokenOrWriteCache() {
+        Call<com.utechat.data.remote.model.AuthDtos.AuthSuccessResponse> login=mock(Call.class);
+        when(api.loginPassword(any())).thenReturn(login); when(api.logout(anyString())).thenReturn(mock(Call.class));
+        var result=repo.login("+84901111111","fixture"); repo.logout();
+        var dto=new com.utechat.data.remote.model.AuthDtos.AuthSuccessResponse();
+        dto.token="stale"; dto.user=new UserDto(); dto.user.id="u1";
+        enqueued(login).onResponse(login,Response.success(dto));
+        verify(session,never()).saveAuthenticated(anyString(),anyString(),anyBoolean());
+        verify(dao,never()).insert(any()); assertNull(result.getValue());
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test public void oldOfflineFailureDoesNotPublishIntoNewSession() {
+        Call<Void> call=mock(Call.class); when(api.changePassword(any())).thenReturn(call);
+        var result=repo.changePassword("old","new");
+        session.saveAuthenticated("new","u2",true);
+        enqueued(call).onFailure(call,new java.io.IOException("offline"));
+        assertNull(result.getValue()); assertEquals("new",session.getToken());
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test public void newLoginQueuesClearBeforeWritingItsProfile() {
+        ArrayDeque<Runnable> queue=new ArrayDeque<>(); java.util.List<String> order=new java.util.ArrayList<>();
+        repo=new RealAuthRepository(api,session,dao,queue::add,()->order.add("clear"));
+        doAnswer(i->{order.add("write");return null;}).when(dao).insert(any());
+        Call<com.utechat.data.remote.model.AuthDtos.AuthSuccessResponse> login=mock(Call.class);
+        when(api.loginPassword(any())).thenReturn(login); repo.login("+84901111111","fixture");
+        var dto=new com.utechat.data.remote.model.AuthDtos.AuthSuccessResponse();
+        dto.token="new"; dto.user=new UserDto(); dto.user.id="u2"; dto.user.displayName="New";
+        enqueued(login).onResponse(login,Response.success(dto));
+        while(!queue.isEmpty()) queue.remove().run();
+        assertEquals(java.util.List.of("clear","write"),order);
+        assertEquals("u2",repo.getCurrentUser().getValue().getId());
     }
 }
