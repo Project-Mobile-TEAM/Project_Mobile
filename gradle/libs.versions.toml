@@ -18,6 +18,7 @@ mockito = "5.14.2"
 archTesting = "2.2.0"
 
 [libraries]
+swiperefreshlayout = { module = "androidx.swiperefreshlayout:swiperefreshlayout", version = "1.1.0" }
 # Giao diện Material3, Single Activity và MVVM LiveData.
 appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
 material = { group = "com.google.android.material", name = "material", version.ref = "material" }

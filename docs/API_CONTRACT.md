@@ -69,9 +69,9 @@
 
 | Method và đường dẫn | Body chính | Trả về | Mô tả |
 |---|---|---|---|
-| `GET /users/lookup?phone=` | — | `{id, displayName, avatarUrl, isContact, hasPendingRequest}` | Tìm kiếm người dùng chính xác theo SĐT E.164 (10 lượt/phút) |
-| `POST /contact-requests` | `addresseeId` | `request` (201) | Gửi lời mời kết bạn (chuyển sang `PENDING`). Nếu đã có lời mời chờ ở chiều ngược lại, trả 409 `REQUEST_ALREADY_PENDING` hoặc trả lời mời hiện có |
-| `GET /contact-requests` | — (hỗ trợ `?status=PENDING&type=incoming` hoặc `outgoing`) | `[{id, requester, addressee, status, createdAt}]` | Lấy danh sách lời mời kết bạn |
+| `GET /users/lookup?phone=` | — | `{id, displayName, avatarUrl, isContact, hasPendingRequest, relationshipStatus, pendingRequestId, pendingRequestDirection}` | Tìm kiếm người dùng chính xác theo SĐT E.164 (10 lượt/phút) |
+| `POST /contact-requests` | `addresseeId` | `request` (201) | Gửi lời mời kết bạn (chuyển sang `PENDING`). Lời mời đang chờ cùng/ngược chiều trả 409 `REQUEST_ALREADY_PENDING`, không tự chấp nhận lời mời ngược chiều |
+| `GET /contact-requests` | — (hỗ trợ `?status=PENDING&type=incoming` hoặc `outgoing`) | `[{id, requester, addressee, status, createdAt, respondedAt}]` | Lấy danh sách lời mời kết bạn |
 | `POST /contact-requests/{id}/accept` | — | `request` (200) | Chấp nhận lời mời: chuyển sang `ACCEPTED`, tạo đồng thời 2 dòng `contacts` (`is_friend = true, blocked = false`) trong cùng 1 transaction, sinh `sync_events` cho cả 2 bên |
 | `POST /contact-requests/{id}/reject` | — | `request` (200) | Từ chối lời mời: chuyển sang `REJECTED`, sinh `sync_events` và thông báo cho cả 2 bên |
 | `DELETE /contact-requests/{id}` | — | 204 | Hủy lời mời đã gửi: chuyển sang `CANCELED`, sinh `sync_events` cho cả 2 bên |
@@ -80,6 +80,38 @@
 | `DELETE /contacts/{userId}` | — | 204 | Hủy quan hệ bạn bè hai chiều trong cùng transaction: đặt `is_friend = false`, giữ dòng chặn và xóa dòng không chặn |
 | `POST /contacts/{userId}/block` | — | 204 | Chỉ đặt `blocked = true` ở chiều của mình, giữ nguyên `is_friend`; nếu chưa có dòng thì tạo block-only `is_friend = false` |
 | `DELETE /contacts/{userId}/block` | — | 204 | Dựa trên dòng của mình: `is_friend = true` thì chỉ đặt `blocked = false`; `is_friend = false` thì xóa dòng. Không suy ra tình bạn từ chiều ngược |
+
+**DTO và lỗi Phase 4:** `request` có `{id, requester, addressee, status, createdAt, respondedAt}`; requester/addressee chỉ có `{id, displayName, avatarUrl}`, không chứa SĐT hoặc cài đặt riêng tư. respondedAt có thể null khi PENDING. Lookup giữ đúng tên boolean isContact; relationshipStatus là STRANGER, OUTGOING_PENDING, INCOMING_PENDING, FRIEND hoặc BLOCKED. Khi có lời mời chờ, pendingRequestId là ID lời mời và pendingRequestDirection là INCOMING/OUTGOING theo tài khoản JWT; khi không có thì các trường pending là null.
+
+Lỗi dùng envelope ở mục 1. `400 PHONE_INVALID/SELF`, `404 NOT_FOUND` (gồm các trường hợp cần che hồ sơ), `403 BLOCKED/FORBIDDEN`, `409 REQUEST_ALREADY_PENDING/ALREADY_FRIENDS/INVALID_STATE`, `429 RATE_LIMITED`. Lỗi REQUEST_ALREADY_PENDING có details `{existingRequestId, direction}` với direction INCOMING/OUTGOING; RATE_LIMITED có `{retryAfterSeconds}` là số giây nguyên không âm. JWT/thiết bị không hợp lệ trả `401 SESSION_EXPIRED`; không nhận actor từ body/query.
+
+**Tra cứu SĐT (03):** backend chỉ nhận E.164 hợp lệ (8–15 chữ số sau dấu +), không tự đoán số Việt Nam chưa chuẩn hóa; Android nối chuẩn hóa ô nhập ở mục 17. Đầu vào sai trả PHONE_INVALID trước khi tính lượt. Mỗi tra cứu đúng cấu trúc đều tính lượt, kể cả SELF hoặc NOT_FOUND; lượt thứ 11 trong cửa sổ 60 giây trả RATE_LIMITED theo tài khoản JWT. Người không tồn tại, không ACTIVE, tắt discoverable hoặc có block ở bất kỳ chiều nào đều bị che bằng NOT_FOUND, không trả DTO BLOCKED hay hồ sơ một phần. Lookup không ghi contact/request/sync_events; đọc lại hồ sơ và quan hệ sau khi lấy khóa cặp trong transaction.
+
+**Body gửi lời mời (04):** thiếu/sai addresseeId hoặc UUID rút gọn trả `400 VALIDATION`; UUID đầy đủ viết hoa/thường đều được nhận. Người gửi lấy từ JWT. Biết UUID của người dùng ACTIVE không bị chặn vẫn được gửi lời mời dù người nhận tắt discoverable hoặc quyền nhận tin từ người lạ; các cài đặt đó không thay cho block. Một lời mời mới sinh đúng hai CONTACT_REQUEST_CREATED trong cùng transaction; lỗi ghi sự kiện phải rollback cả lời mời, không để lại pending hoặc sự kiện bên thứ nhất. Trùng cùng/ngược chiều đều trả 409 với ID/chiều lời mời hiện có, không tạo thêm sự kiện hoặc tự chấp nhận.
+
+**Danh sách lời mời (05):** luôn giới hạn requester/addressee theo tài khoản JWT, không nhận userId thay chủ danh sách. status thiếu hoặc blank mặc định PENDING; nhận đúng PENDING/ACCEPTED/REJECTED/CANCELED. type thiếu hoặc blank lấy cả hai chiều; incoming/outgoing lọc theo người nhận/người gửi. Giá trị khác trả `400 VALIDATION`. Chỉ trả lời mời có cả hai tài khoản ACTIVE, hồ sơ tối thiểu không SĐT; discoverable và quyền nhận tin không che lời mời của người đã tham gia. Sắp createdAt giảm dần, cùng thời gian thì ID giảm dần; danh sách rỗng là `[]`. Đây là API đọc, không ghi quan hệ hay sự kiện.
+
+**Chấp nhận lời mời (06):** chỉ addressee từ JWT được accept; người gửi/người thứ ba trả `403 FORBIDDEN`, ID sai/không tồn tại trả `404 NOT_FOUND`. Lấy khóa cặp trước khóa dòng, đọc lại trạng thái và kiểm block cả hai chiều; có block trả `403 BLOCKED`, REJECTED/CANCELED trả `409 INVALID_STATE`. PENDING chuyển ACCEPTED cùng respondedAt, upsert hai chiều bạn bè và sự kiện trong một transaction. Giữ createdAt của dòng contact cũ; mỗi chiều thực sự đổi sinh CONTACT_UPDATED, cả hai người nhận nhận CONTACT_REQUEST_UPDATED. Lỗi ở bất kỳ ghi quan hệ/sự kiện nào rollback toàn bộ. Lặp ACCEPTED không ghi thêm hoặc tự tạo lại contacts đã hủy; không đụng lời mời mới hơn. Trả DTO lời mời lịch sử không đồng nghĩa quan hệ bạn bè hiện tại vẫn còn.
+
+**Từ chối/hủy lời mời (07):** chỉ addressee được reject, chỉ requester được cancel; người khác trả `403 FORBIDDEN` kể cả khi thao tác lặp. ID sai/không tồn tại trả `404 NOT_FOUND`, tài khoản đối phương không ACTIVE cũng trả NOT_FOUND. PENDING chuyển REJECTED/CANCELED và respondedAt, sinh hai CONTACT_REQUEST_UPDATED nguyên tử; không sửa contacts. Cùng thao tác lặp trả kết quả cũ, không đổi respondedAt hoặc thêm event; chuyển từ trạng thái đóng khác trả `409 INVALID_STATE`, accept sau reject/cancel cũng vậy. Reject/cancel vẫn được phép nếu tồn tại block. Reject trả DTO (200); cancel trả 204 không body. Khóa cặp lấy trước khóa dòng, chỉ một chuyển trạng thái thắng khi các thao tác đồng thời.
+
+**Bạn bè/hủy kết bạn (08):** GET /contacts lấy chiều chủ sở hữu JWT, is_friend=true và blocked=false, target ACTIVE; sắp displayName rồi ID tăng dần. Trả đúng DTO contact, phone có thể null. Discoverable/quyền nhận tin không che bạn đã có; block chiều ngược không tự đổi dòng của chủ danh sách, nhưng tương tác/lookup vẫn kiểm block hai chiều. DELETE /contacts/{id} tự lấy actor từ JWT: self trả `400 SELF`, ID sai/target không tồn tại hoặc không ACTIVE trả `404 NOT_FOUND`. Trong một transaction khóa cặp, xóa dòng không chặn ở hai chiều; với dòng chặn chỉ hạ is_friend=false, giữ blocked/createdAt. Ghi CONTACT_UPDATED riêng cho chủ mỗi chiều thực sự đổi; dòng mất có removed=true và không user, dòng block-only còn lại có isFriend=false/blocked=true và user.phone=null. Người lạ, dòng block-only hoặc thao tác lặp không đổi trạng thái không thêm event. Thành công trả 204 không body, không hủy lời mời đang chờ hoặc suy friendship từ ACCEPTED lịch sử. Lỗi ghi event/quan hệ rollback toàn bộ.
+
+**Chặn/bỏ chặn (09):** chỉ thay blocked ở chiều JWT actor, giữ is_friend/createdAt đã có. Chặn người lạ tạo block-only; đồng thời hủy pending cả hai chiều, ghi hai CONTACT_REQUEST_UPDATED nếu có và CONTACT_UPDATED của chủ dòng nếu block thực sự đổi. Lặp block có thể đóng pending legacy nhưng không ghi lại contact event thừa. Bỏ chặn bạn chỉ hạ blocked; block-only bị xóa, không khôi phục friend hoặc pending đã hủy. Danh sách chặn chỉ gồm dòng của mình và target ACTIVE; phone chỉ có khi is_friend=true. Self trả SELF, ID sai/target không ACTIVE trả NOT_FOUND. Mutation trả 204 rỗng; mọi thay đổi/sự kiện cùng khóa cặp và transaction, có lỗi phải rollback toàn bộ.
+
+**Lỗi vận chuyển Android (10):** ContactErrorMapper.fromFailure ánh xạ IOException vận chuyển/TLS sang NETWORK, không thành SESSION_EXPIRED hoặc tự xóa phiên. Lỗi cấu trúc/chuyển JSON, gồm MalformedJsonException, thành INVALID_RESPONSE; không đưa exception message hoặc URL/token vào mã lỗi. Lỗi HTTP đã có response vẫn đi qua fromHttp để giữ code/details hoặc HTTP_<status> khi body không hợp lệ. Caller chịu trách nhiệm loại callback đã hủy/cũ ở mục 14; mapper không tự thử lại, cập nhật Room hoặc đổi phiên. ContactApi tiếp tục dùng Retrofit/ApiClient và AuthInterceptor Bearer hiện có; việc nối Repository/cache thuộc 12–14.
+
+**Khóa và transaction:** mọi thay đổi quan hệ ở mục 03–09 phải lấy khóa cặp UUID không phân biệt chiều bằng ContactPolicyService.lockPair trong transaction, **trước** khóa dòng; không tự lấy khóa dòng rồi mới khóa cặp. Khóa thuộc transaction và được nhả khi commit/rollback. Chặn một chiều cấm tương tác cả hai chiều; đủ hai dòng is_friend không chặn mới được dùng như quan hệ bạn bè để kiểm chính sách.
+
+**Hợp đồng sync_events của Phase 4** (lưu database; API đồng bộ/WebSocket thực hiện ở Phase 5):
+
+| event_type | entity_type / entity_id | payload_json | Người nhận |
+|---|---|---|---|
+| CONTACT_REQUEST_CREATED | CONTACT_REQUEST / ID lời mời | Toàn bộ DTO request sau khi tạo, status PENDING, hai hồ sơ tối thiểu không SĐT | Người gửi và người nhận |
+| CONTACT_REQUEST_UPDATED | CONTACT_REQUEST / ID lời mời | Toàn bộ DTO request sau chuyển trạng thái, gồm respondedAt; không chỉ gửi một lệnh hoặc trường status riêng lẻ | Người gửi và người nhận |
+| CONTACT_UPDATED | CONTACT / ID đối phương | `{contactUserId, isFriend, blocked, removed, user?}` phản ánh dòng quan hệ của chính người nhận; user nếu có dùng DTO contact và chính sách trả phone của server | Chủ trạng thái quan hệ bị thay đổi; nếu cả hai chiều đổi thì ghi riêng cho hai bên |
+
+Sự kiện và dữ liệu nghiệp vụ phải cùng commit/rollback; SyncEventWriter yêu cầu transaction đang tồn tại. Không ghi sự kiện mới cho thao tác lặp không đổi trạng thái. removed=true nghĩa là không còn dòng quan hệ; isFriend/blocked vẫn là boolean rõ ràng. Không khôi phục quan hệ chỉ từ sự kiện hoặc lời mời ACCEPTED lịch sử. Các quy tắc này là hợp đồng để nghiệm thu từng API ở mục 03–09, không xác nhận các API đó đã hoàn thành.
 
 ### 2.4 Hội thoại và tin nhắn
 
@@ -221,7 +253,7 @@ Bảng `auth_throttles` kiểm soát theo `(scope_type, scope_key_hash, purpose)
 
 ## 5. Danh mục mã lỗi chính
 
-`VALIDATION`, `PHONE_TAKEN`, `PHONE_INVALID`, `BAD_CREDENTIALS`, `LOCKED`, `WEAK_PASSWORD`, `OTP_INVALID`, `OTP_EXPIRED`, `OTP_ATTEMPTS`, `OTP_RATE_LIMIT`, `SESSION_EXPIRED`, `NOT_FOUND`, `FORBIDDEN`, `NOT_A_MEMBER`, `NOT_ADMIN`, `GROUP_FULL`, `BLOCKED`, `CONTACT_REQUIRED`, `REQUEST_ALREADY_PENDING`, `FILE_TOO_LARGE`, `UNSUPPORTED_TYPE`, `CALL_BUSY`, `CALL_NOT_FOUND`, `CALL_UNSUPPORTED`, `SELF`, `RATE_LIMITED`, `INTERNAL`.
+`VALIDATION`, `PHONE_TAKEN`, `PHONE_INVALID`, `BAD_CREDENTIALS`, `LOCKED`, `WEAK_PASSWORD`, `OTP_INVALID`, `OTP_EXPIRED`, `OTP_ATTEMPTS`, `OTP_RATE_LIMIT`, `SESSION_EXPIRED`, `NOT_FOUND`, `FORBIDDEN`, `NOT_A_MEMBER`, `NOT_ADMIN`, `GROUP_FULL`, `BLOCKED`, `CONTACT_REQUIRED`, `REQUEST_ALREADY_PENDING`, `ALREADY_FRIENDS`, `INVALID_STATE`, `FILE_TOO_LARGE`, `UNSUPPORTED_TYPE`, `CALL_BUSY`, `CALL_NOT_FOUND`, `CALL_UNSUPPORTED`, `SELF`, `RATE_LIMITED`, `INTERNAL`.
 
 ## 6. Chính sách thông báo (Notification)
 

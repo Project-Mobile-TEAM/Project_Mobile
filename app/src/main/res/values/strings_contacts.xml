@@ -1,6 +1,51 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Chuỗi contacts do nhóm phụ trách module này quản lý; bản tiếng Anh mặc định. -->
+<!-- Chuỗi giao diện danh bạ tách theo module để hỗ trợ Anh và Việt. -->
 <resources>
-    <string name="title_contacts">Your contacts</string>
-    <string name="contacts_placeholder">Find friends and keep your connections close.</string>
+    <string name="contacts_accept">Accept</string>
+    <string name="contacts_actions">Actions</string>
+    <string name="contacts_back">Back</string>
+    <string name="contacts_block">Block</string>
+    <string name="contacts_blocked">Blocked people</string>
+    <string name="contacts_blocked_state">Blocked</string>
+    <string name="contacts_cancel">Cancel request</string>
+    <string name="contacts_confirm">Confirm this action?</string>
+    <string name="contacts_conflict">The relationship changed. Refresh and try again.</string>
+    <string name="contacts_count">Friend requests (%1$d)</string>
+    <string name="contacts_done">Updated</string>
+    <string name="contacts_empty">No people to show</string>
+    <string name="contacts_error">Could not complete the action</string>
+    <string name="contacts_filter">Filter friends by name</string>
+    <string name="contacts_forbidden">This action is not allowed</string>
+    <string name="contacts_friend">Friends</string>
+    <string name="contacts_incoming">Received</string>
+    <string name="contacts_invalid">Enter a valid phone number</string>
+    <string name="contacts_limited">Too many searches. Retry after %1$d seconds.</string>
+    <string name="contacts_network">Connection failed. Refresh to check the latest result.</string>
+    <string name="contacts_no">Cancel</string>
+    <string name="contacts_not_found">User not found</string>
+    <string name="contacts_outgoing">Sent</string>
+    <string name="contacts_pending_in">Friend request received</string>
+    <string name="contacts_pending_out">Friend request sent</string>
+    <string name="contacts_phone">Phone number, e.g. +84901234567</string>
+    <string name="contacts_refresh">Refresh</string>
+    <string name="contacts_reject">Decline</string>
+    <string name="contacts_requests">Friend requests</string>
+    <string name="contacts_retry">Try again</string>
+    <string name="contacts_search">Find by phone</string>
+    <string name="contacts_self">This is your own account</string>
+    <string name="contacts_send">Add friend</string>
+    <string name="contacts_stale">Saved. Refresh when connected to update the list.</string>
+    <string name="contacts_stranger">Not friends yet</string>
+    <string name="contacts_unblock">Unblock</string>
+    <string name="contacts_unfriend">Remove friend</string>
+    <string name="title_contacts">Contacts</string>
+    <string name="contacts_actions_for">Actions for %1$s</string>
+    <string name="contacts_confirm_person">Confirm this action for %1$s?</string>
+    <string name="contacts_unknown_name">Unknown person</string>
+    <string name="contacts_no_match">No friends match this name</string>
+    <string name="contacts_session_changed">Sign in again to view your contacts</string>
+    <string name="contacts_uncertain">The result could not be confirmed. Refresh before trying the action again.</string>
+    <string name="contacts_cache_error">The list could not be updated. Refresh to try again.</string>
+    <string name="contacts_destination_pending">This screen is not available yet.</string>
+    <string name="contacts_loading">Loading contacts</string>
 </resources>

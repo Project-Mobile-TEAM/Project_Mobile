@@ -3,6 +3,7 @@ package com.utechat.data.repository.real;
 import android.os.Build;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
+import com.utechat.data.MainThreadExecutor;
 import com.google.gson.Gson;
 import com.utechat.data.local.dao.UserDao;
 import com.utechat.data.local.entity.UserEntity;
@@ -17,7 +18,6 @@ import com.utechat.data.session.SessionManager;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
 import retrofit2.Call;
@@ -31,16 +31,32 @@ public class RealAuthRepository implements AuthRepository {
     private final SessionManager session;
     private final UserDao userDao;
     private final Executor disk; // Một luồng đĩa duy nhất: ghi cache và xoá cache luôn chạy đúng thứ tự gọi.
-    private final Runnable clearCache; // Xoá cache Room khi đăng xuất để không lộ dữ liệu sang tài khoản khác (F-06).
+    private final Executor main; // Cho test điều khiển hàng đợi; ứng dụng dùng main Looper thật.
     private final MutableLiveData<UserEntity> current = new MutableLiveData<>(null);
     private final MutableLiveData<UserProfile> profile = new MutableLiveData<>(null);
 
     public RealAuthRepository(AuthApi api, SessionManager session, UserDao userDao, Executor disk, Runnable clearCache) {
+        this(api, session, userDao, disk, clearCache, MainThreadExecutor.INSTANCE);
+    }
+
+    public RealAuthRepository(AuthApi api, SessionManager session, UserDao userDao, Executor disk, Runnable clearCache, Executor main) {
         this.api = api;
         this.session = session;
         this.userDao = userDao;
         this.disk = disk;
-        this.clearCache = clearCache;
+        this.main = java.util.Objects.requireNonNull(main);
+        // Mọi đường đổi phiên, kể cả 401 khi không có Activity, dùng chung hàng đợi ghi Room.
+        session.setOnSessionChanged(() -> {
+            disk.execute(clearCache);
+            String version = session.versionKey();
+            main.execute(() -> {
+                synchronized (session) {
+                    if (!version.equals(session.versionKey())) return;
+                    current.setValue(null);
+                    profile.setValue(null);
+                }
+            });
+        });
     }
 
     // ---------- đăng nhập / đăng xuất ----------
@@ -75,9 +91,6 @@ public class RealAuthRepository implements AuthRepository {
 
     private void clearLocal() {
         session.clear();
-        current.setValue(null);
-        profile.setValue(null);
-        clearCache.run();
     }
 
     // ---------- đăng ký ----------
@@ -112,23 +125,28 @@ public class RealAuthRepository implements AuthRepository {
      * Mọi kết quả chỉ được áp dụng nếu phiên vẫn là phiên lúc gửi (đã đăng xuất thì bỏ phản hồi trễ).
      */
     @Override public LiveData<UserProfile> getProfile() {
-        String token = session.getToken();
-        if (token == null) return profile;
+        String key = session.sessionKey();
+        if (key == null) return profile;
         String meId = session.getMeId();
         if (profile.getValue() == null && meId != null) {
             boolean discoverable = session.isMeDiscoverable();
             disk.execute(() -> {
-                UserEntity cached = userDao.findById(meId);
-                if (cached != null && profile.getValue() == null && sameSession(token)) {
-                    current.postValue(cached);
-                    profile.postValue(new UserProfile(cached.getId(), cached.getPhone(), cached.getDisplayName(),
-                            cached.getAvatarUrl(), discoverable, cached.getAllowMessagesFromNonContacts()));
-                }
+                session.runIfCurrent(key, () -> {
+                    UserEntity cached = userDao.findById(meId);
+                    // Kiểm lại trên main, tránh postValue cũ xuất hiện sau một lần đăng nhập mới.
+                    main.execute(() -> session.runIfCurrent(key, () -> {
+                        if (cached == null || profile.getValue() != null) return;
+                        current.setValue(cached);
+                        profile.setValue(new UserProfile(cached.getId(), cached.getPhone(), cached.getDisplayName(),
+                                cached.getAvatarUrl(), discoverable, cached.getAllowMessagesFromNonContacts()));
+                    }));
+                });
             });
         }
         api.me().enqueue(new Callback<UserDto>() {
             @Override public void onResponse(Call<UserDto> c, Response<UserDto> r) {
-                if (r.isSuccessful() && r.body() != null && sameSession(token)) apply(r.body());
+                if (r.isSuccessful() && r.body() != null)
+                    session.runIfCurrent(key, () -> { if (meId.equals(r.body().id)) apply(r.body()); });
             }
             @Override public void onFailure(Call<UserDto> c, Throwable t) { }
         });
@@ -136,9 +154,8 @@ public class RealAuthRepository implements AuthRepository {
     }
 
     @Override public LiveData<AuthResult<UserProfile>> updateProfile(String displayName, boolean allowMessagesFromNonContacts, boolean discoverable) {
-        String token = session.getToken();
         return call(api.updateMe(new UpdateProfileRequest(displayName, allowMessagesFromNonContacts, discoverable)),
-                dto -> { if (sameSession(token)) apply(dto); return profile.getValue(); });
+                dto -> { apply(dto); return profile.getValue(); });
     }
 
     @Override public LiveData<AuthResult<Boolean>> deleteAccount(String password) {
@@ -176,7 +193,7 @@ public class RealAuthRepository implements AuthRepository {
     // ---------- hàm phụ ----------
     /** Đăng nhập/đăng ký/đặt lại thành công: lưu token vào Keystore và cập nhật hồ sơ. */
     private UserEntity onAuthenticated(AuthSuccessResponse r) {
-        session.saveToken(r.token);
+        session.saveAuthenticated(r.token, r.user.id, r.user.discoverable);
         apply(r.user);
         return current.getValue();
     }
@@ -190,21 +207,28 @@ public class RealAuthRepository implements AuthRepository {
         user.setAllowMessagesFromNonContacts(dto.allowMessagesFromNonContacts);
         current.setValue(user);
         session.saveMe(dto.id, dto.discoverable);
-        disk.execute(() -> userDao.insert(user));
+        String key = session.sessionKey();
+        disk.execute(() -> session.runIfCurrent(key, () -> userDao.insert(user)));
         profile.setValue(new UserProfile(dto.id, dto.phone, dto.displayName, dto.avatarUrl,
                 dto.discoverable, dto.allowMessagesFromNonContacts, dto.deletionScheduledAt));
     }
 
-    private boolean sameSession(String token) { return Objects.equals(token, session.getToken()); }
-
     /** Chạy một Call bất đồng bộ: thành công thì map ra kết quả, lỗi HTTP thì lấy mã lỗi của server, mất mạng thì NETWORK. */
     private <T, R> LiveData<AuthResult<R>> call(Call<T> call, Function<T, R> map) {
         MutableLiveData<AuthResult<R>> out = new MutableLiveData<>();
+        String version = session.versionKey();
         call.enqueue(new Callback<T>() {
             @Override public void onResponse(Call<T> c, Response<T> r) {
-                out.setValue(r.isSuccessful() ? AuthResult.ok(map.apply(r.body())) : AuthResult.error(errorCode(r)));
+                synchronized (session) {
+                    if (!version.equals(session.versionKey())) return;
+                    out.setValue(r.isSuccessful() ? AuthResult.ok(map.apply(r.body())) : AuthResult.error(errorCode(r)));
+                }
             }
-            @Override public void onFailure(Call<T> c, Throwable t) { out.setValue(AuthResult.error("NETWORK")); }
+            @Override public void onFailure(Call<T> c, Throwable t) {
+                synchronized (session) {
+                    if (version.equals(session.versionKey())) out.setValue(AuthResult.error("NETWORK"));
+                }
+            }
         });
         return out;
     }

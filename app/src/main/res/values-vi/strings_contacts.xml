@@ -1,6 +1,51 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Chuỗi contacts do nhóm phụ trách module này quản lý; bản tiếng Việt. -->
+<!-- Chuỗi giao diện danh bạ tách theo module để hỗ trợ Anh và Việt. -->
 <resources>
-    <string name="title_contacts">Danh bạ của bạn</string>
-    <string name="contacts_placeholder">Tìm bạn bè và giữ liên lạc cùng nhau.</string>
+    <string name="contacts_accept">Chấp nhận</string>
+    <string name="contacts_actions">Thao tác</string>
+    <string name="contacts_back">Quay lại</string>
+    <string name="contacts_block">Chặn</string>
+    <string name="contacts_blocked">Danh sách chặn</string>
+    <string name="contacts_blocked_state">Đang chặn</string>
+    <string name="contacts_cancel">Hủy lời mời</string>
+    <string name="contacts_confirm">Xác nhận thực hiện thao tác này?</string>
+    <string name="contacts_conflict">Quan hệ đã thay đổi. Hãy tải lại rồi thử lại.</string>
+    <string name="contacts_count">Lời mời kết bạn (%1$d)</string>
+    <string name="contacts_done">Đã cập nhật</string>
+    <string name="contacts_empty">Chưa có người dùng để hiển thị</string>
+    <string name="contacts_error">Không thể hoàn tất thao tác</string>
+    <string name="contacts_filter">Lọc bạn bè theo tên</string>
+    <string name="contacts_forbidden">Bạn không có quyền thực hiện thao tác này</string>
+    <string name="contacts_friend">Bạn bè</string>
+    <string name="contacts_incoming">Đã nhận</string>
+    <string name="contacts_invalid">Nhập số điện thoại hợp lệ</string>
+    <string name="contacts_limited">Bạn tìm quá nhiều lần. Thử lại sau %1$d giây.</string>
+    <string name="contacts_network">Không kết nối được. Hãy tải lại để kiểm tra kết quả mới nhất.</string>
+    <string name="contacts_no">Đóng</string>
+    <string name="contacts_not_found">Không tìm thấy người dùng</string>
+    <string name="contacts_outgoing">Đã gửi</string>
+    <string name="contacts_pending_in">Đã nhận lời mời</string>
+    <string name="contacts_pending_out">Đã gửi lời mời</string>
+    <string name="contacts_phone">Số điện thoại, ví dụ +84901234567</string>
+    <string name="contacts_refresh">Tải lại</string>
+    <string name="contacts_reject">Từ chối</string>
+    <string name="contacts_requests">Lời mời kết bạn</string>
+    <string name="contacts_retry">Thử lại</string>
+    <string name="contacts_search">Tìm bằng số điện thoại</string>
+    <string name="contacts_self">Đây là tài khoản của bạn</string>
+    <string name="contacts_send">Kết bạn</string>
+    <string name="contacts_stale">Đã lưu. Hãy tải lại danh sách khi có kết nối.</string>
+    <string name="contacts_stranger">Chưa kết bạn</string>
+    <string name="contacts_unblock">Bỏ chặn</string>
+    <string name="contacts_unfriend">Hủy kết bạn</string>
+    <string name="title_contacts">Danh bạ</string>
+    <string name="contacts_actions_for">Thao tác với %1$s</string>
+    <string name="contacts_confirm_person">Xác nhận thao tác với %1$s?</string>
+    <string name="contacts_unknown_name">Người dùng chưa có tên</string>
+    <string name="contacts_no_match">Không có bạn bè khớp với tên này</string>
+    <string name="contacts_session_changed">Đăng nhập lại để xem danh bạ của bạn</string>
+    <string name="contacts_uncertain">Chưa xác nhận được kết quả. Hãy tải lại trước khi thực hiện lại thao tác.</string>
+    <string name="contacts_cache_error">Chưa cập nhật được danh sách. Hãy tải lại để thử lại.</string>
+    <string name="contacts_destination_pending">Màn hình này hiện chưa khả dụng.</string>
+    <string name="contacts_loading">Đang tải danh bạ</string>
 </resources>

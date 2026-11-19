@@ -43,8 +43,14 @@ public class MainActivity extends AppCompatActivity {
         // F-07: server từ chối token (hết hạn/thu hồi) thì dọn phiên cục bộ và về màn Đăng nhập kèm thông báo.
         SessionEvents.expired().observe(this, expired -> {
             if (!Boolean.TRUE.equals(expired)) return;
-            SessionEvents.consume(); // Xoay màn hình không xử lý lại sự kiện cũ.
-            Injection.provideAuthRepository(this).logout();
+            var authRepository = Injection.provideAuthRepository(this);
+            // Kiểm sự kiện và logout trong cùng khóa để phiên mới không chen vào giữa hai bước.
+            synchronized (com.utechat.data.session.SessionManager.get()) {
+                boolean currentExpiration = SessionEvents.isCurrentExpiration();
+                SessionEvents.consume(); // Xoay màn hình không xử lý lại sự kiện cũ.
+                if (!currentExpiration) return;
+                authRepository.logout();
+            }
             controller.navigate(R.id.nav_auth, null, new NavOptions.Builder().setPopUpTo(R.id.nav_graph, true).build());
             Snackbar.make(binding.getRoot(), R.string.auth_session_expired, Snackbar.LENGTH_LONG).show();
         });

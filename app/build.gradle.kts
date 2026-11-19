@@ -55,6 +55,8 @@ android {
 }
 
 dependencies {
+    // Kéo để tải lại danh bạ khi kết nối được phục hồi.
+    implementation(libs.swiperefreshlayout)
     // Views/XML, Material3 và điều hướng một Activity.
     implementation(libs.appcompat)
     implementation(libs.material)

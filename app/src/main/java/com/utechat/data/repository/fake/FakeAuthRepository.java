@@ -13,7 +13,21 @@ import java.util.List;
 import java.util.UUID;
 
 /** Mô phỏng phiên in-memory; không phải xác thực hoặc JWT của server. */
-public class FakeAuthRepository implements AuthRepository {
+public class FakeAuthRepository implements AuthRepository, com.utechat.data.repository.CurrentUserIdProvider {
+    private long generation; // Cùng actor nhưng lần đăng nhập khác vẫn là phiên khác.
+    @Override public synchronized String getCurrentUserId() {
+        return current.getValue() == null ? null : current.getValue().getId();
+    }
+    @Override public synchronized String sessionKey() {
+        return getCurrentUserId() == null ? null : generation + ":" + getCurrentUserId();
+    }
+    @Override public LiveData<String> sessionChanges() {
+        return androidx.lifecycle.Transformations.map(current, user -> sessionKey());
+    }
+    @Override public synchronized boolean runIfCurrent(String key, Runnable action) {
+        if (key == null || !key.equals(sessionKey())) return false;
+        action.run(); return true;
+    }
     /** OTP cố định của bản Fake để thử giao diện; server thật sinh mã ngẫu nhiên. */
     public static final String DEMO_OTP = "123456";
     /** Mật khẩu hiện tại giả của mọi tài khoản demo (login Fake không kiểm mật khẩu), dùng để thử màn Đổi mật khẩu. */
@@ -95,7 +109,8 @@ public class FakeAuthRepository implements AuthRepository {
     }
 
     // Cập nhật phiên hiện tại và hồ sơ /me tương ứng (mặc định cho phép tìm qua SĐT).
-    private void setCurrent(UserEntity user) {
+    private synchronized void setCurrent(UserEntity user) {
+        generation++;
         current.setValue(user);
         password = DEMO_PASSWORD;
         profile.setValue(user == null ? null : new UserProfile(user.getId(), user.getPhone(), user.getDisplayName(),
