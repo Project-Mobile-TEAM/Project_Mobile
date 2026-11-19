@@ -1,6 +1,7 @@
 package com.utechat.ui.contacts;
 
 import static androidx.test.espresso.Espresso.onView;
+import static androidx.test.espresso.matcher.RootMatchers.isDialog;
 import static androidx.test.espresso.action.ViewActions.*;
 import static androidx.test.espresso.assertion.ViewAssertions.matches;
 import static androidx.test.espresso.matcher.ViewMatchers.*;
@@ -135,7 +136,8 @@ public class ContactsListUiTest {
     }
     @Test public void blockConfirmationSurvivesRecreateAndCallsOnce() {
         launch();menu(R.string.contacts_block);scenario.recreate();
-        onView(withId(android.R.id.button1)).perform(click());rows(0);
+        // Sau recreate, chọn cửa sổ hộp thoại thay vì Activity phía dưới chưa có focus.
+        onView(withId(android.R.id.button1)).inRoot(isDialog()).perform(click());rows(0);
         assertEquals(1,repo.mutations);assertEquals("block",repo.lastAction);assertEquals(DemoData.BOB,repo.lastTarget);
     }
     @Test public void navigationIdsAndBackKeepFilterAndSingleViewModel() {
