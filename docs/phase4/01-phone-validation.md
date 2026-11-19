@@ -1797,3 +1797,54 @@ Danh sách **10 tệp** dành cho commit sửa Lint:
 - `app/src/androidTest/java/com/utechat/data/session/SessionManagerTest.java`
 - `scripts/test-phase4-contacts-foundation.ps1`
 - `docs/phase4/01-phone-validation.md`
+
+## Đợt 29 — Backend test mặc định dùng PostgreSQL nhúng, không cần Docker (2026-11-19)
+
+### Phạm vi và thay đổi
+
+Theo yêu cầu bỏ phụ thuộc Docker khi chạy test: sửa riêng thiết lập test backend, không triển khai mục 17–20 hoặc sửa nghiệp vụ/migration. HEAD trước đợt là `c5a472123bacf916ce0d192475100123aac7d517`, nhánh `phase4_NP`.
+
+- PostgresFixture tự khởi động EmbeddedPostgres khi không truyền `phase4.pg.url`; dùng dependency 2.0.7 đã có, không thêm/nâng thư viện. Một engine dùng chung trong JVM, chỉ lắng nghe `127.0.0.1`, cổng tự chọn; mỗi fixture vẫn tạo database UUID riêng và close chỉ DROP database của mình. Zonky có shutdown hook dọn engine khi JVM kết thúc.
+- Không cần script, Docker, `.env` hoặc mật khẩu PostgreSQL để chạy Maven test mặc định. Nếu cấp `phase4.pg.url` tường minh, vẫn giữ đường PostgreSQL test ngoài cùng các guard localhost/cổng/database admin, không credentials/query/fragment trong URL và mật khẩu test riêng; không âm thầm rơi về nhúng khi URL sai.
+- Giữ FlywayMigrationTest dùng fixture chung: khi chạy mặc định, cả baseline V1, nâng V3/V4 và lịch sử seed V2 được kiểm trên PostgreSQL nhúng thật. Không chuyển sang H2 hoặc mock database.
+- PostgresFixtureGuardTest từ 7 lên **9 ca**: thay ca bắt buộc thiếu URL phải lỗi bằng kiểm khởi động nhúng thật; thêm kiểm cách ly/dọn đúng database và từ chối URL rỗng tường minh. Các guard URL sai trước đó giữ nguyên.
+- Script `backend/scripts/test-phase4-foundation.ps1` bỏ Docker preflight/run/inspect/cleanup, `PostgresImage` và thao tác biến mật khẩu; giữ các switch chọn suite, backup báo cáo và kiểm XML mới/không lỗi/không bỏ qua. Bộ `-AndroidContract` nay có **253 test** do thêm 2 ca fixture, không giảm số ca nghiệp vụ.
+- Lượt Maven đầy đủ phát hiện thêm lỗi Mockito/Byte Buddy không nhận class version Java 27 ở 4 ca Health. Thêm `net.bytebuddy.experimental=true` vào **Surefire test JVM** trong POM theo thông báo lỗi; không đổi JDK, dependency, HealthControllerTest, assertion hoặc cấu hình runtime production.
+
+### Bằng chứng kiểm thử theo thời điểm
+
+| Lượt | Kết quả thực tế |
+|---|---|
+| Trước sửa: Maven trực tiếp, một ca Flyway nâng database thủ công | **1 Error**: fixture yêu cầu script cấp PostgreSQL; lưu `baseline.log` và XML trước sửa |
+| Sau sửa fixture: PostgresFixtureGuardTest + FlywayMigrationTest | **12 test, 0 failures/errors/skipped, BUILD SUCCESS**; PostgreSQL nhúng khởi động thật |
+| Maven đầy đủ trước sửa cấu hình Byte Buddy | **280 test, 0 failures, 4 errors, 0 skipped**; 4 errors đều thuộc HealthControllerTest, nguyên nhân Java 27 chưa được Byte Buddy hiện có hỗ trợ mặc định |
+| Kiểm riêng Health sau sửa Surefire | **4 test, 0 failures/errors/skipped, BUILD SUCCESS** |
+| **Lượt đầy đủ cuối, PowerShell 5.1 + Maven trực tiếp, nguồn/POM cuối** | **24 suite, 280 testcase, 0 failures/errors/skipped, BUILD SUCCESS**, 04:07, kết thúc `2026-11-19T15:46:30+07:00` |
+
+Lệnh thực tế lượt cuối là `mvn -o -B -ntp -f backend/pom.xml test`, chạy từ repo qua Windows PowerShell 5.1, ExecutionPolicy Bypass riêng tiến trình. Maven 3.9.16, JDK 27; engine nhúng báo **PostgreSQL 14.10** theo binary dependency có sẵn 14.10.1, không phải Docker PostgreSQL 16 ở các lượt nghiệm thu cũ. Không truyền `phase4.pg.url`, không cấp mật khẩu test và không gọi Docker trong lượt cuối. `-o` dùng cache dependency có sẵn; máy mới cần cho Maven tải dependency ở lần đầu.
+
+Đối chiếu độc lập tất cả 24 XML cuối: mtime sau thời điểm bắt đầu lượt cuối, summary bằng số node testcase, không failure/error/skipped hoặc testcase trùng; tổng **280**. Hash toàn bộ `backend/src`, POM và script trước/sau lượt cuối không đổi. 20 suite được chọn bởi `-AndroidContract`, gồm đủ **253 testcase**, đều có mặt và đạt trong lượt Maven đầy đủ; 27 ca còn lại gồm AuthApiTest 16, HealthControllerTest 4, LocalFileOtpDeliveryTest 2 và ContactsApiTest 5. **ContactsApiTest là bản nháp chưa track**, chỉ được Maven tự phát hiện khi chạy đầy đủ, không sửa hoặc đưa vào phạm vi commit. 58 unit client Android lồng trong một ca contract không cộng lần nữa vào tổng 280.
+
+Nguồn trực tiếp: [Fixture XML 9 ca](../../backend/target/surefire-reports/TEST-com.utechat.backend.support.PostgresFixtureGuardTest.xml), [Flyway XML 3 ca](../../backend/target/surefire-reports/TEST-com.utechat.backend.config.FlywayMigrationTest.xml), [Health XML 4 ca cuối](../../backend/target/surefire-reports/TEST-com.utechat.backend.health.HealthControllerTest.xml), [contract XML](../../backend/target/surefire-reports/TEST-com.utechat.backend.AndroidContactContractTest.xml). `.task-cache/backend-embedded/` giữ log baseline, focused, full trước sửa Byte Buddy, Health sau sửa và `final-full.log`; các thư mục backup giữ XML trước/sau riêng. `source-before-final.json` và `final-xml-manifest.json` ghi hash nguồn và 24 XML cuối. Kiểm tiến trình sau Maven: **0 postgres/pg_ctl/initdb.exe còn chạy** trong lần kiểm này.
+
+Script giữ UTF-8 BOM, kiểm Parser bằng Windows PowerShell **5.1.26100.9818: 0 lỗi**; không còn lệnh gọi Docker. Chưa chạy lại toàn bộ script sau lượt Maven đầy đủ để tránh lặp 253 ca: các selector/số ca của script đã được đối chiếu với XML mới của cùng nguồn, không gọi đó là bằng chứng script end-to-end mới.
+
+### Cách chạy và giới hạn
+
+Từ thư mục repo, chạy backend đầy đủ mà không cần Docker hoặc script:
+
+```powershell
+mvn -B -ntp -f .\backend\pom.xml test
+```
+
+Hoặc dùng cổng nghiệm thu 01–10 hiện có để chọn 253 ca và kiểm XML, tương thích PowerShell 5.1:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\backend\scripts\test-phase4-foundation.ps1" -AndroidContract
+```
+
+Đã kiểm trên **Windows x64/JDK 27**; chưa chạy Linux/macOS/ARM hoặc JDK khác trong đợt này, không tuyên bố “mọi máy đều chạy” và không quy toàn bộ 204 Errors cũ về một nguyên nhân từ ảnh. Máy cần JDK/Maven và binary/runtime PostgreSQL tương thích; tham khảo [yêu cầu nền tảng và troubleshooting Zonky](https://github.com/zonkyio/embedded-postgres). Chưa kiểm lại đường PostgreSQL cấp tường minh; chưa thử hosted/Supabase, Android UI hoặc kiểm tổng mục 20.
+
+**01–16 giữ trạng thái nghiệm thu theo phạm vi cũ; 17–20 chưa hoàn thành.** Không thay đổi UI nên không có luồng bấm thử mới. Tám bản nháp ngoài phạm vi và ba stash giữ nguyên hash/ID. Theo yêu cầu commit tiếp theo của người dùng, chỉ stage/commit năm tệp bên dưới sau khi đối chiếu lại diff, hash nguồn và 24 XML/280 ca đạt; không chạy trùng test khi nguồn đã khớp. Author và Committer yêu cầu **MeanFen <nghiapp11102006@gmail.com>**, kiểm trực tiếp trên commit đã tạo. Không push; không đưa `.env`, bản nháp, XML/log/cache vào Git. Trong 280 ca đã kiểm có 5 ca ContactsApiTest nháp không đưa vào commit; 275 ca còn lại thuộc các suite đã track.
+
+Năm tệp thuộc phạm vi sửa: `backend/pom.xml`, `backend/scripts/test-phase4-foundation.ps1`, `backend/src/test/java/com/utechat/backend/support/PostgresFixture.java`, `backend/src/test/java/com/utechat/backend/support/PostgresFixtureGuardTest.java` và báo cáo này.
