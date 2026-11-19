@@ -34,6 +34,7 @@ public class RealContactsRepository implements ContactsRepository {
         this.transaction=Objects.requireNonNull(transaction);
     }
     @Override public String sessionKey() { return session.sessionKey(); }
+    @Override public LiveData<String> sessionChanges() { return session.sessionChanges(); }
     @Override public String currentUserId() { return session.getCurrentUserId(); }
 
     /** Luồng cache thuộc một lần đăng nhập; đổi phiên thì chỉ phát rỗng, kể cả đăng nhập lại cùng actor. */

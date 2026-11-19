@@ -31,6 +31,9 @@ public class FakeContactsRepository implements ContactsRepository {
     // Các phương thức mở rộng vẫn dùng trực tiếp được trước khi Repository 12–13 mở rộng interface chung.
     public String currentUserId() { return provider==null?DemoData.ALICE:provider.getCurrentUserId(); }
     public String sessionKey() { return provider==null?DemoData.ALICE:provider.sessionKey(); }
+    @Override public LiveData<String> sessionChanges() {
+        return provider==null?new MutableLiveData<>(DemoData.ALICE):provider.sessionChanges();
+    }
     /** Chỉ dọn cache phía client; dữ liệu mô phỏng server vẫn tồn tại qua các lần đăng nhập. */
     public void onSessionChanged() {
         String key=sessionKey();
