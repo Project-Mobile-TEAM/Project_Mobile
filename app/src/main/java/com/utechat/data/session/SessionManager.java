@@ -44,7 +44,7 @@ public final class SessionManager implements com.utechat.data.repository.Current
     private void announceSessionChange() {
         onSessionChanged.run();
         String version=versionKey();
-        androidx.arch.core.executor.ArchTaskExecutor.getInstance().executeOnMainThread(() -> {
+        com.utechat.data.MainThreadExecutor.INSTANCE.execute(() -> {
             synchronized(this) { if(version.equals(versionKey())) changes.setValue(sessionKey()); }
         });
     }

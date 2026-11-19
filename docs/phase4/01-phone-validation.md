@@ -1743,3 +1743,57 @@ Danh sách 26 tệp thuộc commit 15/16:
 - `docs/phase4/01-phone-validation.md`
 - `app/src/debug/res/values/ids.xml`
 - `app/src/androidTest/java/com/utechat/ui/contacts/ContactsUiDiagnostics.java`
+
+## Đợt 28 — Sửa riêng Android Lint RestrictedApi (2026-11-19)
+
+### Phạm vi và bằng chứng trước sửa
+
+Theo yêu cầu sửa Lint rồi commit và dừng: chỉ sửa đường chuyển tác vụ lên main trong Auth, Contacts và Session đã có; không triển khai mục 17–20, không sửa/chạy backend hoặc xử lý báo cáo 204 Errors. HEAD trước đợt là `183785ec5872125ce89db356cea9679ed56b4876`, nhánh `phase4_NP`.
+
+Lượt `:app:lintDebug` trước sửa tạo báo cáo mới ngày 19/11 lúc 15:19 +07:00: **18 errors, tất cả RestrictedApi, và 55 warnings**. Sáu vị trí gọi ArchTaskExecutor thuộc RealAuthRepository (2), RealContactsRepository (3), SessionManager (1); mỗi biểu thức bị kiểm quyền truy cập lớp/phương thức nội bộ AndroidX. Số 61 warnings trong ảnh không được tái hiện ở lượt này. Bản sao HTML/XML/SARIF/text trước sửa nằm tại `.task-cache/lint-restricted-api/baseline/`.
+
+Lần offline đầu dừng do thiếu dependency `lifecycle-viewmodel-desktop` và `lifecycle-runtime-desktop` 2.8.7, chưa phân tích Lint. Cho Gradle tải dependency theo cấu hình hiện có rồi chạy với `--no-configuration-cache` đã thu được lỗi trên. Không sửa dependency, build config, thêm baseline, suppress hoặc tắt luật để làm Lint đạt.
+
+### Bản sửa và kiểm thử mới
+
+- MainThreadExecutor dùng Handler/Looper công khai: chạy ngay nếu đang ở main, còn từ nền thì post vào main. Không thay hàng đợi NETWORK/DISK hoặc vị trí kiểm phiên/revision trong callback.
+- Thay đủ sáu lời gọi RestrictedApi trong nguồn production. Giữ constructor hiện có của hai Repository; thêm tham số Executor cho fixture JVM điều khiển main mà không cần Looper giả. Các delegate ArchTaskExecutor còn lại chỉ ở fixture test, không ở `app/src/main`.
+- Thêm một ca Auth giữ callback đọc cache ở main rồi đăng nhập lại, xác nhận hồ sơ cũ không được phát/ghi. Giữ nguyên các ca Contacts kiểm phiên/revision khi main bị trễ.
+- Thêm hai ca thiết bị kiểm main chạy inline và nền chạy trên main theo FIFO; thêm một ca Session giữ main bằng latch, đổi hai phiên rồi xác nhận chỉ phiên mới nhất được phát. Không bỏ ca, nới assertion hoặc thêm sleep để đạt.
+- Cập nhật đúng số ca trong script hiện có; vẫn kiểm XML mới, đủ class/case, không lỗi/bỏ qua và giữ backup ZIP đối chiếu SHA-256. Script được chạy bằng **Windows PowerShell 5.1**, ExecutionPolicy Bypass riêng tiến trình.
+
+| Kiểm tra mới trên nguồn cuối | Kết quả |
+|---|---|
+| `gradlew.bat --offline --no-configuration-cache --no-daemon --console=plain :app:lintDebug` | **BUILD SUCCESSFUL; 0 errors, 55 warnings** |
+| Script `-Repository -DeviceSerial emulator-5554`, 8 suite JVM | **127 testcase; failures/errors/skipped=0** |
+| Script trên, 5 suite Android instrumentation | **42 testcase; failures/errors/skipped=0**, runner exit code 0 |
+| Auth JVM / Contacts JVM | RealAuthRepositoryTest **12** / RealContactsRepositoryTest **43** |
+| JVM hồi quy Fake/client/HTTP | FakeRepositoriesTest 6, FakeContactsSessionTest 8, ContactDtosTest 10, ContactApiTest 16, ContactErrorMapperTest 22, ContactTransportTest 10 |
+| Android Looper / Session / Room | MainThreadExecutorTest **2**, SessionManagerTest **15**, ContactsRepositoryRoomTest **12**, RoomFoundationTest **3**, ContactsRoomTest **10** |
+
+Thiết bị thực tế của lượt này: `emulator-5554`, **Medium_Phone_API_37.0**, Android 17/API 37, boot completed và Awake trước test; không mặc định đó là Pixel ở các lượt trước. Script build lại APK và test APK với `--rerun-tasks`; không dùng APK hoặc XML cũ để nghiệm thu. JVM XML timestamp bắt đầu `2026-11-19T08:22:37Z`; Android XML ghi timestamp `2026-11-19T08:23:17` (không có hậu tố múi giờ), mtime UTC là `08:23:19Z`. Gradle wrapper 9.6.0; JAVA_HOME launcher là jdk-27, cấu hình daemon hiện có chọn toolchainVersion 25, không thay toolchain project.
+
+Nguồn đối chiếu: [Lint XML sau sửa](../../app/build/reports/lint-results-debug.xml), [Lint HTML](../../app/build/reports/lint-results-debug.html), [Auth JVM XML](../../app/build/test-results/testDebugUnitTest/TEST-com.utechat.data.repository.RealAuthRepositoryTest.xml), [Contacts JVM XML](../../app/build/test-results/testDebugUnitTest/TEST-com.utechat.data.repository.RealContactsRepositoryTest.xml), [Android XML đủ 42 ca](<../../app/build/outputs/androidTest-results/connected/debug/TEST-Medium_Phone_API_37.0(AVD) - 17.xml>), [runner exit code](../../app/build/outputs/androidTest-results/connected/debug/test-result-exit-code.txt). Log đầy đủ ở `.task-cache/lint-restricted-api/regression.log` và `lint-after.log`; hash nguồn trước test và artifact cuối được lưu cùng thư mục. Hash toàn bộ `app/src` cùng script/config được đối chiếu sau test: không đổi. 55 warnings khớp baseline theo id, nội dung và tệp, không chỉ bằng tổng số.
+
+### Checklist, giới hạn và commit
+
+- [x] Tái hiện 18 lỗi RestrictedApi bằng Lint mới, lưu bằng chứng trước/sau; nguồn production không còn ArchTaskExecutor.
+- [x] Lint đạt và hồi quy mới 127 JVM + 42 Android đạt, đối chiếu XML/source; Room và Looper chạy thật trên thiết bị.
+- [x] Bảo toàn tám bản nháp ngoài phạm vi và ba stash; không stage backend, `.gitignore`, `.env`, log/XML/APK/cache.
+- [ ] Chưa sửa/kiểm lại backend 204 Errors; không xác nhận nguyên nhân của toàn bộ 204 từ ảnh báo lỗi.
+- [ ] Chưa xử lý 55 cảnh báo Lint, chưa chạy Lint Release, UI suite hay tích hợp toàn hệ thống trong đợt này. Kết quả UI 15/16 ở đợt 27 là bằng chứng của nguồn thời điểm đó; không cộng vào kết quả mới 127/42. Chưa kiểm nhánh API thấp hơn 37 trên thiết bị.
+
+Không có thay đổi UI nên không thêm luồng bấm thử. Đây là đợt sửa lỗi nền, không đánh dấu hoàn thành thêm mục chính; **17–20 giữ trạng thái chưa hoàn thành**. Chỉ tạo một commit sau các kiểm tra trên; Author và Committer yêu cầu **MeanFen <nghiapp11102006@gmail.com>**, kiểm lại trên commit đã tạo. Không push; dừng sau commit.
+
+Danh sách **10 tệp** dành cho commit sửa Lint:
+
+- `app/src/main/java/com/utechat/data/MainThreadExecutor.java`
+- `app/src/main/java/com/utechat/data/repository/real/RealAuthRepository.java`
+- `app/src/main/java/com/utechat/data/repository/real/RealContactsRepository.java`
+- `app/src/main/java/com/utechat/data/session/SessionManager.java`
+- `app/src/test/java/com/utechat/data/repository/RealAuthRepositoryTest.java`
+- `app/src/test/java/com/utechat/data/repository/RealContactsRepositoryTest.java`
+- `app/src/androidTest/java/com/utechat/data/MainThreadExecutorTest.java`
+- `app/src/androidTest/java/com/utechat/data/session/SessionManagerTest.java`
+- `scripts/test-phase4-contacts-foundation.ps1`
+- `docs/phase4/01-phone-validation.md`

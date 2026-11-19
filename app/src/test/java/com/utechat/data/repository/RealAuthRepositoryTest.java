@@ -55,7 +55,7 @@ public class RealAuthRepositoryTest {
         }).when(session).runIfCurrent(nullable(String.class),any());
         api = mock(AuthApi.class);
         dao = mock(UserDao.class);
-        repo = new RealAuthRepository(api, session, dao, Runnable::run, () -> cacheCleared++);
+        repo = new RealAuthRepository(api, session, dao, Runnable::run, () -> cacheCleared++, Runnable::run);
     }
 
     @SuppressWarnings("unchecked")
@@ -174,7 +174,7 @@ public class RealAuthRepositoryTest {
     @SuppressWarnings("unchecked")
     @Test public void queuedOldProfileCannotWriteAfterSameAccountRelogin() {
         ArrayDeque<Runnable> queue=new ArrayDeque<>();
-        repo=new RealAuthRepository(api,session,dao,queue::add,()->cacheCleared++);
+        repo=new RealAuthRepository(api,session,dao,queue::add,()->cacheCleared++,Runnable::run);
         Call<UserDto> me=mock(Call.class); when(api.me()).thenReturn(me);
         repo.getProfile();
         UserDto dto=new UserDto(); dto.id="u1"; dto.displayName="Old";
@@ -218,7 +218,7 @@ public class RealAuthRepositoryTest {
     @SuppressWarnings("unchecked")
     @Test public void newLoginQueuesClearBeforeWritingItsProfile() {
         ArrayDeque<Runnable> queue=new ArrayDeque<>(); java.util.List<String> order=new java.util.ArrayList<>();
-        repo=new RealAuthRepository(api,session,dao,queue::add,()->order.add("clear"));
+        repo=new RealAuthRepository(api,session,dao,queue::add,()->order.add("clear"),Runnable::run);
         doAnswer(i->{order.add("write");return null;}).when(dao).insert(any());
         Call<com.utechat.data.remote.model.AuthDtos.AuthSuccessResponse> login=mock(Call.class);
         when(api.loginPassword(any())).thenReturn(login); repo.login("+84901111111","fixture");
@@ -228,5 +228,21 @@ public class RealAuthRepositoryTest {
         while(!queue.isEmpty()) queue.remove().run();
         assertEquals(java.util.List.of("clear","write"),order);
         assertEquals("u2",repo.getCurrentUser().getValue().getId());
+    }
+    /** Giữ callback cache ở main, đổi phiên trước khi phát để kiểm hàng rào tại thời điểm thực thi. */
+    @SuppressWarnings("unchecked")
+    @Test public void queuedCachedProfileCannotPublishAfterRelogin() {
+        ArrayDeque<Runnable> main=new ArrayDeque<>();
+        repo=new RealAuthRepository(api,session,dao,Runnable::run,()->cacheCleared++,main::add);
+        UserEntity cached=new UserEntity(); cached.setId("u1");
+        when(dao.findById("u1")).thenReturn(cached);
+        when(api.me()).thenReturn(mock(Call.class));
+        repo.getProfile(); assertEquals(1,main.size());
+        session.saveAuthenticated("new","u2",true);
+        main.remove().run();
+        assertNull(repo.getCurrentUser().getValue());
+        while(!main.isEmpty()) main.remove().run();
+        assertNull(repo.getCurrentUser().getValue());
+        verify(dao,never()).insert(any());
     }
 }

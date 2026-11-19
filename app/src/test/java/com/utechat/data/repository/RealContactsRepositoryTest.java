@@ -73,7 +73,9 @@ public class RealContactsRepositoryTest {
         Lookup r=new Lookup(); r.id=id; r.displayName=id; r.relationshipStatus="STRANGER"; return r;
     }
     private RealContactsRepository make(Executor network,Executor disk) {
-        return new RealContactsRepository(contacts,users,api,network,disk,session,Runnable::run);
+        // Delegate chỉ thuộc fixture JVM; giữ nguyên các ca main trễ và InstantTaskExecutorRule.
+        return new RealContactsRepository(contacts,users,api,network,disk,session,Runnable::run,
+                ArchTaskExecutor.getInstance()::executeOnMainThread);
     }
     @Before public void setup() throws Exception {
         contacts=mock(ContactDao.class); users=mock(UserDao.class); api=mock(ContactApi.class); session=new Session();
