@@ -55,6 +55,7 @@ Hành trình xây dựng ứng dụng chat di động UTEChat cho nhóm 5 ngư�
 **Requirements**: REQ-ui-standards
 **Phụ trách**: Nhóm trưởng & Cả nhóm
 **Success Criteria**:
+
 1. Java17, minSdk26/compileSdk35/targetSdk35, package com.utechat; dependencies tập trung.
 2. Một MainActivity, ViewBinding, Fragment và BottomNavigation3 tab.
 3. Chuỗi common/auth/chat/contacts/profile tách EN/VI; Media bổ sung Phase6.
@@ -63,6 +64,7 @@ Hành trình xây dựng ứng dụng chat di động UTEChat cho nhóm 5 ngư�
 6. /api/health liveness, /api/health/ready truy vấn DB thật; Android gọi ready.
 
 **Plans**: 3/3 complete
+
 - [x] 02-01: Backend Maven và readiness Supabase
 - [x] 02-02: Room10 bảng và repository seams
 - [x] 02-03: Navigation, resources và live probe
@@ -119,7 +121,39 @@ Hành trình xây dựng ứng dụng chat di động UTEChat cho nhóm 5 ngư�
   6. Đồng bộ bắt kịp dữ liệu qua `GET /api/sync?after=<syncEventId>` từ bảng `sync_events` khi nối lại mạng; `messages.id` chỉ dùng cho phân trang lịch sử (`?before=<messageId>`).
   7. Người dùng có thể tìm kiếm nhanh nội dung tin nhắn cũ trong hội thoại thông qua Room FTS4 chuẩn hóa không dấu (`normalized_text`) mà không cần kết nối mạng.
 
-**Plans**: TBD
+**Plans**: 9 plans
+
+Plans:
+**Wave 1**
+
+- [ ] 05-01-PLAN.md — Gate `D-06` mở rộng `docs/API_CONTRACT.md`, migration `V5` (`barrier_xid` + `sync_retention_state`) & tracer chat 1-1 `TEXT`
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 05-02-PLAN.md — Backend chat nhóm (`SYSTEM` idempotent, `visible_from_message_id` `>`, bàn giao `ADMIN` 3 nhánh), `ReceiptService` & purge tài khoản
+- [ ] 05-04-PLAN.md — Gate `D-14` Room v2 (`Migration(1, 2)`), `2.json`, FTS4 `safeMatchQuery` & DAOs (`ConversationListItem`, lọc `visibleFromMessageId`, bảo toàn watermark)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 05-03-PLAN.md — Backend WebSocket `/ws` (Bearer-only, `afterCommit`, `4401`), Bootstrap `REPEATABLE READ`, `/api/sync` `barrier_xid` & Retention 30 ngày
+- [ ] 05-05-PLAN.md — Android `ChatDtos`, `ChatApi`, `ChatWebSocketManager`, `SyncEventApplier` (Chat + 3 Contact events), single-flight `SyncEngine` & `TypingTracker`
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 05-06-PLAN.md — Android WorkManager `SendMessageWorker` (`send-messages`), `ChatRepository` seam (`observeConversationSummaries`, `observeAllUsersMap`), `RealChatRepository` & `Injection`
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [ ] 05-07-PLAN.md — Điều hướng `nav_chat.xml` (`D-02` `utechat://chat/direct/{peerUserId}`), `MainActivity` WS lifecycle, `strings_chat.xml` EN/VI, `ChatListFragment` (FTS4 toàn cục) & `NewChatFragment`
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
+- [ ] 05-08-PLAN.md — `ChatRoomFragment`, `ChatRoomViewModel`, `MessageAdapter` 6 view types (thẻ tóm tắt non-TEXT, ẩn nút Phase 6), banner kết nối/403 & FTS4 trong phòng
+
+**Wave 7** *(blocked on Wave 6 completion)*
+
+- [ ] 05-09-PLAN.md — `GroupCreateFragment`, `GroupInfoFragment` (bàn giao `ADMIN`), `ChatViewModelTest`, `ChatNavigationAndSearchUiTest` (`ActivityScenario`) & nghiệm thu E2E 2 tài khoản
+
 **UI hint**: yes
 
 ### Phase 6: Media Attachments & Creative Features
