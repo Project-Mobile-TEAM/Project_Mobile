@@ -2,7 +2,7 @@
 
 Ngày thực hiện: 17/11/2026. Đây là file báo cáo chung duy nhất, được cập nhật sau từng đợt nhỏ.
 
-Cập nhật mới nhất: 19/11/2026 - đợt 23, đối chiếu đủ **83 JVM + 27 instrumentation Android**, không failure/error/skipped, tên testcase khớp source. **11 và 14 đã nghiệm thu**, cùng 01–10 trước đó; 12–13 và 15–20 giữ `[ ]`. Đưa đúng code/test 11/14, script và báo cáo vào một commit, tách wiring Repository nháp khỏi Injection trong index và giữ working tree. Không push. Quy tắc: chỉ commit sau hoàn thành và kiểm thử, tối đa hai mục đã kiểm thử trong một commit.
+Cập nhật mới nhất: 19/11/2026 - đợt 25, đối chiếu kết quả Windows **126 JVM + 39 instrumentation**, không failure/error/skipped; tên testcase khớp source, source khớp SHA-256 trước lần chạy. **12 và 13 đã nghiệm thu; 01–14 hoàn thành theo checklist**. Commit đúng hai mục 12/13, script và báo cáo sau kiểm thử; giữ các bản nháp 15–20 và không push. Giới hạn backend/hosted/UI được ghi rõ ở đợt 25.
 
 **Nơi làm việc hiện tại:** `D:\HCMUTE\Y3\S1\T2\LapTrinhDiDong\TeamProject`, nhánh `phase4_NP`.
 Từ lần thống nhất worktree dưới đây chỉ tiếp tục làm việc trong thư mục này. Các đoạn mô tả dùng worktree review ở đợt 01/02 là lịch sử.
@@ -198,7 +198,7 @@ Link nhánh dự kiến: https://github.com/Project-Mobile-TEAM/Project_Mobile/t
 
 ## Checklist các hạng mục còn lại của Phase 4
 
-Hai thành phần đã kiểm thử riêng là chuẩn hóa SĐT (28 test) và giới hạn tra cứu (8 test). **Mục 01–02 đã nghiệm thu tại đợt 13; API backend 03–04 tại đợt 15; mục 05–06 tại đợt 17; mục 07–08 tại đợt 19 bằng bộ Windows 215 test; mục 09–10 tại đợt 21 bằng bộ Windows 251 test cùng 58 test app lồng; mục 11/14 tại đợt 23 bằng bộ Windows 83 JVM + 27 instrumentation.** Luồng tìm người trên Android chưa hoàn chỉnh; chuẩn hóa ô nhập và gọi API từ màn hình còn thuộc mục 17. Các mục 12–13 và 15–20 vẫn chưa được nghiệm thu toàn mục, dù một số đã có code nháp trong `TeamProject`. Phạm vi và bằng chứng mới nhất tại đợt 23.
+Hai thành phần đã kiểm thử riêng là chuẩn hóa SĐT (28 test) và giới hạn tra cứu (8 test). **Mục 01–02 đã nghiệm thu tại đợt 13; API backend 03–04 tại đợt 15; mục 05–06 tại đợt 17; mục 07–08 tại đợt 19 bằng bộ Windows 215 test; mục 09–10 tại đợt 21 bằng bộ Windows 251 test cùng 58 test app lồng; mục 11/14 tại đợt 23 bằng bộ Windows 83 JVM + 27 instrumentation; mục 12/13 tại đợt 25 bằng bộ Windows 126 JVM + 39 instrumentation.** Luồng tìm người trên Android chưa hoàn chỉnh; chuẩn hóa ô nhập và gọi API từ màn hình còn thuộc mục 17. Các mục 15–20 vẫn chưa được nghiệm thu toàn mục, dù một số đã có code nháp trong `TeamProject`. Phạm vi và bằng chứng mới nhất tại đợt 25.
 
 Có 20 hạng mục để theo dõi, không mặc định tương ứng đúng 20 lượt thực hiện. Từ đợt 10, mỗi lượt chọn tối đa hai hạng mục cấp chính 01–20 theo thứ tự phụ thuộc; các phần con không được tính thành hạng mục cấp chính. Trước khi viết, đọc lại bản nháp liên quan để sửa và tái sử dụng phần phù hợp. Chỉ đánh dấu `[x]` khi đã có bằng chứng đạt toàn bộ điều kiện của mục đó; nếu bị chặn thì ghi nguyên nhân và phần còn thiếu.
 
@@ -243,8 +243,12 @@ Có 20 hạng mục để theo dõi, không mặc định tương ứng đúng 2
 - [x] **11. Room DAO và cập nhật cache bằng transaction:** đối soát để xóa dữ liệu hết hiệu lực, giữ hồ sơ và quyền riêng tư khi DTO thiếu trường; lưu dòng chặn và hồ sơ tối thiểu nguyên tử; giữ schema v1 theo kế hoạch; kiểm truy vấn và rollback bằng Room in-memory thật.
   - Đợt 22: tái sử dụng DAO/JOIN nháp, thêm ContactsCache.replace và tăng ContactsRoomTest từ 2 lên 10 ca. Giữ schema v1, merge không sửa input và không nuốt xung đột UNIQUE phone. Mới có bằng chứng biên dịch; chưa chạy Room thật, giữ `[ ]`.
   - Đợt 23: đủ 10/10 ContactsRoomTest cùng 3/3 RoomFoundationTest trên emulator-5554, không skipped; xác nhận đối soát, merge/privacy, transaction rollback/UNIQUE, JOIN/count và schema v1. Generated Room UserDao_Impl dùng INSERT/UPDATE OR ABORT và transaction. Bằng chứng XML ở cuối báo cáo.
-- [ ] **12. Repository cho tìm kiếm và lời mời:** nối REST với Room, bảo vệ callback theo phiên và độ mới; cập nhật lời mời sau thao tác; accept không tự tạo bạn từ lịch sử `ACCEPTED` mà đối soát danh sách server; giữ các chữ ký cũ còn được sử dụng.
-- [ ] **13. Repository cho bạn bè và chặn:** cập nhật cache đúng sau unfriend/block/unblock; phản hồi tải lại cũ không ghi đè thao tác mới; phân biệt thao tác đã lưu nhưng refresh thất bại với kết quả ghi chưa xác định do mất phản hồi; không suy đoán quan hệ bạn bè.
+- [x] **12. Repository cho tìm kiếm và lời mời:** nối REST với Room, bảo vệ callback theo phiên và độ mới; cập nhật lời mời sau thao tác; accept không tự tạo bạn từ lịch sử `ACCEPTED` mà đối soát danh sách server; giữ các chữ ký cũ còn được sử dụng.
+  - Đợt 24: giữ chữ ký nháp, dùng ContactErrorMapper đã nghiệm thu, kiểm DTO/actor/trạng thái trước ghi, lưu pending đã được ACK và đối soát ba danh sách; accept chỉ xóa pending, không tự tạo friend. Có test callback cũ tại NETWORK/DISK/main và lookup mới nhất. Chưa có kết quả Windows của bộ Repository, giữ `[ ]`.
+  - Đợt 25: đủ 43/43 Repository JVM và 12/12 Repository Room/Retrofit/TCP Android đạt trong cùng bộ Windows; luồng send/cancel qua socket thật đối soát Room, accept lịch sử không tạo friend, guard trước NETWORK/DISK/main và lookup mới nhất đều đạt. Chi tiết XML và giới hạn fixture ở cuối báo cáo.
+- [x] **13. Repository cho bạn bè và chặn:** cập nhật cache đúng sau unfriend/block/unblock; phản hồi tải lại cũ không ghi đè thao tác mới; phân biệt thao tác đã lưu nhưng refresh thất bại với kết quả ghi chưa xác định do mất phản hồi; không suy đoán quan hệ bạn bè.
+  - Đợt 24: patch mutation đã xác nhận trên DISK FIFO chung với clear phiên; snapshot cũ bị loại bởi revision, lỗi một phần giữ snapshot cũ, LiveData cũ bị che khi đổi phiên. `isSuccess + refreshRequired` khác lỗi `NETWORK/INVALID_RESPONSE + refreshRequired`; không tự retry. 43 test Repository JVM đạt trực tiếp; 12 test Room/Retrofit/TCP vẫn chờ Android, giữ `[ ]`.
+  - Đợt 25: kiểm lại bằng Room thật cho snapshot lỗi/UNIQUE rollback, block–unfriend–unblock, mất ACK không retry, đổi phiên khi chờ DISK, che dữ liệu trước cleanup, snapshot cũ không ghi đè block mới và patch lỗi nhưng ACK vẫn được giữ. Tất cả ca đều đạt, không skipped; FIFO NETWORK/DISK dùng chung với phiên đã được giữ trong Injection.
 - [x] **14. Cô lập phiên, offline, Fake Repository và Injection:** tái sử dụng Auth/SessionManager; kiểm cả ID tài khoản và phiên, gồm đăng xuất rồi đăng nhập lại cùng tài khoản; dọn Room và bộ nhớ tạm, loại callback cũ; mất mạng giữ cache và phiên; Fake phản ánh đúng nghiệp vụ, kiểm thử cũ vẫn đạt; dùng chung executor ghi cache với dọn phiên.
   - Đợt 22: khóa actor/generation không chứa JWT, chặn callback/ghi hồ sơ/401 trễ kể cả cùng actor và token, dọn cache qua DISK chung; Fake có phiên thực sự và dọn LiveData cũ. 25 test Auth/Fake cùng 48 hồi quy client đạt trực tiếp; 14 test SessionManager/AuthInterceptor/Keystore và 3 Room foundation còn chờ thiết bị. Chưa nghiệm thu toàn mục; không dùng kết quả này để nghiệm thu Repository 12–13.
   - Đợt 23: 14/14 SessionManagerTest trên Android đạt (Keystore, guard/concurrency, cùng actor/token đăng nhập lại, 401 trễ, lỗi vận chuyển); 11 Auth + 6 Fake hồi quy + 8 Fake phiên đều đạt trong bộ JVM 83. Cơ chế nền 14 đã kiểm trước tích hợp ghi cache 12–13; không nghiệm thu các callback/epoch nghiệp vụ trong RealContactsRepository nháp.
@@ -1418,3 +1422,115 @@ Phạm vi kiểm phiên bao gồm unit test hàng đợi Auth với DAO/clear-ca
 - Kiểm lại assembly source phạm vi này trước commit bằng javac release 17 và JUnit: **73/73 đạt, exit 0**, log `.task-cache/phase4-11-14/acceptance-scope-73.log`. Đây là kiểm tương thích khi loại nháp 12–13 khỏi source commit; không cộng vào 83/27 và không thay bằng chứng Android Windows. Không chạy lại Gradle/ADB/instrumentation hoặc ghi đè artifact Windows trong lượt đối chiếu.
 - Snapshot SHA-256 trước đối chiếu ghi nhận 131 tệp working tree/artifact; sau thao tác chỉ báo cáo được sửa nội dung, các tệp code/test và artifact giữ nguyên. Ba stash được so trước/sau; không reset/xóa/stash hoặc sửa lịch sử. Author và Committer của commit đều `MeanFen <nghiapp11102006@gmail.com>`, kiểm lại trên commit vừa tạo.
 - Dừng sau 11/14; 12–13 và 15–20 giữ `[ ]`. Không triển khai mục thứ ba và không push.
+
+## Đợt 24 - Repository REST/Room danh bạ: mục 12–13, 19/11/2026
+
+### Phạm vi và bảo toàn
+
+Theo yêu cầu tiếp tục tối đa hai mục chính, chọn **12 và 13** sau khi 11/14 đã nghiệm thu tại **6c0d31c**. Git lúc bắt đầu ở `phase4_NP`, không báo ahead/behind tracking ref local; không fetch. Có 25 tệp nháp sửa/chưa theo dõi, đã sao lưu nguyên tệp và SHA-256 vào `.task-cache/phase4-12-13/20261119-093223/manifest.json`, cùng HEAD và ba stash. Tiếp tục trong TeamProject hiện có; không tạo project/worktree, không sửa lịch sử, không đọc `.env` hoặc push.
+
+Quy tắc commit giữ nguyên yêu cầu mới: chỉ commit sau khi người dùng chạy test và kết quả được đối chiếu, tối đa hai mục đã kiểm thử/commit. Đợt 24 **chưa stage/commit**; chỉ chuẩn bị code/test và lệnh Windows. Những đoạn chờ của đợt 22 là lịch sử; nghiệm thu 11/14 tại đợt 23 vẫn giữ nguyên.
+
+### Tệp và hành vi trong hai mục
+
+| Tệp | Nội dung |
+|---|---|
+| `app/src/main/java/com/utechat/data/repository/real/RealContactsRepository.java` | Tái sử dụng constructor và các route nháp; dùng HTTP/failure mapper chung, kiểm body/DTO/actor/pending trước transaction, snapshot đủ ba danh sách; NETWORK/DISK FIFO, revision và guard phiên tại NETWORK/DISK/main |
+| `app/src/main/java/com/utechat/data/repository/ContactsRepository.java` | Giữ ba chữ ký cache cũ và các chữ ký mở rộng của nháp: getRequests/incomingCount/refresh/lookup/act/sessionKey/currentUserId |
+| `app/src/main/java/com/utechat/data/repository/ContactsResult.java` | Ghi rõ semantics cờ refreshRequired cho ACK đã xác nhận so với lỗi chưa có ACK hợp lệ |
+| `app/src/main/java/com/utechat/data/repository/CurrentUserIdProvider.java` | Thêm sessionChanges để luồng đọc cache loại dữ liệu phiên cũ |
+| `app/src/main/java/com/utechat/data/session/SessionManager.java` | Phát khóa phiên không chứa JWT trên main, bỏ thông báo version cũ; tái sử dụng generation/clear/guard của 14 |
+| `app/src/main/java/com/utechat/data/repository/fake/FakeAuthRepository.java` | Cung cấp sessionChanges cùng hợp đồng cho Fake, không đổi nghiệp vụ Auth |
+| `app/src/main/java/com/utechat/di/Injection.java` | Giữ wiring nháp NETWORK riêng và DISK dùng chung với clear phiên, provider thật SessionManager; sẽ thuộc commit 12/13 sau nghiệm thu |
+| `app/src/test/java/com/utechat/data/repository/RealContactsRepositoryTest.java` | Mở rộng 3 test nháp thành 43 ca, điều khiển NETWORK/DISK/main và DAO/API fixture |
+| `app/src/androidTest/java/com/utechat/data/repository/ContactsRepositoryRoomTest.java` | 12 ca Room in-memory thật với Repository/Retrofit/Gson; một ca chạy TCP loopback send → đối soát → cancel → đối soát |
+| `scripts/test-phase4-contacts-foundation.ps1` | Giữ bộ mặc định 83 JVM + 27 Android, thêm switch -Repository để chạy 126 JVM + 39 Android; backup output theo scope, kiểm XML mới |
+| `docs/phase4/01-phone-validation.md` | Báo cáo tiến độ duy nhất, giữ 12/13 chưa nghiệm thu đến khi đối chiếu Windows |
+
+Nguồn chính: [Repository](../../app/src/main/java/com/utechat/data/repository/real/RealContactsRepository.java), [43 test JVM](../../app/src/test/java/com/utechat/data/repository/RealContactsRepositoryTest.java), [12 test Android](../../app/src/androidTest/java/com/utechat/data/repository/ContactsRepositoryRoomTest.java). Thay đổi sessionChanges là phụ thuộc để các luồng cache của 12/13 không phát dữ liệu phiên cũ, không mở hạng mục chính thứ ba. DAO/schema/migration, backend, UI/resource và dependency UI không được triển khai thêm trong đợt này.
+
+### Quy tắc dữ liệu và thứ tự
+
+- Luồng bạn/chặn/lời mời/count/search cache gắn với một lần đăng nhập và actor; actor sai nhận rỗng. Đợi hàng rào DISK sau dọn phiên trước khi kích hoạt truy vấn; logout/đổi phiên làm luồng cũ phát rỗng và không được hoạt động lại khi đăng nhập cùng actor.
+- Snapshot tải đủ friends/blocked/requests, kiểm trùng/actor/status/createdAt và cấu trúc trước khi xóa bất kỳ cache nào. Mọi xóa/merge/insert cùng transaction Room; UserDao của 11 giữ phone/hồ sơ thiếu và quyền riêng tư đã biết. Lỗi HTTP, vận chuyển hoặc DTO trước transaction giữ snapshot trước đó; lỗi SQLite rollback và trả CACHE_WRITE_FAILED.
+- Lookup không ghi quan hệ, dùng mapper chung để giữ 409/429/details và phân biệt lỗi JSON với lỗi mạng. Chỉ lookup mới nhất và đúng phiên được phát trên main. Kiểm phiên giữa các HTTP trong snapshot, không tiếp tục đọc bằng tài khoản mới khi một request cũ đang chạy.
+- Send chỉ lưu pending từ ACK 201 hợp lệ; reject/cancel/accept xóa pending đã xử lý. Accept lịch sử ACCEPTED không tự tạo friend: phải lấy danh sách server. Block giữ dòng chặn và xóa pending liên quan, unfriend giữ dòng bị chặn, unblock xóa dòng quan hệ chưa biết để chờ đối soát; không tự suy ra vẫn là bạn. Profile caller khác ID bị bỏ qua.
+- Epoch đổi khi bắt đầu/kết thúc ghi và bắt đầu đọc mới; snapshot cũ không được ghi đè mutation mới. NETWORK và DISK trong Injection đều single-thread FIFO; local patch đã được ACK xếp trên DISK trước snapshot theo sau. Cờ cache được kiểm lại khi callback thật sự đến main, không chỉ khi I/O vừa xong.
+- `isSuccess=true, refreshRequired=true`: server đã ACK hợp lệ, refresh/ghi cache sau đó chưa hoàn tất hoặc lỗi; không gửi lại mutation vì lỗi refresh. `isSuccess=false` với NETWORK/INVALID_RESPONSE và refreshRequired=true: chưa có ACK hợp lệ, có thể server đã commit; tải lại trước khi cân nhắc thử lại. HTTP từ chối mutation giữ lỗi/metadata và refreshRequired=false. Không tự retry hoặc tự clear phiên trong Repository; AuthInterceptor/SessionManager hiện có chịu trách nhiệm 401.
+
+### Kiểm thử thực tế và giới hạn
+
+- `javac` JDK 27, `--release 17`, thư viện thật đã cache: biên dịch tầng dữ liệu/Injection và các test JVM thành công. JUnit trực tiếp cuối cùng **116/116 đạt, exit 0** = **43 Repository + 25 Auth/Fake + 48 DTO/Retrofit/HTTP mapper**; log `.task-cache/phase4-12-13/unit-final.log`. Không cộng với 115 của vòng trước hoặc với 83/27 đợt 23. Vòng thử đầu có lỗi cấu hình Mockito trong helper test (stubbing lồng), đã sửa trước kết quả cuối. Warning ByteBuddy/Unsafe trên JDK 27 vẫn có, không phải test failure.
+- Probe `javac -proc:none` biên dịch 12 test instrumentation mới cùng các suite thiết bị hồi quy thành công; log `.task-cache/phase4-12-13/device-compile.log`. Đây không phải build Gradle, Room annotation processor, chạy Room/Keystore hoặc thực thi TCP trên Android. Không gọi Gradle/ADB hoặc bộ thiết bị trong lượt này; bàn giao Windows theo yêu cầu người dùng.
+- 43 ca JVM kiểm snapshot toàn phần/lỗi một phần/DTO hỏng/UNIQUE seam; lookup/metadata 409/429; cả bảy route mutation; ACK vs mất ACK/refresh lỗi, local patch lỗi rồi tự đối soát được; callback cũ tại NETWORK/DISK/main; luồng cache sai actor/đổi phiên và hàng rào clear; snapshot cũ không ghi đè block mới; không tạo friend từ accept lịch sử.
+- 12 ca Android yêu cầu Room/SQLite thật: đối soát giữ profile/privacy, lỗi HTTP/DTO không phá cache, UNIQUE rollback; accept lịch sử; block–unfriend–unblock; đổi phiên khi DISK chờ; che LiveData trước cleanup; mất ACK không retry; refresh cũ vs block mới; trigger gây lỗi local patch rollback nhưng ACK vẫn đúng; một luồng send/cancel qua ServerSocket/TCP → Retrofit/Gson → Repository → Room.
+- HTTP của các ca Android còn lại dùng response interceptor fixture; ca TCP dùng server fixture trên loopback. **Không phải backend PostgreSQL/hosted HTTPS thật**, không nghiệm thu production hoặc toàn luồng UI. Backend/hợp đồng HTTP thật có bằng chứng riêng ở 09–10; không cộng test backend vào số Repository. Fake/Keystore/Room nền vẫn được script chạy lại, chưa lấy artifact cũ để báo đạt đợt mới.
+- Script PowerShell: Parser **0 lỗi**, UTF-8 BOM; kiểm tham số DeviceSerial/Repository và đếm source khớp **43 JVM + 12 Android** mới, selector mặc định **83+27**, selector Repository **126+39**. Tám self-check đọc XML đạt (nhận fixture tốt, từ chối skipped, thiếu ca, sai class, XML cũ, trùng tên, summary sai và node failure); log `.task-cache/phase4-12-13/gate-self-check.log`. Không chạy whole-script để giả có kết quả Windows.
+
+### Lệnh Windows PowerShell 5.1 và điều kiện nghiệm thu
+
+Dùng đúng script hiện có. `-Repository` bao gồm các suite hồi quy nên không cần chạy bộ mặc định riêng. `emulator-5554` là serial người dùng đã cung cấp ở đợt trước; script kiểm lại trạng thái device trước khi chạy, không mở emulator mới. Giữ thiết bị sẵn sàng và không chạy trùng lượt test khác:
+
+```powershell
+Set-Location 'D:\HCMUTE\Y3\S1\T2\LapTrinhDiDong\TeamProject'
+$env:JAVA_HOME = 'C:\Program Files\Java\jdk-27'
+$env:Path = "$env:JAVA_HOME\bin;$env:Path"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\test-phase4-contacts-foundation.ps1" -Repository -DeviceSerial 'emulator-5554'
+$LASTEXITCODE
+```
+
+Nếu serial đã thay đổi, dùng output `adb devices` để chọn dòng device và thay đúng giá trị `-DeviceSerial`; không đoán serial. Script tự sao lưu output cũ vào cache phase4-12-13 riêng có UUID trước Gradle, không đổi ExecutionPolicy toàn máy. Cần **126 JVM (8 suite) + 39 instrumentation (4 suite)**, cả hai Gradle BUILD SUCCESSFUL, script exit 0, đủ XML mới, số/tên testcase khớp source và failures/errors/skipped đều 0. XML ở `app/build/test-results/testDebugUnitTest` và `app/build/outputs/androidTest-results/connected`; gửi cả kết quả cuối và giá trị số sau `$LASTEXITCODE` để đối chiếu trước commit.
+
+### Điểm dừng
+
+**12 `[ ]`, 13 `[ ]`**, chờ Windows/Android thật; 01–11 và 14 giữ nghiệm thu cũ. Kiểm cuối: HEAD và ba stash không đổi, index trống; 23/25 bản nháp đầu lượt giữ nguyên SHA-256, chỉ RealContactsRepository và test của nó được sửa trong tập nháp đó, bản cũ còn ở backup. Chưa stage/commit nên chưa có danh tính commit mới để kiểm; sau khi test và đối chiếu đạt mới đưa đúng hai mục và báo cáo vào một commit, Author/Committer MeanFen. UI hiện có vẫn là nháp chưa nghiệm thu, không có hướng dẫn bấm UI mới cho đợt này. Giữ nháp ngoài phạm vi, stash, backup và artifact lần Windows trước; dừng chờ kết quả, không triển khai 15 hoặc tự push.
+
+### Sửa bước sao lưu trước test trên Windows PowerShell 5.1
+
+Người dùng chạy `-Repository -DeviceSerial 'emulator-5554'`, script dừng exit 1 trong `Copy-Item` khi sao lưu logcat `SessionManagerTest-freshInstanceReadsEncryptedIdentityAfterProcessRestart.txt`. Lỗi phát sinh **trước lệnh Gradle**, chưa có bằng chứng bộ 126/39 chạy; không ghi nhận là test Repository thất bại.
+
+Đo đường dẫn đích gây lỗi được **260 ký tự**. Tái hiện bằng **Windows PowerShell 5.1.26100.9818** thực tế: Copy-Item cây connected vào cấu trúc backup cũ thất bại tại cùng tệp, nhưng sao chép cùng nguồn sang đường dẫn ngắn hơn thành công. Nguồn tồn tại, không phải thiếu logcat. Kết quả phù hợp giới hạn MAX_PATH 260 gồm ký tự kết thúc của API Windows: [Microsoft — Maximum Path Length Limitation](https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation). Log tái hiện ở `.task-cache/phase4-12-13/backup-fix/repro-final.log`.
+
+Chỉ sửa phần backup của script hiện có: tạo `testDebugUnitTest.zip` và `connected.zip` trong thư mục UUID, giữ cây tên tương đối trong archive thay vì tạo đường dẫn đích lồng dài. Dùng ZipFile sẵn có của .NET, đối chiếu số lượng, kích thước và SHA-256 từng entry với nguồn trước khi cho Gradle chạy. Tên entry của .NET Framework/PS 5.1 có thể dùng dấu `\`; chuẩn hóa dấu phân cách chỉ lúc đối chiếu. Không xóa bản backup dở của lần lỗi, không thay source/log gốc, registry, ExecutionPolicy toàn máy, tham số hoặc selector test.
+
+Đã kiểm riêng hàm backup trích từ script bằng **PowerShell 5.1**, không gọi whole-script/ADB/Gradle: **9 tệp JVM + 32 tệp connected** đóng ZIP và khớp từng SHA-256; kiểm thêm fixture Unicode, nhị phân, thư mục rỗng và từ chối ghi đè ZIP có sẵn đều đạt. Parser PS 5.1 có 0 lỗi; 41 artifact nguồn giữ nguyên hash. Log tại `.task-cache/phase4-12-13/backup-fix/check.log`. Các ZIP kiểm chứng nằm trong cache riêng, không đưa vào commit.
+
+Lệnh Windows ở trên **giữ nguyên**, tiếp tục dùng `-Repository -DeviceSerial 'emulator-5554'` khi thiết bị còn ở trạng thái device. Bộ dự kiến vẫn **126 JVM + 39 instrumentation**. Trạng thái 12/13 vẫn `[ ]`; chưa stage/commit/push và chưa có kết quả test mới của hai mục sau lần sửa backup.
+
+## Đợt 25 - Nghiệm thu và commit Repository: mục 12–13, 19/11/2026
+
+### Đối chiếu Windows, XML và source
+
+Người dùng cung cấp `BUILD SUCCESSFUL in 2m 21s`, 71 task executed, PASS đủ bốn suite Android, tổng `126 JVM + 39 Android instrumentation`, failures/errors/skipped=0 và **`$LASTEXITCODE=0`**. Đã đối chiếu trực tiếp artifact mới:
+
+- **8 XML JVM**, thời gian sửa **09:57:58 UTC+7**, ngày 19/11/2026; tổng 126 testcase. Từng suite có số/tên method khớp source hiện tại, không trùng testcase trong lớp, không node failure/error/skipped; mọi summary failures/errors/skipped=0.
+- **1 XML Android chứa 4 suite**, thời gian sửa **10:00:18 UTC+7**; tổng 39 testcase, số/tên method khớp source, không trùng hoặc bỏ qua. Cả bốn suite ghi device=`emulator-5554`; tên file `TEST-Pixel_10_Pro(AVD) - 17.xml`. `test-result-exit-code.txt` của runner Android ghi 0, khớp trạng thái thành công của console người dùng.
+- **11 tệp source/test/script/báo cáo** trong manifest `.task-cache/phase4-12-13/before-windows-backup-fixed-manifest.json` không đổi SHA-256 từ lúc chuẩn bị đến lúc đối chiếu. Sau kiểm này chỉ cập nhật báo cáo; không sửa code đã được Windows test để rồi dùng lại XML cũ.
+- Backup lần chạy mới ở `.task-cache/phase4-12-13/windows-6333a073857844be943c7cb0b0a881a6`, thời gian thư mục **09:56:44**: `testDebugUnitTest.zip` giữ 9 tệp và `connected.zip` giữ 32 tệp. Đọc từng entry và so SHA-256 với manifest trước test: **41/41 artifact cũ khớp**, không cần giải nén đường dẫn dài. Lỗi backup trước đó được giữ làm lịch sử, không đánh đồng với lỗi test.
+
+| Phạm vi | Suite/testcase | Kết quả |
+|---|---|---|
+| JVM Repository mới | RealContactsRepositoryTest 43 | 43/43 đạt |
+| JVM Auth/Fake hồi quy | RealAuthRepositoryTest 11; FakeRepositoriesTest 6; FakeContactsSessionTest 8 | 25/25 đạt |
+| JVM hợp đồng client hồi quy | ContactDtosTest 10; ContactApiTest 16; ContactErrorMapperTest 22; ContactTransportTest 10 | 58/58 đạt |
+| **Tổng JVM** | **8 suite, 126 testcase** | **Failures/errors/skipped=0** |
+| Android Repository/Room/TCP mới | ContactsRepositoryRoomTest 12 | 12/12 đạt |
+| Android nền hồi quy | SessionManagerTest 14; RoomFoundationTest 3; ContactsRoomTest 10 | 27/27 đạt |
+| **Tổng Android** | **4 suite, 39 testcase** | **Failures/errors/skipped=0** |
+
+Nguồn trực tiếp: [XML Repository JVM](../../app/build/test-results/testDebugUnitTest/TEST-com.utechat.data.repository.RealContactsRepositoryTest.xml), [XML transport](../../app/build/test-results/testDebugUnitTest/TEST-com.utechat.data.remote.api.ContactTransportTest.xml), [XML Android](<../../app/build/outputs/androidTest-results/connected/debug/TEST-Pixel_10_Pro(AVD) - 17.xml>), [mã thoát runner](../../app/build/outputs/androidTest-results/connected/debug/test-result-exit-code.txt), [source 43 test](../../app/src/test/java/com/utechat/data/repository/RealContactsRepositoryTest.java) và [source 12 test](../../app/src/androidTest/java/com/utechat/data/repository/ContactsRepositoryRoomTest.java). Không cộng 116 test agent trước đó, 83/27 của đợt 23 hoặc test backend vào tổng lần này.
+
+### Nghiệm thu và giới hạn
+
+**12 và 13 đạt điều kiện checklist trong phạm vi Repository REST/Room và hợp đồng phiên.** Đã có kết quả cho lookup/lời mời, mọi route mutation, đối soát ba danh sách, lỗi một phần không phá cache, rollback SQLite thật, phiên cũ/độ mới của response, LiveData đổi phiên, ACK xác nhận nhưng refresh lỗi so với kết quả ghi chưa biết, không tự retry và không tạo friend từ lịch sử ACCEPTED. Guard được kiểm khi NETWORK bắt đầu, khi DISK ghi và khi main thực sự nhận kết quả. Kết quả Room thật đóng phần còn thiếu ở đợt 24; checklist 12/13 chuyển `[x]`.
+
+Ca TCP Android dùng ServerSocket fixture thật với Retrofit/Gson → Repository → Room; các ca HTTP Android khác dùng response interceptor fixture. Đây không phải kiểm toàn luồng với backend PostgreSQL/hosted HTTPS; bằng chứng backend/contract tại 09–10 vẫn tách riêng. FIFO NETWORK/DISK là điều kiện constructor được Injection cung cấp bằng hai single-thread executor, DISK dùng chung với clear phiên. Chưa nghiệm thu UI 15–20, offline toàn luồng nhiều màn hoặc production. Không có UI mới để hướng dẫn bấm trong commit này.
+
+Console người dùng có warning `sun.misc.Unsafe::arrayBaseOffset` từ protobuf 3.25.5; XML vẫn không failure/error/skipped. Không thay dependency chỉ để xóa warning. Các lỗi SQLite/trigger trong test rollback là điều kiện fixture có chủ đích; tên testcase tương ứng đều đạt.
+
+### Commit và bảo toàn
+
+- Đưa đúng **12/13** vào một commit sau đối chiếu: 7 tệp nguồn (`ContactsRepository`, `ContactsResult`, `CurrentUserIdProvider`, `FakeAuthRepository`, `RealContactsRepository`, `SessionManager`, `Injection`), 2 tệp test (`RealContactsRepositoryTest`, `ContactsRepositoryRoomTest`), script và báo cáo: **11 tệp**. Nội dung đầy đủ đã được liệt kê ở bảng đợt 24; chỉ stage các đường dẫn này, không add toàn bộ.
+- Snapshot trước cập nhật báo cáo tại `.task-cache/phase4-12-13/acceptance-commit-manifest.json` ghi SHA-256 **135 tệp** working tree/artifact/ZIP và ba stash. Chỉ nội dung báo cáo thay đổi trong lượt đối chiếu; source đã test, các nháp ngoài phạm vi, artifact mới và ZIP cũ giữ nguyên. Không đưa XML/log/APK/ZIP/cache/.env vào commit, không reset/xóa/stash hoặc sửa lịch sử.
+- Author và Committer yêu cầu `MeanFen <nghiapp11102006@gmail.com>`; kiểm trên commit vừa tạo. Không chạy lại Gradle/ADB/test trong lượt đối chiếu vì source khớp manifest và đủ bằng chứng mới.
+- **01–14 đã nghiệm thu theo phạm vi từng mục; 15–20 giữ `[ ]`.** Dừng sau commit 12/13, không triển khai mục thứ ba và không push.

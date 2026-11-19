@@ -8,7 +8,9 @@ public final class ContactsResult<T> {
     // Metadata 409 giúp lớp gọi thao tác trên lời mời đang tồn tại, không tự tạo lời mời mới.
     public String existingRequestId, direction;
     public int retryAfterSeconds;
-    // Repository quyết định khi nào phải tải lại cache; bộ đọc lỗi HTTP không tự bật cờ này.
+    // true + isSuccess(): server đã xác nhận ghi, cache chưa mới; không gửi lại mutation.
+    // true + lỗi: chưa có ACK hợp lệ, có thể server đã ghi; tải lại trước khi quyết định thử lại.
+    // Bộ đọc lỗi HTTP không tự bật cờ này; HTTP từ chối mutation giữ false.
     public boolean refreshRequired;
 
     private ContactsResult() { }
