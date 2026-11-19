@@ -1,5 +1,7 @@
 package com.utechat.backend.support;
 
+import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
+import java.io.IOException;
 import java.net.URI;
 import java.sql.Connection;
 import java.sql.Statement;
@@ -9,16 +11,33 @@ import org.flywaydb.core.Flyway;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 
-/** Mỗi fixture có database riêng trên PostgreSQL localhost; không đọc .env hoặc dùng Supabase. */
+/** Mặc định tự chạy PostgreSQL nhúng; mỗi fixture có database riêng, không đọc .env hoặc dùng Supabase. */
 public final class PostgresFixture implements AutoCloseable {
+    private static EmbeddedPostgres embedded;
     private final DriverManagerDataSource admin;
     private final String name = "phase4_" + UUID.randomUUID().toString().replace("-", "");
     public final DriverManagerDataSource source;
     public final JdbcTemplate jdbc;
 
+    /** Dùng chung engine trong một JVM, không dùng chung dữ liệu; Zonky tự dọn engine khi JVM kết thúc. */
+    private static synchronized EmbeddedPostgres embedded() throws IOException {
+        if (embedded == null) embedded = EmbeddedPostgres.builder()
+                .setServerConfig("listen_addresses", "127.0.0.1").start();
+        return embedded;
+    }
+
     public PostgresFixture() throws Exception {
         String url = System.getProperty("phase4.pg.url");
-        if (url == null) throw new IllegalStateException("Chạy backend/scripts/test-phase4-foundation.ps1 để cấp PostgreSQL test");
+        boolean useEmbedded = url == null;
+        String password;
+        if (useEmbedded) {
+            // Không cần script, Docker hoặc mật khẩu môi trường; engine chọn cổng trống trên loopback.
+            url = "jdbc:postgresql://127.0.0.1:" + embedded().getPort() + "/postgres";
+            password = "";
+        } else {
+            // Giữ hỗ trợ PostgreSQL test được cấp tường minh; không rơi về môi trường nếu URL sai.
+            password = System.getenv("PHASE4_TEST_PG_PASSWORD");
+        }
         // Chặn cấu hình nhầm URL từ .env; chỉ tạo/xóa database ngẫu nhiên trên cổng localhost chỉ định.
         if (!url.startsWith("jdbc:postgresql://")) throw new IllegalArgumentException("Test yêu cầu URL PostgreSQL JDBC");
         URI uri = URI.create(url.substring("jdbc:".length()));
@@ -27,8 +46,8 @@ public final class PostgresFixture implements AutoCloseable {
                 || uri.getQuery() != null || uri.getFragment() != null) {
             throw new IllegalArgumentException("Test chỉ nhận jdbc:postgresql://127.0.0.1:<port>/postgres");
         }
-        String password = System.getenv("PHASE4_TEST_PG_PASSWORD");
-        if (password == null || password.isEmpty()) throw new IllegalStateException("Thiếu mật khẩu PostgreSQL test");
+        if (password == null || (!useEmbedded && password.isEmpty()))
+            throw new IllegalStateException("Thiếu mật khẩu PostgreSQL test được cấp tường minh");
         admin = new DriverManagerDataSource(url, "postgres", password);
         admin.setDriverClassName("org.postgresql.Driver");
         source = new DriverManagerDataSource(url.replaceFirst("/postgres(?=\\?|$)", "/" + name), "postgres", password);
