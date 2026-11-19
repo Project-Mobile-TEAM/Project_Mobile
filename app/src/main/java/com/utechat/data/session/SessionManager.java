@@ -37,6 +37,17 @@ public final class SessionManager implements com.utechat.data.repository.Current
     private long generation;
     // Injection gắn việc dọn Room và bộ nhớ; callback chạy trong khóa phiên để xếp DISK đúng thứ tự.
     private Runnable onSessionChanged = () -> { };
+    private final androidx.lifecycle.MutableLiveData<String> changes = new androidx.lifecycle.MutableLiveData<>();
+    @Override public androidx.lifecycle.LiveData<String> sessionChanges() { return changes; }
+
+    /** Xếp thông báo trên main và bỏ thông báo phiên cũ nếu main đang bận. */
+    private void announceSessionChange() {
+        onSessionChanged.run();
+        String version=versionKey();
+        androidx.arch.core.executor.ArchTaskExecutor.getInstance().executeOnMainThread(() -> {
+            synchronized(this) { if(version.equals(versionKey())) changes.setValue(sessionKey()); }
+        });
+    }
 
     public synchronized void setOnSessionChanged(Runnable action) {
         onSessionChanged = java.util.Objects.requireNonNull(action);
@@ -99,7 +110,7 @@ public final class SessionManager implements com.utechat.data.repository.Current
         prefs.edit().putString(KEY_TOKEN, encrypted).remove(KEY_ME).remove(KEY_DISCOVERABLE).apply();
         token = newToken;
         tokenLoaded = true;
-        onSessionChanged.run();
+        announceSessionChange();
     }
 
     /** Lưu token và actor nguyên tử; dọn cache cũ được xếp trước ghi hồ sơ của phiên mới. */
@@ -111,14 +122,14 @@ public final class SessionManager implements com.utechat.data.repository.Current
                 .putBoolean(KEY_DISCOVERABLE, discoverable).apply();
         token = newToken;
         tokenLoaded = true;
-        onSessionChanged.run();
+        announceSessionChange();
     }
 
     /** Nhớ id của mình (khoá đọc hồ sơ cache trong Room) và cờ discoverable mà bảng user_cache không có. */
     public synchronized void saveMe(String userId, boolean discoverable) {
         boolean changed = !java.util.Objects.equals(userId, getMeId());
         prefs.edit().putString(KEY_ME, userId).putBoolean(KEY_DISCOVERABLE, discoverable).apply();
-        if (changed) { generation++; onSessionChanged.run(); }
+        if (changed) { generation++; announceSessionChange(); }
     }
     @Nullable public String getMeId() { return prefs.getString(KEY_ME, null); }
     public boolean isMeDiscoverable() { return prefs.getBoolean(KEY_DISCOVERABLE, true); }
@@ -141,7 +152,7 @@ public final class SessionManager implements com.utechat.data.repository.Current
         prefs.edit().remove(KEY_TOKEN).remove(KEY_ME).remove(KEY_DISCOVERABLE).apply();
         token = null;
         tokenLoaded = true;
-        onSessionChanged.run();
+        announceSessionChange();
     }
 
     private static SecretKey key() throws Exception {

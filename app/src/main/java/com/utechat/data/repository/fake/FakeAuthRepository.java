@@ -21,6 +21,9 @@ public class FakeAuthRepository implements AuthRepository, com.utechat.data.repo
     @Override public synchronized String sessionKey() {
         return getCurrentUserId() == null ? null : generation + ":" + getCurrentUserId();
     }
+    @Override public LiveData<String> sessionChanges() {
+        return androidx.lifecycle.Transformations.map(current, user -> sessionKey());
+    }
     @Override public synchronized boolean runIfCurrent(String key, Runnable action) {
         if (key == null || !key.equals(sessionKey())) return false;
         action.run(); return true;
