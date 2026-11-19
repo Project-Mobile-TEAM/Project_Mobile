@@ -17,5 +17,7 @@ public interface ContactsRepository {
     LiveData<ContactsResult<com.utechat.data.remote.model.ContactDtos.Lookup>> lookup(String phone);
     LiveData<ContactsResult<Boolean>> act(String action,String id,com.utechat.data.remote.model.ContactDtos.User profile);
     String sessionKey();
+    // ViewModel xóa trạng thái cá nhân ngay khi đổi phiên, không đợi một callback HTTP khác.
+    LiveData<String> sessionChanges();
     String currentUserId();
 }

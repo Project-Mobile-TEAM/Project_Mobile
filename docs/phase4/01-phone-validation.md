@@ -198,7 +198,7 @@ Link nhánh dự kiến: https://github.com/Project-Mobile-TEAM/Project_Mobile/t
 
 ## Checklist các hạng mục còn lại của Phase 4
 
-Hai thành phần đã kiểm thử riêng là chuẩn hóa SĐT (28 test) và giới hạn tra cứu (8 test). **Mục 01–02 đã nghiệm thu tại đợt 13; API backend 03–04 tại đợt 15; mục 05–06 tại đợt 17; mục 07–08 tại đợt 19 bằng bộ Windows 215 test; mục 09–10 tại đợt 21 bằng bộ Windows 251 test cùng 58 test app lồng; mục 11/14 tại đợt 23 bằng bộ Windows 83 JVM + 27 instrumentation; mục 12/13 tại đợt 25 bằng bộ Windows 126 JVM + 39 instrumentation.** Luồng tìm người trên Android chưa hoàn chỉnh; chuẩn hóa ô nhập và gọi API từ màn hình còn thuộc mục 17. Các mục 15–20 vẫn chưa được nghiệm thu toàn mục, dù một số đã có code nháp trong `TeamProject`. Phạm vi và bằng chứng mới nhất tại đợt 25.
+Hai thành phần đã kiểm thử riêng là chuẩn hóa SĐT (28 test) và giới hạn tra cứu (8 test). **Mục 01–02 đã nghiệm thu tại đợt 13; API backend 03–04 tại đợt 15; mục 05–06 tại đợt 17; mục 07–08 tại đợt 19 bằng bộ Windows 215 test; mục 09–10 tại đợt 21 bằng bộ Windows 251 test cùng 58 test app lồng; mục 11/14 tại đợt 23 bằng bộ Windows 83 JVM + 27 instrumentation; mục 12/13 tại đợt 25 bằng bộ Windows 126 JVM + 39 instrumentation; mục 15/16 tại đợt 27 bằng bộ Windows 157 JVM + 51 instrumentation.** Luồng tìm người trên Android chưa hoàn chỉnh; chuẩn hóa ô nhập và gọi API từ màn hình còn thuộc mục 17. Các mục 17–20 vẫn chưa được nghiệm thu toàn mục, dù một số đã có code nháp trong `TeamProject`. Bằng chứng nghiệm thu mới nhất tại đợt 27; lịch sử chuẩn bị và chẩn đoán 15/16 ở đợt 26.
 
 Có 20 hạng mục để theo dõi, không mặc định tương ứng đúng 20 lượt thực hiện. Từ đợt 10, mỗi lượt chọn tối đa hai hạng mục cấp chính 01–20 theo thứ tự phụ thuộc; các phần con không được tính thành hạng mục cấp chính. Trước khi viết, đọc lại bản nháp liên quan để sửa và tái sử dụng phần phù hợp. Chỉ đánh dấu `[x]` khi đã có bằng chứng đạt toàn bộ điều kiện của mục đó; nếu bị chặn thì ghi nguyên nhân và phần còn thiếu.
 
@@ -255,8 +255,8 @@ Có 20 hạng mục để theo dõi, không mặc định tương ứng đúng 2
 
 ### Giao diện và nghiệm thu
 
-- [ ] **15. `ContactsViewModel`:** quản lý tải dữ liệu, 5 trạng thái quan hệ, lỗi/thông báo một lần và trạng thái thao tác; xử lý `409`/`429`; giữ ô nhập, bộ lọc và tab qua xoay màn hình; không áp dụng kết quả của phiên cũ.
-- [ ] **16. Màn hình danh sách bạn bè:** hiển thị/lọc tên, kéo làm mới, hủy kết bạn/chặn có xác nhận; badge chỉ đếm lời mời nhận đến còn `PENDING`; nối các màn con qua `nav_contacts.xml`; giữ tiêu đề và ID tương thích điều hướng hiện tại.
+- [x] **15. `ContactsViewModel`:** quản lý tải dữ liệu, 5 trạng thái quan hệ, lỗi/thông báo một lần và trạng thái thao tác; xử lý `409`/`429`; giữ ô nhập, bộ lọc và tab qua xoay màn hình; không áp dụng kết quả của phiên cũ.
+- [x] **16. Màn hình danh sách bạn bè:** hiển thị/lọc tên, kéo làm mới, hủy kết bạn/chặn có xác nhận; badge chỉ đếm lời mời nhận đến còn `PENDING`; nối các màn con qua `nav_contacts.xml`; giữ tiêu đề và ID tương thích điều hướng hiện tại.
 - [ ] **17. Màn hình tìm người:** nối `ContactsValidator` vào ô nhập và gọi backend thật; hiện nút hợp lệ cho `STRANGER`, `OUTGOING_PENDING`, `INCOMING_PENDING`, `FRIEND`, `BLOCKED`; xử lý trạng thái tải, lỗi, thử lại và thời gian chờ; ẩn nút Nhắn tin trong Phase 4.
 - [ ] **18. Màn hình lời mời:** hai tab Đã nhận/Đã gửi; đủ accept/reject/cancel và chặn theo quyền; danh sách và badge cập nhật đúng sau thao tác; giữ tab khi xoay màn hình.
 - [ ] **19. Màn hình danh sách chặn:** hiển thị dữ liệu online/cache offline, bỏ chặn có xác nhận và đối soát đúng; có empty/loading/error state. Với cả mục 16–19: dùng ViewBinding đúng vòng đời, `ListAdapter + DiffUtil`, Material DayNight và chuỗi Anh–Việt.
@@ -1534,3 +1534,212 @@ Console người dùng có warning `sun.misc.Unsafe::arrayBaseOffset` từ proto
 - Snapshot trước cập nhật báo cáo tại `.task-cache/phase4-12-13/acceptance-commit-manifest.json` ghi SHA-256 **135 tệp** working tree/artifact/ZIP và ba stash. Chỉ nội dung báo cáo thay đổi trong lượt đối chiếu; source đã test, các nháp ngoài phạm vi, artifact mới và ZIP cũ giữ nguyên. Không đưa XML/log/APK/ZIP/cache/.env vào commit, không reset/xóa/stash hoặc sửa lịch sử.
 - Author và Committer yêu cầu `MeanFen <nghiapp11102006@gmail.com>`; kiểm trên commit vừa tạo. Không chạy lại Gradle/ADB/test trong lượt đối chiếu vì source khớp manifest và đủ bằng chứng mới.
 - **01–14 đã nghiệm thu theo phạm vi từng mục; 15–20 giữ `[ ]`.** Dừng sau commit 12/13, không triển khai mục thứ ba và không push.
+
+## Đợt 26 - Chuẩn bị ViewModel và danh sách bạn bè: mục 15–16, 19/11/2026
+
+### Phạm vi và thay đổi
+
+Tiếp tục trên `TeamProject`, nhánh `phase4_NP`, HEAD nền `421470647a2b981016c15e5678fbdc3f644090fc`. Chỉ hai mục **15/16**, sau khi 11/14 và 12/13 đã được nghiệm thu. Snapshot 21 tệp dirty/untracked đầu đợt, HEAD và ba stash ở `.task-cache/phase4-15-16/20261119-101327/manifest.json`; có bản sao nội dung nháp trước khi sửa. Không tạo project/worktree khác.
+
+| Phần | Nội dung chuẩn bị trong đợt này |
+|---|---|
+| ViewModel 15 | Giữ phone/filter/tab và hạn chờ 429 trong SavedStateHandle; một tác vụ/observer tại một thời điểm, gỡ observer kể cả callback đồng bộ và onCleared; thông báo được tiêu thụ một lần. Năm trạng thái RelationshipState có danh sách thao tác, không có Nhắn tin. |
+| Phiên và lỗi | ContactsRepository chuyển tiếp sessionChanges từ provider hiện có, không thiết kế lại cơ chế phiên 14. So khóa thật từ Repository để chấp nhận phiên đã khôi phục khi tín hiệu LiveData ban đầu còn null. Đổi phiên xóa nhập liệu/kết quả/cache hiển thị ngay; bỏ callback cũ. 409 có ID/chiều hợp lệ chỉ cập nhật pending, không tự accept; thiếu metadata buộc tải lại. ACK nhưng cache chưa mới và lỗi chưa rõ có ghi server hay chưa đều không cho tự lặp mutation. |
+| Danh sách 16 | Fragment riêng chỉ hiển thị bạn bè, lọc tên không phân biệt hoa thường, kéo tải lại, empty/loading/error/retry; lỗi mạng giữ cache. Badge nhận count từ Repository. ListAdapter/DiffUtil sao payload và kiểm lại vị trí click; hủy kết bạn/chặn qua DialogFragment có xác nhận, giữ qua recreate. ViewBinding/observer/watcher theo vòng đời View, chuỗi Anh–Việt và màu DayNight. |
+| Điều hướng | Giữ root nav_contacts, contactsListFragment, title_contacts và ba action/destination ID. Ba đích con tạm dùng ContactsDestinationFragment với thông báo chưa khả dụng và nút Back: chỉ kiểm nối graph/back stack cho 16. **Không nghiệm thu hoặc đưa chức năng màn tìm người/lời mời/chặn 17–19 vào đợt này.** |
+| Kiểm thử/bàn giao | 31 test JVM ViewModel; 12 test Android UI; host chỉ có ở Debug, non-exported, dùng graph/View/XML thật. Tái sử dụng script hiện có, thêm -ContactsUi bao gồm toàn bộ hồi quy 11–14; giữ ZIP backup và kiểm hash tương thích PowerShell 5.1. |
+
+Nguồn: [ViewModel](../../app/src/main/java/com/utechat/ui/contacts/ContactsViewModel.java), [danh sách bạn](../../app/src/main/java/com/utechat/ui/contacts/ContactsListFragment.java), [adapter](../../app/src/main/java/com/utechat/ui/contacts/ContactsAdapter.java), [xác nhận](../../app/src/main/java/com/utechat/ui/contacts/ContactsConfirmDialog.java), [graph](../../app/src/main/res/navigation/nav_contacts.xml), [31 test JVM](../../app/src/test/java/com/utechat/ui/contacts/ContactsViewModelTest.java), [12 test UI](../../app/src/androidTest/java/com/utechat/ui/contacts/ContactsListUiTest.java), [script](../../scripts/test-phase4-contacts-foundation.ps1).
+
+Đã tái sử dụng bản nháp thuộc 15/16. Tám tệp ngoài phạm vi giữ nguyên SHA-256: `.gitignore`, `ContactsScreenFragment`, `SearchUserFragment`, `FriendRequestsFragment`, `BlockedUsersFragment`, `fragment_search_user.xml`, bản nháp backend `ContactsApiTest` và `tash list`. Hai dependency file có sẵn thay đổi SwipeRefreshLayout được giữ nguyên nội dung nháp và thuộc phạm vi 16. Các lớp màn con nháp vẫn biên dịch trong working tree nhưng không được graph mới gọi; không cần đưa các lớp đó vào commit 15/16. Không đổi backend/schema/DAO, URL mạng, secret hoặc cấu hình release.
+
+### Kiểm đã thực hiện và phần chưa có bằng chứng
+
+- **JUnit trực tiếp: 147/147 đạt, exit 0** = 31 ViewModel mới + 116 hồi quy dữ liệu/HTTP mapper. Dùng JDK 27 `--release 17`, AndroidX và dependency thật đã cache, mockable android.jar của AGP. Log `.task-cache/phase4-15-16/unit.log`. Không gồm 10 ContactTransportTest dùng socket, không phải Gradle test hoặc Android instrumentation; không cộng kết quả các đợt cũ vào lần này.
+- 31 ca mới kiểm tải/giữ cache khi lỗi, loading/chống click lặp, gỡ observer, SavedStateHandle cùng/khác phiên, tín hiệu phiên ban đầu null, validation/normalize, năm trạng thái, metadata 409 hai chiều, cooldown 429 không dùng sleep, bỏ lookup cũ khi đổi phone, xóa phiên/callback cũ, thông báo một lần, ACK/cache chưa mới và không retry mutation chưa rõ kết quả.
+- **Gradle offline biên dịch app, JVM test và Android test thành công**, gồm AAPT/resource, ViewBinding và các bản nháp đang có; log `.task-cache/phase4-15-16/compile-final.log`. Đây chỉ là compile, **không chứng minh 12 ca UI hay Room/Keystore đã chạy**. Lượt đầu môi trường agent không nạp được native-platform.dll; sau khi được phép dùng runtime/cache thật, compiler phát hiện API vị trí dòng chưa có ở RecyclerView hiện dùng và import closeSoftKeyboard mơ hồ; đã sửa trước build cuối. Không nâng RecyclerView hoặc thư viện để né lỗi. Cảnh báo API Bundle Serializable cũ và unchecked generics của test còn được compiler ghi nhận.
+- **PowerShell 5.1.26100.9818**: parser 0 lỗi; selector và số @Test trong source khớp cả ba chế độ: mặc định **83+27**, -Repository **126+39**, -ContactsUi **157+51**. Tám self-check XML đạt: nhận fixture đúng, từ chối XML cũ/skipped/thiếu ca/sai class/trùng tên/summary sai/node failure. Log `.task-cache/phase4-15-16/script-check.log`. Chỉ trích và kiểm selector/hàm đọc XML; không gọi whole-script, ADB hoặc mở thiết bị trong agent.
+- **Chưa chạy Android UI, Room/Keystore hoặc full bộ 157/51 trên Windows cho source đợt này.** 12 ca UI được chuẩn bị cho hiển thị/lọc và empty, badge pending đến, recreate không tải trùng, kéo refresh/disable, cancel và confirm unfriend, block qua recreate, ba destination/back stack, cache khi offline và retry refresh, mutation chưa rõ kết quả, logout, tiếng Việt/chế độ tối và nhãn accessibility. UI dùng Fake fixture có điều khiển; 39 ca Room/Keystore hồi quy dùng bộ hiện có. Không thay test DAO bằng Fake hoặc xem fixture UI là backend/PostgreSQL thật; toàn luồng với ba tài khoản/hosted vẫn thuộc 20.
+
+### Lệnh Windows PowerShell 5.1
+
+`-ContactsUi` đã bao gồm Repository và các bộ nền nên chỉ chạy một lệnh dưới đây, không chạy thêm -Repository đồng thời. `emulator-5554` là serial người dùng đã cung cấp, script kiểm lại dòng device; nếu serial thay đổi thì lấy lại từ adb devices. Bước chuẩn bị thiết bị/backup thất bại trước Gradle không được tính là test thất bại hoặc test đã chạy.
+
+```powershell
+Set-Location 'D:\HCMUTE\Y3\S1\T2\LapTrinhDiDong\TeamProject'
+$env:JAVA_HOME = 'C:\Program Files\Java\jdk-27'
+$env:Path = "$env:JAVA_HOME\bin;$env:Path"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\test-phase4-contacts-foundation.ps1" -ContactsUi -DeviceSerial 'emulator-5554'
+$LASTEXITCODE
+```
+
+Cần **157 JVM (9 suite) + 51 Android instrumentation (5 suite)**: 31/12 mới cộng 126/39 hồi quy, đủ XML mới và failures/errors/skipped=0, hai Gradle BUILD SUCCESSFUL, script exit 0. Script giữ backup ZIP tại `.task-cache/phase4-15-16/windows-UUID`; không thay ExecutionPolicy toàn máy. XML tại `app/build/test-results/testDebugUnitTest` và `app/build/outputs/androidTest-results/connected`. Sau người dùng chạy mới đối chiếu thời gian, số/tên testcase với source và SHA-256 manifest bàn giao; chưa dùng XML 12/13 cũ để nghiệm thu 15/16.
+
+### Bấm thử và điểm dừng
+
+Trên app với tài khoản thử đã đăng nhập, mở **Danh bạ**: kiểm tên/tiêu đề, nhập một phần tên rồi xóa bộ lọc, kéo xuống làm mới. Mở **Thao tác** của một bạn: chọn hủy kết bạn/chặn, thử đóng xác nhận trước, rồi xác nhận bằng tài khoản thử; kiểm hàng tương ứng được cập nhật. Xoay màn hình khi đã lọc và khi dialog đang mở; chuyển sáng/tối, Anh/Việt; thử mất mạng rồi Tải lại, kiểm cache còn hiển thị và không gửi lại mutation khi chỉ tải lại. Ba nút tìm người/lời mời/danh sách chặn hiện chỉ tới đích chưa khả dụng và quay về; nghiệp vụ các màn đó chưa làm trong đợt này. Kết quả bấm thử thủ công **chưa được kiểm chứng trong agent**.
+
+Manifest bàn giao `.task-cache/phase4-15-16/before-windows-manifest.json` ghi hash 24 tệp trong phạm vi, tám nháp ngoài phạm vi, 54 artifact trước test, tên 31/12 ca mới, HEAD/branch và ba stash để đối chiếu sau Windows. `git diff --check` đạt; kiểm tên tiến trình Java/ADB/Gradle cuối lượt không trả dòng nào, không có kết quả đọc command line qua CIM vì môi trường từ chối truy cập CIM.
+
+**15 `[ ]`, 16 `[ ]`**, chờ kết quả Windows/Android và đối chiếu. 01–14 giữ nghiệm thu cũ; 17–20 giữ nguyên phạm vi chưa nghiệm thu. Index trống, HEAD và ba stash giữ nguyên; chưa stage/commit/push. Chỉ sau khi đủ test và đối chiếu mới commit tối đa hai mục 15/16 cùng báo cáo, Author và Committer `MeanFen <nghiapp11102006@gmail.com>`, kiểm danh tính trên commit mới. Dừng chờ kết quả, không triển khai mục thứ ba.
+
+### Đối chiếu lượt Windows thất bại và sửa UI, 19/11/2026
+
+Người dùng cung cấp connectedDebugAndroidTest FAILED, BUILD FAILED in 4m 54s và script exit 1. Đây là lượt đã chạy test, khác lỗi chuẩn bị thiết bị/backup ở các đợt trước. Trước khi sửa, cả 24 tệp scope khớp SHA-256 manifest bàn giao.
+
+- **JVM: 157/157 đạt**, 9 XML mới, tên/số method khớp chín source, không failure/error/skipped. Có đủ ContactTransportTest 10 ca và ContactsViewModelTest 31 ca; không thay kết quả này bằng con số JUnit trực tiếp 147 của agent.
+- **Android: chưa đủ bộ 51.** XML mới ghi ContactsRepositoryRoomTest 12/12 đạt; ContactsListUiTest chỉ ghi 8/12 ca và cả tám lỗi: bảy RootViewWithoutFocusException trước thao tác/assert UI, một IllegalStateException trong ca offlineRetainsRowsAndRetryOnlyRefreshes khi SnackbarLayout bị thêm vào FragmentContainerView. Runner còn ghi android-test.testRunFailed do process crash; đây là bản ghi lỗi runner, không tính thành ca nghiệp vụ. Bốn ca UI và ba suite nền 27 ca không có bằng chứng hoàn tất ở lượt này.
+- Lỗi crash có stack trace tại BaseTransientBottomBar.showView → FragmentContainerView.addView. ContactsUi.notice cũ truyền root Fragment; host Debug cũ gắn NavHost vào android.R.id.content, NavHost cũng dùng ID này cho root của mình. Đã đổi Snackbar sang content Activity rõ ràng, host dùng ID Debug riêng contacts_ui_test_host. Ca offline bổ sung assert snackbar_text để kiểm regression; không bỏ ca lỗi hoặc nới gate XML.
+- Chẩn đoán riêng bằng ADB đang chạy sẵn: emulator-5554 có trạng thái device, màn hình Awake, isKeyguardShowing=false. Không có instrumentation khác khi bắt đầu ca tái hiện. APK test đã bị gỡ sau lượt Gradle, lệnh am instrument đầu tiên báo Unable to find instrumentation info và **không chạy test**; sau install -r đúng hai APK cũ, một ca UI tái hiện vẫn lỗi focus. Dù WMS ghi cửa sổ ContactsUiTestActivity đang focus, Espresso ghi DecorView.hasWindowFocus=false. **Chưa xác định nguyên nhân gốc focus; không kết luận thiết bị bị khóa hoặc do warning Unsafe.** Log chẩn đoán `.task-cache/phase4-15-16/focus-repro-installed.log`.
+- XML/log lỗi và JVM được giữ trong `.task-cache/phase4-15-16/failed-20261119-104424/{connected.zip,jvm.zip,manifest.json}`. Đọc ZIP và đối chiếu SHA-256 **36/36 tệp khớp**; log gốc không bị xóa. Tên method/số ca JVM đã đối chiếu tại verified-jvm.json cùng thư mục.
+
+Nguồn: [XML Android lỗi](<../../app/build/outputs/androidTest-results/connected/debug/TEST-Pixel_10_Pro(AVD) - 17.xml>), [XML ViewModel JVM](../../app/build/test-results/testDebugUnitTest/TEST-com.utechat.ui.contacts.ContactsViewModelTest.xml), [ContactsUi](../../app/src/main/java/com/utechat/ui/contacts/ContactsUi.java), [host Debug](../../app/src/debug/java/com/utechat/ui/contacts/ContactsUiTestActivity.java). 15/16 vẫn `[ ]`; chưa commit/push, không chuyển sang mục 17.
+
+Kiểm tiếp sau sửa host: ca danh sách vẫn lỗi focus, dù requestFocus đã tạo focus cho View; bỏ thử nghiệm requestFocus/KEEP_SCREEN_ON khỏi bản cuối. Ảnh `.task-cache/phase4-15-16/focus-screen.png` chụp lúc ca chạy có nền đen và thanh điều hướng; người dùng cũng xác nhận nhìn thấy màn đen. Thử android:hardwareAccelerated=false **chỉ trên host Debug** vẫn thất bại (`focus-software-probe.log`), nên đã bỏ thuộc tính thử này; không suy ra nguyên nhân gốc là GPU. Không đổi AVD, driver, dependency, Activity chính hoặc kiểm tra focus của Espresso.
+
+Ca kiểm parent Snackbar ban đầu có assert đọc lại thông báo ngắn sau launch và không tìm thấy View (`snackbar-parent-probe.log`); không dùng ca đó để báo regression đạt. Bản cuối giữ một Snackbar riêng LENGTH_INDEFINITE trong lúc kiểm parent, rồi dismiss; không dùng thời gian hết hạn làm điều kiện test và không nới các assert UI sẵn có. Helper trả lại Snackbar để test kiểm chính View của nó. `assembleDebug` và `assembleDebugAndroidTest` **BUILD SUCCESSFUL, exit 0** sau sửa này; log `.task-cache/phase4-15-16/snackbar-parent-final-build.log`. Số ca vẫn 31 JVM mới và 12 UI, selector **157/51** không đổi.
+
+[Inference] Bước chẩn đoán tiếp theo khi còn màn đen là Cold Boot một lần cho chính AVD Pixel 10 Pro, rồi quan sát lại và chạy script; chưa có bằng chứng Cold Boot sẽ giải quyết lỗi focus. Theo [Android Developers — Snapshots](https://developer.android.com/studio/run/emulator-snapshots), lệnh Cold Boot nằm trong menu AVD ở Tools → Device Manager. Không chọn Wipe Data, không tạo AVD mới hoặc thay cấu hình toàn máy. Lệnh PowerShell -ContactsUi ở trên giữ nguyên; nếu serial đổi sau khởi động, chọn serial thật từ adb devices trước. Chưa lấy 157 JVM đạt trước sửa UI để coi toàn bộ đợt đã đạt; vẫn cần XML mới đủ 51 Android cho bản cuối trước commit.
+
+Ca offline chạy riêng trên APK cuối đã đi qua assert Snackbar có parent là content Activity và không có FragmentContainerView trong chuỗi parent; sau đó **vẫn thất bại ở assert Espresso dòng 151 vì RootViewWithoutFocusException**. Không còn crash FragmentContainerView trong lần chẩn đoán này, nhưng **testcase không đạt** và không tính là nghiệm thu UI. Log `.task-cache/phase4-15-16/snackbar-parent-final-probe.log`; không sinh XML Gradle mới từ lệnh am instrument. Không tiếp tục chạy cả bộ trên cùng trạng thái màn đen.
+
+Manifest bàn giao bản sửa `.task-cache/phase4-15-16/before-windows-snackbar-fix-manifest.json` giữ hash **25 tệp scope** (thêm ID host Debug), tám bản nháp ngoài phạm vi và artifact lỗi trước lượt chạy tiếp. HEAD vẫn 4214706, index trống và ba stash giữ nguyên. **15/16 chưa nghiệm thu, chưa có commit mới, không push**; dừng để người dùng Cold Boot/kiểm lại môi trường và gửi kết quả script.
+
+### Tiếp quản sau gián đoạn và chẩn đoán có kiểm soát, 19/11/2026
+
+Trước Cold Boot, XML toàn bộ gần nhất sửa lúc **04:03:44 UTC (11:03:44 UTC+7)** ghi đủ 51 ca Android: **39 đạt, 12 UI lỗi RootViewWithoutFocusException**, không có lỗi crash FragmentContainerView. Chín XML JVM ghi **157/157 đạt**; tên/số method của 14 suite khớp source ở thời điểm đối chiếu. Artifact này là bằng chứng của lượt trước, **không phải nghiệm thu mã hiện tại sau khi thêm chẩn đoán**. Đã sao lưu và so SHA-256 56 artifact Android + 11 JVM ở `.task-cache/phase4-15-16/failed-focus-24a6bde4ec6e4408bddae0cbbf13f15b`.
+
+Hai probe tạm từ lượt trước nằm trong ContactsWindowProbe/ContactsWindowProbeTest và manifest Debug: Activity nền tảng/AppCompat chỉ có TextView đều không có window focus; probe nền tảng với theme Android chuẩn cũng thất bại lúc **04:44:08 UTC**. Log `window-probe/{result.log,native-theme-result.log}`. Các probe không có NavHost/Repository; kết quả chỉ xác nhận triệu chứng xảy ra cả ngoài màn danh bạ, chưa xác định nguyên nhân gốc. Probe chưa thuộc selector bộ 157/51; chưa dùng chúng để bỏ/nới assertion của 12 ca UI. Lượt chỉ đọc sau gián đoạn không sửa source hoặc chạy test mới.
+
+Người dùng xác nhận lần chạy thất bại trước đó **chưa khởi động lại emulator**, rồi thực hiện Cold Boot đúng AVD theo hướng dẫn Tools → Device Manager → menu AVD Pixel_10_Pro → Stop nếu đang chạy → Cold Boot. Không Wipe Data, xóa dữ liệu hoặc tự tạo AVD mới. Sau xác nhận đã tới màn hình chính, kiểm ADB thực tế thấy **hai thiết bị**:
+
+| Serial sau Cold Boot | AVD thực tế | Trạng thái kiểm được |
+|---|---|---|
+| emulator-5554 | Medium_Phone_API_37.0 | device; đây không phải Pixel, không chọn cho ca đại diện |
+| **emulator-5556** | **Pixel_10_Pro** | device; sys.boot_completed=1; Awake; isKeyguardShowing=false; không có instrumentation đang chạy lúc kiểm |
+
+Nguồn serial/AVD là output adb devices và adb -s SERIAL emu avd name sau Cold Boot, không lấy lại serial 5554 của lượt cũ. Không tự mở/dừng/thay cấu hình hai AVD này trong agent.
+
+Ca đại diện giữ nguyên **com.utechat.ui.contacts.ContactsListUiTest#listsFriendsAndFiltersNameWithoutChangingCache**; runner từ app/build.gradle.kts là **androidx.test.runner.AndroidJUnitRunner**. Thêm tham số **-UiCheck Focus** vào script hiện có để chọn đúng một method, bỏ JVM và các suite khác. **-UiCheck Suite** chỉ chọn 12 ca trong lớp UI và chỉ dùng sau ca đại diện đạt; **-ContactsUi** vẫn là 157/51 và chưa chạy khi UI còn lỗi. Không ghép -UiCheck với -Repository/-ContactsUi.
+
+Script dùng --rerun-tasks :app:connectedDebugAndroidTest để Gradle build/cài app và APK test từ source hiện tại, chọn ANDROID_SERIAL cùng android.injected.device.serial. Trước chạy sao lưu XML/log/additional output cũ vào ZIP đã kiểm hash; ghi source-before.json/source-after.json, apks.json và gradle-ui.log trong cache UUID. Phát hiện source đổi khi chạy hoặc APK cũ hơn thời điểm bắt đầu thì không nhận kết quả; Focus còn kiểm XML chỉ có đúng method đã chọn. Không thay gate fail/error/skipped hoặc dùng APK đã cài từ probe cũ.
+
+Ca đại diện chỉ được bọc try/catch để thu bằng chứng trước @After đóng Activity rồi **ném lại lỗi gốc**, mọi assertion giữ nguyên. ContactsUiDiagnostics dùng PlatformTestStorage có sẵn trong AndroidX Test, không thêm dependency: ghi stack trace, PNG tại lúc lỗi, trạng thái Activity/decor, trạng thái focus cửa sổ, top Activity/power và logcat lọc theo PID/tag. Không dump Intent, .env, token hoặc nội dung nhập của app khác. Gradle lấy các file về `app/build/outputs/connected_android_test_additional_output/.../contacts-ui-focus`. Thu thập lỗi cũng không được đổi testcase thành đạt.
+
+PowerShell **5.1.26100.9818** parser 0 lỗi; self-check selector/source đạt cả năm chế độ: 83/27, 126/39, 157/51, Focus **0/1**, Suite **0/12**; tám ca XML gate đạt. Log `.task-cache/phase4-15-16/ui-focus-script-check.log`. Đây là kiểm script/selector, chưa phải kết quả ca UI sau Cold Boot. Lệnh chuẩn bị cho đúng Pixel sau Cold Boot:
+
+```powershell
+Set-Location 'D:\HCMUTE\Y3\S1\T2\LapTrinhDiDong\TeamProject'
+$env:JAVA_HOME = 'C:\Program Files\Java\jdk-27'
+$env:Path = "$env:JAVA_HOME\bin;$env:Path"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File '.\scripts\test-phase4-contacts-foundation.ps1' -UiCheck Focus -DeviceSerial 'emulator-5556'
+$LASTEXITCODE
+```
+
+Chưa nghiệm thu/commit 15/16. Chờ XML mới đúng một ca, hash source/APK và bằng chứng sau Cold Boot; nếu đạt mới chạy Suite UI, rồi mới bàn giao lệnh đầy đủ -ContactsUi với serial thực tế. Không chuyển sang mục 17–20, không push.
+
+**Kết quả Focus sau Cold Boot:** Gradle BUILD SUCCESSFUL in 4m 50s, 71 task executed, script exit **0**. XML chỉ có đúng `ContactsListUiTest.listsFriendsAndFiltersNameWithoutChangingCache`, tests=1, failures/errors/skipped=0, thuộc device **emulator-5556**. Cache `.task-cache/phase4-15-16/windows-18f31a3b18414aa8ae28e21c506460f4` giữ source-before/source-after của **231 tệp** khớp hash và apks.json; APK app/test được tạo mới lúc **06:25:52/06:25:51 UTC**, sau thời điểm bắt đầu. Log tổng tại `.task-cache/phase4-15-16/after-cold-boot-focus.log`. Không có failure nên helper không tạo bằng chứng lỗi mới; đây là 1/1 UI đạt, không phải 12/12 hoặc 157/51. Warning Unsafe vẫn xuất hiện trong lượt đạt, không dùng warning làm nguyên nhân lỗi.
+
+Sau khi đối chiếu Focus, chuyển đúng hai source probe tạm và manifest có probe vào `.task-cache/phase4-15-16/window-probe/archived-source-282c5e1fb31c4674bc346f4c7974979c`; không xóa chúng hoặc log. Khôi phục manifest Debug từ bản trước probe đã so đúng SHA-256 với checkpoint, vẫn giữ ContactsUiTestActivity non-exported. Tám nháp ngoài phạm vi giữ nguyên hash. Thay đổi này chỉ loại công cụ chẩn đoán tạm khỏi APK bàn giao; không đổi host danh bạ, production code, assertion hoặc dependency để làm test đạt. Bộ Suite tiếp theo build lại bản không còn probe và gồm cả ca đại diện để kiểm lại source cuối.
+
+Chỉ sau Focus đạt mới bắt đầu `-UiCheck Suite -DeviceSerial emulator-5556`, chọn đúng 12 ca UI, không chạy JVM/Room nền hoặc 157/51. Chưa kết luận nguyên nhân gốc focus; bằng chứng hiện tại là trước Cold Boot lỗi focus, sau Cold Boot ca đại diện đã đạt với assertion giữ nguyên.
+
+**Suite đầu sau Cold Boot: 9/12 đạt, 3 ca lỗi**, BUILD FAILED in 3m 40s, exit 1; cache `windows-b4788e9fddcf491591c8fc89e135aad9`, log `.task-cache/phase4-15-16/after-cold-boot-ui-suite.log`. Bằng chứng và cách xử lý từng lỗi:
+
+| Ca lỗi | Bằng chứng | Thay đổi trong phạm vi test 16 |
+|---|---|---|
+| cancelUnfriendNeverCallsRepository | Root cũ có token=null, INVISIBLE; log LifecycleMonitor ghi host DESTROYED rồi MainActivity mở bằng intent LAUNCHER. Người dùng xác nhận đã thao tác trên emulator trong lúc test chạy. | Không đổi assertion hoặc code Cancel; yêu cầu không chạm/Home/Back/mở app trên Pixel khi bộ tự động chạy. |
+| vietnameseNightResourcesAndAccessibleActionsUseCurrentTheme | Assert yêu cầu vi nhưng nhận en. Source AppCompat **1.6.1** trong cache: API 33+ set/getApplicationLocales tìm LocaleManager qua Activity delegate sống, trả null nếu chưa có Activity; test cũ gọi trước launch. | Test dùng LocaleManager từ target Context trên API 33+, AppCompat trên API cũ; vẫn kiểm ngôn ngữ vi và UI_MODE_NIGHT_YES. Cleanup không truyền MODE_NIGHT_UNSPECIFIED vì setDefaultNightMode không chấp nhận giá trị này; dùng FOLLOW_SYSTEM đúng hành vi mặc định được tài liệu class mô tả. Không sửa code ngôn ngữ production hoặc nâng thư viện. |
+| offlineRetainsRowsAndRetryOnlyRefreshes | Assert parent Snackbar null sau waitForIdleSync; queue/animation chưa bảo đảm onShown, khác lỗi gắn vào FragmentContainerView trước đây. | Đăng ký callback onShown, chờ CountDownLatch có giới hạn 5 giây rồi giữ nguyên toàn bộ assert parent. Đây là chờ điều kiện hiển thị thật, không thêm sleep hoặc tắt focus. |
+
+Source thư viện đã đọc từ appcompat-1.6.1-sources.jar: AppCompatDelegate.setApplicationLocales, getLocaleManagerForApplication và setDefaultNightMode; không áp kết luận này cho mọi phiên bản AppCompat. Các thay đổi xác thực fixture/test lifecycle, không giảm số ca, không bỏ assert tiếng Việt/DayNight hoặc parent Snackbar. Lượt Suite đầu và ảnh lỗi được ZIP giữ nguyên trước lượt kiểm tiếp.
+
+**Suite sau sửa: 12/12 đạt**, Gradle BUILD SUCCESSFUL in **2m 10s**, 71 task executed, script exit **0**, failures/errors/skipped=0. XML mới ghi device=**emulator-5556** và tên đủ 12 method khớp source cuối, gồm cả ca đại diện, Cancel, locale/DayNight và offline/Snackbar. Cache `.task-cache/phase4-15-16/windows-0fc6e9324681407d802e709cab560ad3` giữ source-before/source-after và apks.json; source không đổi trong lượt hoặc sau khi chạy đến lúc đối chiếu. Log `.task-cache/phase4-15-16/ui-suite-after-sync-fix.log`. Không cộng 1 ca Focus hoặc 9 ca Suite trước vào tổng 12 này. Cảnh báo Unsafe vẫn có trong lượt đạt.
+
+Nguồn trực tiếp: [XML UI 12/12](<../../app/build/outputs/androidTest-results/connected/debug/TEST-Pixel_10_Pro(AVD) - 17.xml>), [source test cuối](../../app/src/androidTest/java/com/utechat/ui/contacts/ContactsListUiTest.java), [script có Focus/Suite](../../scripts/test-phase4-contacts-foundation.ps1). Ảnh lấy lúc lỗi đã được lưu ở lượt Suite đầu; lần thử đọc ảnh live sau Suite cuối gặp launcher vì Activity đã đóng, không dùng ảnh đó để khẳng định giao diện còn đen hoặc đã hết đen. Không tuyên bố đã tìm ra nguyên nhân gốc của toàn bộ trạng thái màn đen trước Cold Boot.
+
+### Bàn giao chạy đầy đủ sau Focus và Suite đạt
+
+Đến đây mới đưa lệnh đầy đủ **157 JVM + 51 Android** cho bản cuối. Giữ Pixel_10_Pro sẵn sàng; serial đã kiểm sau Cold Boot là **emulator-5556**, không dùng lại 5554 đang thuộc AVD khác. Không thao tác chạm/Home/Back hoặc mở app trong khi bộ tự động chạy; không chạy thêm Gradle/test song song.
+
+```powershell
+Set-Location 'D:\HCMUTE\Y3\S1\T2\LapTrinhDiDong\TeamProject'
+$env:JAVA_HOME = 'C:\Program Files\Java\jdk-27'
+$env:Path = "$env:JAVA_HOME\bin;$env:Path"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File '.\scripts\test-phase4-contacts-foundation.ps1' -ContactsUi -DeviceSerial 'emulator-5556'
+$LASTEXITCODE
+```
+
+**Bộ đầy đủ chưa chạy trên source cuối.** 157 JVM và 39 Android nền của lượt cũ giữ đúng lịch sử, không dùng để lấp phần còn thiếu ở lượt mới. 15/16 vẫn `[ ]`; chỉ nghiệm thu/commit sau khi người dùng chạy đủ bộ, exit 0 và đối chiếu XML/source cuối. Manifest bàn giao `.task-cache/phase4-15-16/before-windows-full-after-cold-boot.json` ghi source scope, các nháp bảo toàn, ba stash, HEAD và artifact UI hiện có. Chưa stage/commit/push; không triển khai mục mới.
+
+## Đợt 27 - Nghiệm thu và commit ViewModel/danh sách bạn: mục 15–16, 19/11/2026
+
+### Đối chiếu kết quả đầy đủ với source cuối
+
+Người dùng gửi BUILD SUCCESSFUL in 1m 8s, 71 task executed, PASS 157 JVM + 51 Android instrumentation và **LASTEXITCODE=0**. Đã đối chiếu artifact tại repo, không chạy lại Gradle/ADB/test trong lượt nghiệm thu:
+
+- **9 XML JVM**, thời gian sửa **13:45:17 UTC+7, 19/11/2026**, tổng **157 testcase**. Tên/số method của từng lớp khớp source, không trùng ca, không node failure/error/skipped và mọi summary đều 0 lỗi/bỏ qua.
+- **1 XML Android chứa 5 suite**, thời gian sửa **13:46:25 UTC+7**, tổng **51 testcase**; số/tên method khớp source, không trùng hoặc bỏ qua. Tất cả năm suite ghi **device=emulator-5556**, đúng Pixel_10_Pro sau Cold Boot. File runner test-result-exit-code.txt ghi **0**.
+- Cả **26 tệp scope** khớp SHA-256 manifest before-windows-full-after-cold-boot.json trước khi cập nhật báo cáo. Source/test/script đã được Windows test không bị sửa để dùng lại XML cũ; trong lượt này chỉ cập nhật báo cáo tiến độ và checklist.
+- Backup trước lượt full tại `.task-cache/phase4-15-16/windows-ca8e123cbe7741329831506cc81ca846`, thư mục tạo lúc **13:44:53 UTC+7**. Đã đọc từng entry ZIP và đối chiếu hash với manifest bàn giao: **28/28 artifact trước test khớp**; giữ XML UI 12/12 và JVM cũ đúng lịch sử. Cache lỗi, ảnh và các probe được lưu ở đợt 26 vẫn giữ nguyên, không bị thay bằng kết quả mới.
+
+| Bộ | Các suite và số ca | Kết quả lượt full mới |
+|---|---|---|
+| JVM ViewModel 15 mới | ContactsViewModelTest 31 | 31/31 đạt |
+| JVM Auth/Fake hồi quy | RealAuthRepositoryTest 11; FakeRepositoriesTest 6; FakeContactsSessionTest 8 | 25/25 đạt |
+| JVM client/HTTP hồi quy | ContactDtosTest 10; ContactApiTest 16; ContactErrorMapperTest 22; ContactTransportTest 10 | 58/58 đạt |
+| JVM Repository hồi quy | RealContactsRepositoryTest 43 | 43/43 đạt |
+| **Tổng JVM** | **9 suite, 157 testcase** | **Failures/errors/skipped=0** |
+| Android UI 16 mới | ContactsListUiTest 12 | 12/12 đạt |
+| Android Repository/Room/TCP | ContactsRepositoryRoomTest 12 | 12/12 đạt |
+| Android nền phiên/Room | SessionManagerTest 14; RoomFoundationTest 3; ContactsRoomTest 10 | 27/27 đạt |
+| **Tổng Android** | **5 suite, 51 testcase** | **Failures/errors/skipped=0** |
+
+Nguồn trực tiếp: [XML ViewModel JVM](../../app/build/test-results/testDebugUnitTest/TEST-com.utechat.ui.contacts.ContactsViewModelTest.xml), [XML transport JVM](../../app/build/test-results/testDebugUnitTest/TEST-com.utechat.data.remote.api.ContactTransportTest.xml), [XML Android đủ 51 ca](<../../app/build/outputs/androidTest-results/connected/debug/TEST-Pixel_10_Pro(AVD) - 17.xml>), [mã runner](../../app/build/outputs/androidTest-results/connected/debug/test-result-exit-code.txt), [31 ca ViewModel](../../app/src/test/java/com/utechat/ui/contacts/ContactsViewModelTest.java), [12 ca UI](../../app/src/androidTest/java/com/utechat/ui/contacts/ContactsListUiTest.java). Không cộng Focus 1 ca, Suite 12 ca trước đó, JUnit trực tiếp 147 ca hoặc test backend vào tổng lượt này.
+
+### Nghiệm thu và giới hạn
+
+**15 và 16 đạt checklist theo phạm vi được giao; chuyển `[x]`.** ViewModel kiểm được tải/observer, năm trạng thái và hành động, SavedStateHandle phone/filter/tab, sự kiện một lần, 409/429 và deadline, bỏ callback/luồng cache của phiên cũ, phân biệt ACK với kết quả ghi chưa rõ và không retry mutation mù. UI kiểm hiển thị/lọc/empty, kéo refresh/disable, badge pending nhận đến, xác nhận Cancel/unfriend/block, recreate, nav ID/back stack, lỗi mạng/cache/retry, logout, tiếng Việt/chế độ tối và nhãn hành động. Các ca Room/Keystore nền được chạy mới trên thiết bị, không thay DAO bằng Fake.
+
+Ba màn con chỉ nghiệm thu nối ID/action, nhãn và Back qua ContactsDestinationFragment; nghiệp vụ tìm người/lời mời/danh sách chặn vẫn thuộc **17–19**, chưa triển khai trong commit này. 12 ca UI dùng fixture để kiểm View/XML/Nav/Dialog thật, không phải toàn luồng với backend/PostgreSQL hoặc hosted HTTPS. Bằng chứng backend 09–10 giữ riêng; nghiệm thu tích hợp ba tài khoản và Lint/toàn hệ thống còn thuộc 20. Các nhánh tương thích API cũ của fixture locale chưa được chạy trên thiết bị khác API 37 trong đợt này.
+
+Lỗi Snackbar gắn nhầm parent và hai lỗi fixture locale/đồng bộ Snackbar đã sửa, các assert và đủ 12 ca vẫn giữ nguyên. Người dùng xác nhận đã thao tác khi ca Cancel bị mất Activity; ca giữ nguyên đã đạt ở Suite sau và lượt full mới. Trước/sau Cold Boot là bằng chứng thời điểm khác nhau, **không khẳng định đã chứng minh nguyên nhân gốc màn đen ban đầu**. Warning Unsafe vẫn xuất hiện trong lượt đạt; không nâng thư viện để xóa warning.
+
+Bấm thử bằng tài khoản thử: mở **Danh bạ**, lọc một phần tên rồi xóa, kéo tải lại; mở Thao tác → hủy kết bạn/chặn, thử đóng xác nhận rồi xác nhận, kiểm hàng tương ứng cập nhật. Xoay màn hình khi có bộ lọc hoặc dialog, đổi sáng/tối và Anh/Việt, thử offline rồi tải lại để kiểm cache/thông báo. Ba nút màn con hiện chỉ tới trang chưa khả dụng và Back. Hướng dẫn bấm thử không được tính thêm thành test tự động hoặc xác nhận toàn luồng backend.
+
+### Phạm vi commit và bảo toàn
+
+Chỉ commit một đợt hai mục **15/16**, sau test và đối chiếu; **26 tệp** gồm nguồn, resource/config cần cho hai mục, test/host Debug, script và báo cáo. Author và Committer yêu cầu **MeanFen <nghiapp11102006@gmail.com>**, kiểm trực tiếp sau khi tạo commit; không sửa danh tính toàn máy hoặc lịch sử. Danh sách tệp ngay dưới là danh sách stage được kiểm, không git add toàn bộ.
+
+Snapshot `.task-cache/phase4-15-16/acceptance-commit-manifest.json` giữ hash source, tám nháp ngoài phạm vi, artifact mới và ZIP trước khi stage. Tám nháp `.gitignore`, ContactsScreenFragment, SearchUserFragment, FriendRequestsFragment, BlockedUsersFragment, fragment_search_user.xml, backend ContactsApiTest và tash list không đưa vào commit; ba stash giữ nguyên. Không đưa .env, XML/log/APK/ZIP/cache hoặc source probe tạm vào commit.
+
+**01–16 đã nghiệm thu theo phạm vi từng mục; 17–20 giữ `[ ]`.** Không chạy lại test khi source khớp manifest và XML đủ mới. Dừng sau commit này; không triển khai mục thứ ba và không tự push. Console git push Everything up-to-date do người dùng cung cấp thuộc thời điểm trước commit mới; không coi đó là bằng chứng commit mới đã được đẩy lên remote.
+
+Danh sách 26 tệp thuộc commit 15/16:
+
+- `app/build.gradle.kts`
+- `app/src/debug/AndroidManifest.xml`
+- `app/src/debug/java/com/utechat/ui/contacts/ContactsUiTestActivity.java`
+- `app/src/main/java/com/utechat/data/repository/ContactsRepository.java`
+- `app/src/main/java/com/utechat/data/repository/fake/FakeContactsRepository.java`
+- `app/src/main/java/com/utechat/data/repository/real/RealContactsRepository.java`
+- `app/src/main/java/com/utechat/data/repository/RelationshipState.java`
+- `app/src/main/java/com/utechat/ui/contacts/ContactsListFragment.java`
+- `app/src/main/java/com/utechat/ui/contacts/ContactsAdapter.java`
+- `app/src/main/java/com/utechat/ui/contacts/ContactsConfirmDialog.java`
+- `app/src/main/java/com/utechat/ui/contacts/ContactsDestinationFragment.java`
+- `app/src/main/java/com/utechat/ui/contacts/ContactsUi.java`
+- `app/src/main/java/com/utechat/ui/contacts/ContactsViewModel.java`
+- `app/src/main/res/layout/fragment_contacts_list.xml`
+- `app/src/main/res/layout/fragment_contacts_destination.xml`
+- `app/src/main/res/layout/item_contact.xml`
+- `app/src/main/res/navigation/nav_contacts.xml`
+- `app/src/main/res/values/strings_contacts.xml`
+- `app/src/main/res/values-vi/strings_contacts.xml`
+- `gradle/libs.versions.toml`
+- `app/src/test/java/com/utechat/ui/contacts/ContactsViewModelTest.java`
+- `app/src/androidTest/java/com/utechat/ui/contacts/ContactsListUiTest.java`
+- `scripts/test-phase4-contacts-foundation.ps1`
+- `docs/phase4/01-phone-validation.md`
+- `app/src/debug/res/values/ids.xml`
+- `app/src/androidTest/java/com/utechat/ui/contacts/ContactsUiDiagnostics.java`

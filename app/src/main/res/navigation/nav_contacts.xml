@@ -2,6 +2,14 @@
 <!-- Nhóm contacts chỉ sửa graph con này, không sửa graph của các nhóm khác. -->
 <navigation xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/nav_contacts" app:startDestination="@id/contactsListFragment">
-    <fragment android:id="@+id/contactsListFragment" android:name="com.utechat.ui.contacts.ContactsListFragment">
+    <fragment android:id="@+id/contactsListFragment" android:name="com.utechat.ui.contacts.ContactsListFragment" android:label="@string/title_contacts">
+        <!-- Ba lối vào từ màn chính; nút Back quay về danh bạ. -->
+        <action android:id="@+id/action_contacts_to_requests" app:destination="@id/friendRequestsFragment" />
+        <action android:id="@+id/action_contacts_to_search" app:destination="@id/searchUserFragment" />
+        <action android:id="@+id/action_contacts_to_blocked" app:destination="@id/blockedUsersFragment" />
     </fragment>
+    <!-- Chỉ nối ID và back stack; giữ riêng các bản nháp màn nghiệp vụ 17–19. -->
+    <fragment android:id="@+id/friendRequestsFragment" android:name="com.utechat.ui.contacts.ContactsDestinationFragment" android:label="@string/contacts_requests" />
+    <fragment android:id="@+id/searchUserFragment" android:name="com.utechat.ui.contacts.ContactsDestinationFragment" android:label="@string/contacts_search" />
+    <fragment android:id="@+id/blockedUsersFragment" android:name="com.utechat.ui.contacts.ContactsDestinationFragment" android:label="@string/contacts_blocked" />
 </navigation>

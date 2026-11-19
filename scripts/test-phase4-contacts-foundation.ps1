@@ -1,13 +1,15 @@
 ﻿[CmdletBinding()]
-param([string]$DeviceSerial, [switch]$Repository)
+param([string]$DeviceSerial, [switch]$Repository, [switch]$ContactsUi,
+    [ValidateSet('Focus','Suite')][string]$UiCheck)
 
-# Mặc định hồi quy 11/14; -Repository thêm 12/13, không thay ExecutionPolicy hoặc stage/commit.
+# Mặc định 11/14; -Repository thêm 12/13; -ContactsUi thêm 15/16 cùng toàn bộ hồi quy này.
 $ErrorActionPreference = 'Stop'
 $repo = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $oldSerial = $env:ANDROID_SERIAL
 $exitCode = 1
 Push-Location $repo
 try {
+    if ($UiCheck -and ($Repository -or $ContactsUi)) { throw '-UiCheck chạy riêng, không ghép với -Repository hoặc -ContactsUi.' }
     # Chọn đúng một thiết bị sẵn có; không mở emulator hoặc chạy trùng một bản test khác.
     $sdk = if ($env:ANDROID_HOME) { $env:ANDROID_HOME } else { Join-Path $env:LOCALAPPDATA 'Android/Sdk' }
     $adb = Join-Path $sdk 'platform-tools/adb.exe'
@@ -35,16 +37,26 @@ try {
         'com.utechat.data.session.SessionManagerTest' = 14
         'com.utechat.data.local.RoomFoundationTest' = 3
     }
-    if ($Repository) {
+    if ($Repository -or $ContactsUi) {
         $unit['com.utechat.data.repository.RealContactsRepositoryTest'] = 43
         $device['com.utechat.data.repository.ContactsRepositoryRoomTest'] = 12
     }
-    $scope = if ($Repository) { '12/13 cùng hồi quy 11/14 và hợp đồng client' } else { '11/14' }
-    $unitTotal = ($unit.Values | Measure-Object -Sum).Sum
+    if ($ContactsUi) {
+        $unit['com.utechat.ui.contacts.ContactsViewModelTest'] = 31
+        $device['com.utechat.ui.contacts.ContactsListUiTest'] = 12
+    }
+    # Chẩn đoán theo hai bước: một ca đại diện trước, cả lớp UI sau; chưa chạy bộ 157/51.
+    $focusMethod = 'listsFriendsAndFiltersNameWithoutChangingCache'
+    if ($UiCheck) {
+        $unit = @{}
+        $device = @{ 'com.utechat.ui.contacts.ContactsListUiTest' = $(if ($UiCheck -eq 'Focus') { 1 } else { 12 }) }
+    }
+    $scope = if ($UiCheck) { "UI $UiCheck của 15/16, chưa nghiệm thu toàn đợt" } elseif ($ContactsUi) { '15/16 cùng hồi quy 11–14 và hợp đồng client' } elseif ($Repository) { '12/13 cùng hồi quy 11/14 và hợp đồng client' } else { '11/14' }
+    $unitTotal = [int]($unit.Values | Measure-Object -Sum).Sum
     $deviceTotal = ($device.Values | Measure-Object -Sum).Sum
     $unitPath = 'app/build/test-results/testDebugUnitTest'
     $devicePath = 'app/build/outputs/androidTest-results/connected'
-    $cacheFolder = if ($Repository) { 'phase4-12-13' } else { 'phase4-11-14' }
+    $cacheFolder = if ($ContactsUi -or $UiCheck) { 'phase4-15-16' } elseif ($Repository) { 'phase4-12-13' } else { 'phase4-11-14' }
     $backup = Join-Path $repo ('.task-cache/' + $cacheFolder + '/windows-' + [Guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Force $backup | Out-Null
 
@@ -80,12 +92,24 @@ try {
             Write-Output ("Backup ZIP đã đối chiếu {0} tệp: {1}" -f $files.Count, $archivePath)
         } finally { $sha.Dispose(); $zip.Dispose() }
     }
-    foreach ($path in @($unitPath, $devicePath)) {
+    foreach ($path in @($unitPath, $devicePath, 'app/build/outputs/connected_android_test_additional_output')) {
         if (Test-Path -LiteralPath $path) {
             Backup-Reports $path (Join-Path $backup ((Split-Path $path -Leaf) + '.zip'))
         }
     }
     Write-Output ('Backup kết quả cũ: ' + $backup)
+    # Hash mọi source/resource của app (kể cả nháp đang có), không đọc .env; phát hiện sửa trong lúc build/test.
+    function Get-SourceFingerprint {
+        $files = @(Get-ChildItem -LiteralPath 'app/src' -Recurse -File | Where-Object { $_.Name -notlike '.env*' })
+        $files += @(Get-Item app/build.gradle.kts,gradle/libs.versions.toml,gradle.properties,settings.gradle.kts,build.gradle.kts,scripts/test-phase4-contacts-foundation.ps1)
+        @($files | Sort-Object FullName | ForEach-Object {
+            [pscustomobject]@{ path = $_.FullName.Substring($repo.Length + 1); sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash }
+        })
+    }
+    if ($UiCheck) {
+        $sourceBefore = @(Get-SourceFingerprint)
+        $sourceBefore | ConvertTo-Json -Depth 3 | Set-Content -LiteralPath (Join-Path $backup 'source-before.json') -Encoding UTF8
+    }
 
     function Assert-Reports($path, $expected, $start) {
         $files = @(Get-ChildItem -LiteralPath $path -Recurse -Filter 'TEST-*.xml' -File)
@@ -118,19 +142,40 @@ try {
     }
 
     # --rerun-tasks buộc tạo kết quả mới; giữ thư viện/JDK của project và không dùng repo thử của agent.
-    $unitArgs = @('--no-daemon', '--console=plain', '--rerun-tasks', ':app:testDebugUnitTest')
-    foreach ($class in $unit.Keys) { $unitArgs += @('--tests', $class) }
-    $start = [DateTime]::UtcNow
-    & .\gradlew.bat @unitArgs
-    if ($LASTEXITCODE -ne 0) { throw "Bộ JVM thất bại; chưa nghiệm thu $scope." }
-    Assert-Reports $unitPath $unit $start
+    if (-not $UiCheck) {
+        $unitArgs = @('--no-daemon', '--console=plain', '--rerun-tasks', ':app:testDebugUnitTest')
+        foreach ($class in $unit.Keys) { $unitArgs += @('--tests', $class) }
+        $start = [DateTime]::UtcNow
+        & .\gradlew.bat @unitArgs
+        if ($LASTEXITCODE -ne 0) { throw "Bộ JVM thất bại; chưa nghiệm thu $scope." }
+        Assert-Reports $unitPath $unit $start
+    }
 
     $start = [DateTime]::UtcNow
-    $classes = $device.Keys -join ','
-    & .\gradlew.bat --no-daemon --console=plain --rerun-tasks :app:connectedDebugAndroidTest "-Pandroid.testInstrumentationRunnerArguments.class=$classes" "-Pandroid.injected.device.serial=$DeviceSerial"
-    if ($LASTEXITCODE -ne 0) { throw "Room/Keystore trên thiết bị thất bại; chưa nghiệm thu $scope." }
+    $classes = if ($UiCheck -eq 'Focus') { 'com.utechat.ui.contacts.ContactsListUiTest#' + $focusMethod } else { $device.Keys -join ',' }
+    $deviceArgs = @('--no-daemon', '--console=plain', '--rerun-tasks', ':app:connectedDebugAndroidTest', "-Pandroid.testInstrumentationRunnerArguments.class=$classes", "-Pandroid.injected.device.serial=$DeviceSerial")
+    if ($UiCheck) {
+        $deviceArgs += @('-Pandroid.testInstrumentationRunnerArguments.phase4UiDiagnostics=true', '-Pandroid.enableAdditionalTestOutput=true')
+        & .\gradlew.bat @deviceArgs | Tee-Object -FilePath (Join-Path $backup 'gradle-ui.log')
+    } else { & .\gradlew.bat @deviceArgs }
+    $buildExitCode = $LASTEXITCODE
+    if ($UiCheck) {
+        $sourceAfter = @(Get-SourceFingerprint)
+        $sourceAfter | ConvertTo-Json -Depth 3 | Set-Content -LiteralPath (Join-Path $backup 'source-after.json') -Encoding UTF8
+        if (Compare-Object @($sourceBefore | ForEach-Object { $_.path + '=' + $_.sha256 }) @($sourceAfter | ForEach-Object { $_.path + '=' + $_.sha256 })) { throw 'Source đổi trong lúc build/test; không dùng kết quả này nghiệm thu.' }
+        $apks = @(Get-Item app/build/outputs/apk/debug/app-debug.apk,app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk)
+        $apks | ForEach-Object { [pscustomobject]@{path=$_.FullName;sha256=(Get-FileHash -LiteralPath $_.FullName).Hash;modifiedUtc=$_.LastWriteTimeUtc.ToString('o')} } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $backup 'apks.json') -Encoding UTF8
+        if (@($apks | Where-Object { $_.LastWriteTimeUtc -lt $start }).Count) { throw 'APK chưa được build mới trong lượt này; không dùng APK cũ để kết luận.' }
+        Write-Output ('Chẩn đoán tại app/build/outputs/connected_android_test_additional_output; manifest/APK/log tại ' + $backup)
+    }
+    if ($buildExitCode -ne 0) { throw "Bộ Android instrumentation thất bại; chưa nghiệm thu $scope." }
     Assert-Reports $devicePath $device $start
-    Write-Output "PASS $unitTotal JVM + $deviceTotal Android instrumentation ($scope); failures/errors/skipped=0. Chờ đối chiếu XML/source trước commit."
+    if ($UiCheck -eq 'Focus') {
+        $cases = @(Get-ChildItem -LiteralPath $devicePath -Recurse -Filter 'TEST-*.xml' -File | ForEach-Object { [xml]$xml = Get-Content -LiteralPath $_.FullName -Raw; $xml.SelectNodes('//testcase') })
+        if ($cases.Count -ne 1 -or [string]$cases[0].name -ne $focusMethod) { throw 'Không phải đúng một method UI đại diện đã chọn.' }
+    }
+    if ($UiCheck) { Write-Output "PASS $deviceTotal UI ($UiCheck); chưa chạy bộ 157/51, chưa đủ điều kiện commit." }
+    else { Write-Output "PASS $unitTotal JVM + $deviceTotal Android instrumentation ($scope); failures/errors/skipped=0. Chờ đối chiếu XML/source trước commit." }
     $exitCode = 0
 } catch {
     Write-Error -Message $_.Exception.Message -ErrorAction Continue
