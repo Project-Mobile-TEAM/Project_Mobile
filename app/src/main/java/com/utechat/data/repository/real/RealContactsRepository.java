@@ -1,6 +1,6 @@
 package com.utechat.data.repository.real;
 
-import androidx.arch.core.executor.ArchTaskExecutor;
+import com.utechat.data.MainThreadExecutor;
 import androidx.lifecycle.*;
 import com.utechat.data.local.dao.*;
 import com.utechat.data.local.entity.*;
@@ -20,7 +20,7 @@ public class RealContactsRepository implements ContactsRepository {
     private final ContactDao contacts;
     private final UserDao users;
     private final ContactApi api;
-    private final Executor network,disk;
+    private final Executor network,disk,main; // Main có thể điều khiển trong test phản hồi trễ.
     private final CurrentUserIdProvider session;
     private final Consumer<Runnable> transaction;
     // Đổi khi đọc mới hoặc bắt đầu/kết thúc ghi; snapshot trước thao tác mới không được ghi đè cache.
@@ -28,10 +28,15 @@ public class RealContactsRepository implements ContactsRepository {
 
     public RealContactsRepository(ContactDao contacts,UserDao users,ContactApi api,Executor network,Executor disk,
             CurrentUserIdProvider session,Consumer<Runnable> transaction) {
+        this(contacts,users,api,network,disk,session,transaction,MainThreadExecutor.INSTANCE);
+    }
+    public RealContactsRepository(ContactDao contacts,UserDao users,ContactApi api,Executor network,Executor disk,
+            CurrentUserIdProvider session,Consumer<Runnable> transaction,Executor main) {
         this.contacts=Objects.requireNonNull(contacts); this.users=Objects.requireNonNull(users);
         this.api=Objects.requireNonNull(api); this.network=Objects.requireNonNull(network);
         this.disk=Objects.requireNonNull(disk); this.session=Objects.requireNonNull(session);
         this.transaction=Objects.requireNonNull(transaction);
+        this.main=Objects.requireNonNull(main);
     }
     @Override public String sessionKey() { return session.sessionKey(); }
     @Override public LiveData<String> sessionChanges() { return session.sessionChanges(); }
@@ -46,7 +51,7 @@ public class RealContactsRepository implements ContactsRepository {
             if(!key.equals(sessionKey())) out.setValue(empty);
         });
         // Hàng rào FIFO: đợi tác vụ clear Room của phiên trước trước khi kích hoạt truy vấn.
-        disk.execute(() -> ArchTaskExecutor.getInstance().executeOnMainThread(() ->
+        disk.execute(() -> main.execute(() ->
             session.runIfCurrent(key,() -> out.addSource(source,value -> {
                 if(!session.runIfCurrent(key,() -> out.setValue(value==null?empty:value))) out.setValue(empty);
             }))
@@ -74,7 +79,7 @@ public class RealContactsRepository implements ContactsRepository {
         publish(key,out,value,() -> true);
     }
     private <T> void publish(String key,MutableLiveData<ContactsResult<T>> out,ContactsResult<T> value,BooleanSupplier fresh) {
-        ArchTaskExecutor.getInstance().executeOnMainThread(() ->
+        main.execute(() ->
             session.runIfCurrent(key,() -> { if(fresh.getAsBoolean()) out.setValue(value); })
         );
     }
@@ -260,7 +265,7 @@ public class RealContactsRepository implements ContactsRepository {
     }
     /** Revision có thể đổi khi main đang bận: ACK vẫn đúng nhưng không báo cache cũ là đã mới. */
     private void confirmed(String key,MutableLiveData<ContactsResult<Boolean>> out,long ticket,boolean refreshed) {
-        ArchTaskExecutor.getInstance().executeOnMainThread(() -> session.runIfCurrent(key,() -> {
+        main.execute(() -> session.runIfCurrent(key,() -> {
             ContactsResult<Boolean> result=ContactsResult.ok(true);
             result.refreshRequired=!refreshed||epoch.get()!=ticket;
             out.setValue(result);

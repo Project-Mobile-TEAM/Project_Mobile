@@ -148,4 +148,27 @@ public class SessionManagerTest {
         }
         assertEquals("new-token",session.getToken());
     }
+    /** Chặn main có điều khiển để hai thông báo xếp hàng; phiên cũ không được phát ra khi main rảnh. */
+    @Test public void queuedSessionChangesPublishOnlyLatestVersion() throws Exception {
+        var instrumentation=androidx.test.platform.app.InstrumentationRegistry.getInstrumentation();
+        var session=SessionManager.get();
+        java.util.List<String> seen=new java.util.ArrayList<>();
+        androidx.lifecycle.Observer<String> observer=seen::add;
+        instrumentation.runOnMainSync(() -> { session.sessionChanges().observeForever(observer); seen.clear(); });
+        CountDownLatch entered=new CountDownLatch(1),release=new CountDownLatch(1);
+        try {
+            com.utechat.data.MainThreadExecutor.INSTANCE.execute(() -> {
+                entered.countDown();
+                try { if(!release.await(5,TimeUnit.SECONDS)) throw new AssertionError("Test chưa giải phóng main"); }
+                catch(InterruptedException e) { Thread.currentThread().interrupt(); throw new AssertionError(e); }
+            });
+            assertTrue(entered.await(3,TimeUnit.SECONDS));
+            session.saveAuthenticated("fixture-token","A",true);
+            session.saveAuthenticated("fixture-token","B",true);
+        } finally {
+            release.countDown();
+            instrumentation.runOnMainSync(() -> session.sessionChanges().removeObserver(observer));
+        }
+        assertEquals(java.util.List.of(session.sessionKey()),seen);
+    }
 }

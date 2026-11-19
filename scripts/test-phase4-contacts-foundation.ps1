@@ -24,7 +24,7 @@ try {
 
     # Danh sách cố định để không dùng XML cũ hoặc bỏ qua ca khó mà vẫn báo đạt.
     $unit = @{
-        'com.utechat.data.repository.RealAuthRepositoryTest' = 11
+        'com.utechat.data.repository.RealAuthRepositoryTest' = 12
         'com.utechat.data.repository.FakeRepositoriesTest' = 6
         'com.utechat.data.repository.FakeContactsSessionTest' = 8
         'com.utechat.data.remote.model.ContactDtosTest' = 10
@@ -34,7 +34,9 @@ try {
     }
     $device = @{
         'com.utechat.ContactsRoomTest' = 10
-        'com.utechat.data.session.SessionManagerTest' = 14
+        'com.utechat.data.session.SessionManagerTest' = 15
+        # Main Looper thật: giữ thứ tự cập nhật phiên khi thay API nội bộ AndroidX.
+        'com.utechat.data.MainThreadExecutorTest' = 2
         'com.utechat.data.local.RoomFoundationTest' = 3
     }
     if ($Repository -or $ContactsUi) {
@@ -45,7 +47,7 @@ try {
         $unit['com.utechat.ui.contacts.ContactsViewModelTest'] = 31
         $device['com.utechat.ui.contacts.ContactsListUiTest'] = 12
     }
-    # Chẩn đoán theo hai bước: một ca đại diện trước, cả lớp UI sau; chưa chạy bộ 157/51.
+    # Chẩn đoán theo hai bước: một ca đại diện trước, cả lớp UI sau; chưa chạy bộ đầy đủ.
     $focusMethod = 'listsFriendsAndFiltersNameWithoutChangingCache'
     if ($UiCheck) {
         $unit = @{}
@@ -174,7 +176,7 @@ try {
         $cases = @(Get-ChildItem -LiteralPath $devicePath -Recurse -Filter 'TEST-*.xml' -File | ForEach-Object { [xml]$xml = Get-Content -LiteralPath $_.FullName -Raw; $xml.SelectNodes('//testcase') })
         if ($cases.Count -ne 1 -or [string]$cases[0].name -ne $focusMethod) { throw 'Không phải đúng một method UI đại diện đã chọn.' }
     }
-    if ($UiCheck) { Write-Output "PASS $deviceTotal UI ($UiCheck); chưa chạy bộ 157/51, chưa đủ điều kiện commit." }
+    if ($UiCheck) { Write-Output "PASS $deviceTotal UI ($UiCheck); chưa chạy bộ đầy đủ, chưa đủ điều kiện commit." }
     else { Write-Output "PASS $unitTotal JVM + $deviceTotal Android instrumentation ($scope); failures/errors/skipped=0. Chờ đối chiếu XML/source trước commit." }
     $exitCode = 0
 } catch {

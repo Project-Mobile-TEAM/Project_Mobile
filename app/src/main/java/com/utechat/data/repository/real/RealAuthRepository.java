@@ -3,7 +3,7 @@ package com.utechat.data.repository.real;
 import android.os.Build;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
-import androidx.arch.core.executor.ArchTaskExecutor;
+import com.utechat.data.MainThreadExecutor;
 import com.google.gson.Gson;
 import com.utechat.data.local.dao.UserDao;
 import com.utechat.data.local.entity.UserEntity;
@@ -31,19 +31,25 @@ public class RealAuthRepository implements AuthRepository {
     private final SessionManager session;
     private final UserDao userDao;
     private final Executor disk; // Một luồng đĩa duy nhất: ghi cache và xoá cache luôn chạy đúng thứ tự gọi.
+    private final Executor main; // Cho test điều khiển hàng đợi; ứng dụng dùng main Looper thật.
     private final MutableLiveData<UserEntity> current = new MutableLiveData<>(null);
     private final MutableLiveData<UserProfile> profile = new MutableLiveData<>(null);
 
     public RealAuthRepository(AuthApi api, SessionManager session, UserDao userDao, Executor disk, Runnable clearCache) {
+        this(api, session, userDao, disk, clearCache, MainThreadExecutor.INSTANCE);
+    }
+
+    public RealAuthRepository(AuthApi api, SessionManager session, UserDao userDao, Executor disk, Runnable clearCache, Executor main) {
         this.api = api;
         this.session = session;
         this.userDao = userDao;
         this.disk = disk;
+        this.main = java.util.Objects.requireNonNull(main);
         // Mọi đường đổi phiên, kể cả 401 khi không có Activity, dùng chung hàng đợi ghi Room.
         session.setOnSessionChanged(() -> {
             disk.execute(clearCache);
             String version = session.versionKey();
-            ArchTaskExecutor.getInstance().executeOnMainThread(() -> {
+            main.execute(() -> {
                 synchronized (session) {
                     if (!version.equals(session.versionKey())) return;
                     current.setValue(null);
@@ -128,7 +134,7 @@ public class RealAuthRepository implements AuthRepository {
                 session.runIfCurrent(key, () -> {
                     UserEntity cached = userDao.findById(meId);
                     // Kiểm lại trên main, tránh postValue cũ xuất hiện sau một lần đăng nhập mới.
-                    ArchTaskExecutor.getInstance().executeOnMainThread(() -> session.runIfCurrent(key, () -> {
+                    main.execute(() -> session.runIfCurrent(key, () -> {
                         if (cached == null || profile.getValue() != null) return;
                         current.setValue(cached);
                         profile.setValue(new UserProfile(cached.getId(), cached.getPhone(), cached.getDisplayName(),
