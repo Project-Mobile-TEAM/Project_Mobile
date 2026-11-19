@@ -5,6 +5,10 @@ import androidx.navigation.fragment.NavHostFragment;
 import androidx.test.core.app.ActivityScenario;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import org.junit.Test;
+import org.junit.Before;
+import org.junit.After;
+import androidx.test.platform.app.InstrumentationRegistry;
+import com.utechat.data.session.SessionManager;
 import org.junit.runner.RunWith;
 import java.util.concurrent.atomic.AtomicBoolean;
 import static androidx.test.espresso.Espresso.onView;
@@ -16,6 +20,11 @@ import static org.junit.Assert.*;
 /** Kiểm tra back stack, tab và recreate trên Activity thật, không gọi đăng nhập giả. */
 @RunWith(AndroidJUnit4.class)
 public class FoundationNavigationTest {
+    /** Dọn token trước/sau test để trạng thái emulator không bỏ qua màn Đăng nhập cần kiểm. */
+    @Before @After public void resetSession() {
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> SessionManager.get().clear());
+    }
+
     @Test public void previewTabsSurviveRecreation() {
         try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
             // Chờ probe hoàn tất; nếu môi trường không có server, dùng lối ngoại tuyến.
@@ -41,7 +50,8 @@ public class FoundationNavigationTest {
             scenario.recreate(); // Giả lập xoay màn hình để kiểm navigation state đã lưu.
             onView(withText(R.string.title_contacts)).check(matches(isDisplayed()));
             onView(withId(R.id.nav_profile)).perform(click());
-            onView(withText(R.string.title_profile)).check(matches(isDisplayed()));
+            // Tiêu đề và nhãn tab cùng chữ Profile: chọn đúng View tiêu đề của màn hồ sơ.
+            onView(withId(R.id.tv_title)).check(matches(withText(R.string.title_profile))).check(matches(isDisplayed()));
             onView(withId(R.id.nav_chat)).perform(click());
             onView(withText(R.string.title_chats)).check(matches(isDisplayed()));
         }

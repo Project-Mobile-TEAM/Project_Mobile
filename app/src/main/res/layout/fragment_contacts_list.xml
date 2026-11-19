@@ -1,12 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Màn hình khung của nhóm contacts; dùng theme attribute để hỗ trợ DayNight. -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:orientation="vertical" android:layout_width="match_parent"
-    android:layout_height="match_parent" android:padding="24dp" android:gravity="center_vertical"
-    android:background="?attr/colorSurface">
-    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:text="@string/title_contacts" android:textAppearance="?attr/textAppearanceHeadlineMedium"
-        android:textColor="?attr/colorOnSurface" android:accessibilityHeading="true" />
-    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:layout_marginTop="12dp" android:text="@string/contacts_placeholder"
-        android:textAppearance="?attr/textAppearanceBodyLarge" android:textColor="?attr/colorOnSurfaceVariant" />
+<!-- Màn bạn bè của 16 dùng ViewBinding; giữ ID tabs để các bản nháp màn con còn biên dịch được. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:background="?attr/colorSurface">
+    <com.google.android.material.appbar.MaterialToolbar android:id="@+id/toolbar" android:layout_width="match_parent" android:layout_height="?attr/actionBarSize" app:title="@string/title_contacts" />
+    <LinearLayout android:id="@+id/shortcuts" android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingHorizontal="16dp" android:orientation="vertical">
+        <com.google.android.material.button.MaterialButton android:id="@+id/find" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/contacts_search" />
+        <com.google.android.material.button.MaterialButton android:id="@+id/requests" style="?attr/materialButtonOutlinedStyle" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/contacts_requests" />
+        <com.google.android.material.button.MaterialButton android:id="@+id/blocked" style="?attr/materialButtonOutlinedStyle" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/contacts_blocked" />
+    </LinearLayout>
+    <EditText android:id="@+id/filter" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginHorizontal="16dp" android:minHeight="48dp" android:hint="@string/contacts_filter" android:inputType="textPersonName" android:importantForAutofill="no" />
+    <com.google.android.material.tabs.TabLayout android:id="@+id/tabs" android:layout_width="match_parent" android:layout_height="wrap_content" android:visibility="gone" />
+    <com.google.android.material.button.MaterialButton android:id="@+id/refresh" style="?attr/borderlessButtonStyle" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="end" android:text="@string/contacts_refresh" />
+    <ProgressBar android:id="@+id/progress" style="?android:attr/progressBarStyleHorizontal" android:layout_width="match_parent" android:layout_height="4dp" android:indeterminate="true" android:contentDescription="@string/contacts_loading" android:visibility="gone" />
+    <TextView android:id="@+id/empty" android:layout_width="match_parent" android:layout_height="wrap_content" android:padding="24dp" android:gravity="center" android:textColor="?attr/colorOnSurface" android:accessibilityLiveRegion="polite" android:text="@string/contacts_empty" />
+    <androidx.swiperefreshlayout.widget.SwipeRefreshLayout android:id="@+id/swipe" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
+        <androidx.recyclerview.widget.RecyclerView android:id="@+id/list" android:layout_width="match_parent" android:layout_height="match_parent" />
+    </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 </LinearLayout>

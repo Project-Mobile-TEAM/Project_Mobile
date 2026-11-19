@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Override chỉ dành Debug; Release không cho HTTP trên mạng công cộng. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
-    <application android:usesCleartextTraffic="true" tools:replace="android:usesCleartextTraffic" />
+    <application android:usesCleartextTraffic="true" tools:replace="android:usesCleartextTraffic">
+        <!-- Host kiểm thử graph thật, chỉ có ở Debug và không nhận Intent từ ứng dụng khác. -->
+        <activity android:name=".ui.contacts.ContactsUiTestActivity" android:exported="false" />
+    </application>
 </manifest>

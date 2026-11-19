@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- ID host riêng cho test graph; không dùng ID content dành cho cửa sổ Activity. -->
+    <item name="contacts_ui_test_host" type="id" />
+</resources>

@@ -17,16 +17,19 @@ public final class AuthInterceptor implements Interceptor {
         SessionManager session = SessionManager.get();
         Request request = chain.request();
         String token = null; // Token chính interceptor này gắn vào; null nếu request tự mang header (logout).
+        String version = null; // Phân biệt hai lần đăng nhập dù token có cùng giá trị.
         // Chỉ gửi token tới đúng máy chủ của mình, không bao giờ tới host khác.
         if (session != null && request.header("Authorization") == null && BACKEND_HOST.equals(request.url().host())) {
-            token = session.getToken();
+            synchronized (session) { token = session.getToken(); version = session.versionKey(); }
             if (token != null) request = request.newBuilder().header("Authorization", "Bearer " + token).build();
         }
         Response response = chain.proceed(request);
         // 401 của đúng token đang lưu nghĩa là token hết hạn/bị thu hồi. Phản hồi trễ của token cũ (đã đăng xuất
         // rồi đăng nhập lại) hoặc 401 khi đăng nhập sai (chưa có token) thì không đụng tới phiên hiện tại.
-        if (response.code() == 401 && token != null && session.clearIfCurrent(token)) {
-            SessionEvents.notifyExpired();
+        if (response.code() == 401 && token != null) {
+            synchronized (session) {
+                if (session.clearIfCurrent(token, version)) SessionEvents.notifyExpired(session.versionKey());
+            }
         }
         return response;
     }
