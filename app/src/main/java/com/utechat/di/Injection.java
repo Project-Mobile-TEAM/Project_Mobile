@@ -23,13 +23,18 @@ public final class Injection {
             AppDatabase db = AppDatabase.getInstance(context);
             // Đăng xuất xoá cache Room trên luồng đĩa riêng (không truy cập DAO trên luồng chính).
             auth = useFake() ? new FakeAuthRepository() : new RealAuthRepository(ApiClient.getRetrofit().create(AuthApi.class),
-                    SessionManager.get(), db.userDao(), DISK, () -> DISK.execute(db::clearAllTables));
+                    SessionManager.get(), db.userDao(), DISK, db::clearAllTables);
         }
         return auth;
     }
     public static synchronized ContactsRepository provideContactsRepository(Context context) {
         if (contacts == null) {
-            if (useFake()) contacts = new FakeContactsRepository();
+            if (useFake()) {
+                FakeContactsRepository fake = new FakeContactsRepository(provideContactsSession(context));
+                contacts = fake;
+                // Xóa các LiveData cache cũ ngay khi Fake đăng xuất hoặc đăng nhập lại cùng tài khoản.
+                provideAuthRepository(context).getCurrentUser().observeForever(user -> fake.onSessionChanged());
+            }
             else {
                 AppDatabase db = AppDatabase.getInstance(context);
                 contacts = new RealContactsRepository(db.contactDao(), db.userDao(),
@@ -37,6 +42,12 @@ public final class Injection {
             }
         }
         return contacts;
+    }
+    /** Cùng provider phiên cho Fake; phiên thật được SessionManager quản lý. */
+    private static CurrentUserIdProvider provideContactsSession(Context context) {
+        // Khởi tạo Auth trước để gắn dọn cache vào SessionManager trước mọi thao tác danh bạ.
+        AuthRepository repository = provideAuthRepository(context);
+        return useFake() ? (FakeAuthRepository) repository : SessionManager.get();
     }
     public static synchronized ChatRepository provideChatRepository(Context context) {
         if (chat == null) {
