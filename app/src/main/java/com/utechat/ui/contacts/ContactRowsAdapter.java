@@ -2,6 +2,7 @@ package com.utechat.ui.contacts;
 
 import android.view.*;
 import android.widget.Button;
+import android.widget.PopupMenu;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.*;
 import com.utechat.R;
@@ -46,6 +47,21 @@ public class ContactRowsAdapter extends ListAdapter<ContactsAdapter.Row,ContactR
         bind(h,r,h.b.chipFilled,pick(r,"accept","send"));
         bind(h,r,h.b.chipTonal,pick(r,"reject"));
         bind(h,r,h.b.chipOutlined,pick(r,"cancel","unblock","unfriend"));
+        // Chặn luôn nhắm ID người dùng, kể cả hàng đang mang ID lời mời để accept/cancel.
+        h.b.actions.setVisibility(r.actions().contains("block")?View.VISIBLE:View.GONE);
+        h.b.actions.setEnabled(actionsEnabled);
+        h.b.actions.setContentDescription(h.b.getRoot().getContext().getString(R.string.contacts_actions_for,r.name()));
+        h.b.actions.setOnClickListener(v->{
+            if(!actionsEnabled) return;
+            PopupMenu menu=new PopupMenu(v.getContext(),v);menu.getMenu().add(R.string.contacts_block);
+            menu.setOnMenuItemClickListener(item->{
+                int now=h.getAdapterPosition();if(!actionsEnabled||now==RecyclerView.NO_POSITION) return false;
+                ContactsAdapter.Row latest=getItem(now);
+                if(!r.key().equals(latest.key())||latest.user()==null||!latest.actions().contains("block")) return false;
+                listener.run("block",latest.user().id,latest.user());return true;
+            });
+            menu.show();
+        });
     }
 
     private static String pick(ContactsAdapter.Row r,String... actions) {

@@ -58,7 +58,8 @@ final class ContactsUi {
             if(value==null) return;
             var event=vm.consumeNotice();
             if(event!=null&&!java.util.List.of("PHONE_INVALID","NOT_FOUND").contains(event.errorCode==null?"":event.errorCode))
-                notice(f,f.requireView(),event,retry);
+                // Sau ACK chưa đối soát, phải tải lại cache trước khi cho phép ghi tiếp; không gửi lặp mutation.
+                notice(f,f.requireView(),event,()->{if(event.refreshRequired) vm.refresh();else retry.run();});
         });
     }
     static Snackbar notice(Fragment f,View root,ContactsResult<?> r,Runnable retry) {
