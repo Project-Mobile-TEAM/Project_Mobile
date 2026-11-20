@@ -8,13 +8,17 @@ import com.utechat.backend.security.AuthenticatedActor;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /** Hồ sơ, quyền riêng tư, đổi mật khẩu, thiết bị và xoá mềm tài khoản (F-05, F-08). Danh tính luôn lấy từ JWT. */
 @Service
@@ -23,10 +27,21 @@ public class AccountService {
     public static final int DELETION_GRACE_DAYS = 15;
     private final JdbcTemplate jdbc;
     private final PasswordEncoder encoder;
+    private final SyncEventWriter syncEvents;
+    private final ObjectProvider<ConversationService> conversationServiceProvider;
+    private final TransactionTemplate tx;
 
-    public AccountService(JdbcTemplate jdbc, PasswordEncoder encoder) {
+    public AccountService(
+            JdbcTemplate jdbc,
+            PasswordEncoder encoder,
+            SyncEventWriter syncEvents,
+            ObjectProvider<ConversationService> conversationServiceProvider,
+            PlatformTransactionManager txManager) {
         this.jdbc = jdbc;
         this.encoder = encoder;
+        this.syncEvents = syncEvents;
+        this.conversationServiceProvider = conversationServiceProvider;
+        this.tx = new TransactionTemplate(txManager);
     }
 
     public UserDto getProfile(UUID userId) {
@@ -81,15 +96,14 @@ public class AccountService {
                         actor.deviceIdHash().equals(rs.getString("device_id_hash"))), actor.userId());
     }
 
-    /** Thu hồi một thiết bị KHÁC (muốn thoát thiết bị này thì dùng đăng xuất); ghi sync_event để báo cho thiết bị đó. */
+    /** Thu hồi một thiết bị KHÁC (muốn thoát thiết bị này thì dùng đăng xuất); ghi sync_event qua SyncEventWriter. */
     @Transactional
     public void revokeDevice(AuthenticatedActor actor, UUID targetId) {
         int n = jdbc.update("UPDATE user_devices SET revoked_at = now(), token_valid_after = ? "
                 + "WHERE id = ? AND user_id = ? AND device_id_hash <> ? AND revoked_at IS NULL",
                 now(), targetId, actor.userId(), actor.deviceIdHash());
         if (n == 0) throw new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Device not found");
-        jdbc.update("INSERT INTO sync_events (user_id, event_type, entity_type, entity_id, payload_json) "
-                + "VALUES (?, 'DEVICE_REVOKED', 'DEVICE', ?, '{}'::jsonb)", actor.userId(), targetId.toString());
+        syncEvents.write(actor.userId(), "DEVICE_REVOKED", "DEVICE", targetId.toString(), Map.of());
     }
 
     /**
@@ -110,28 +124,35 @@ public class AccountService {
     }
 
     /**
-     * Xoá vĩnh viễn các tài khoản đã hết 15 ngày chờ. Chạy định kỳ mỗi giờ, và được gọi thêm trước mỗi lần tra tài
-     * khoản theo số điện thoại để không ai đăng nhập lọt hoặc bị báo "số đã đăng ký" trong khoảng giữa hai lần chạy.
+     * Xoá vĩnh viễn các tài khoản đã hết 15 ngày chờ.
+     * Mỗi user chạy trong một transaction ngắn riêng biệt (TransactionTemplate) để không giữ lâu pg_snapshot_xmin
+     * làm nghẽn sync barrier của /api/sync.
      */
     @Scheduled(fixedDelay = 3_600_000)
-    @Transactional
     public void purgeExpiredDeletions() {
         List<UUID> due = jdbc.query("SELECT id FROM users WHERE status = 'ACTIVE' AND deletion_scheduled_at <= now()",
                 (rs, i) -> rs.getObject(1, UUID.class));
-        for (UUID userId : due) purge(userId);
+        for (UUID userId : due) {
+            tx.executeWithoutResult(status -> purge(userId));
+        }
     }
 
     /**
-     * Xoá mềm: giải phóng số điện thoại, ẩn tên/ảnh, xoá quan hệ bạn bè hai chiều và lời mời,
-     * thu hồi mọi thiết bị và rời mọi hội thoại, trong cùng transaction của người gọi.
+     * Xoá mềm: giải phóng SĐT, ẩn tên/ảnh, xoá quan hệ bạn bè/lời mời, thu hồi thiết bị,
+     * tự động phong ADMIN kế nhiệm ở các nhóm còn người rồi mới rời mọi hội thoại.
      */
     private void purge(UUID userId) {
+        // Tự động bàn giao ADMIN cho thành viên vào sớm nhất ở các nhóm userId là ADMIN duy nhất trước khi rời.
+        ConversationService convService = conversationServiceProvider.getIfAvailable();
+        if (convService != null) {
+            convService.handleUserAccountPurge(userId);
+        }
+
         jdbc.update("UPDATE users SET status = 'DELETED', phone_e164 = NULL, display_name = 'Tài khoản đã xóa', "
                 + "avatar_url = NULL, deleted_at = now() WHERE id = ?", userId);
         jdbc.update("DELETE FROM contacts WHERE owner_id = ? OR contact_user_id = ?", userId, userId);
         jdbc.update("DELETE FROM contact_requests WHERE requester_id = ? OR addressee_id = ?", userId, userId);
         jdbc.update("UPDATE user_devices SET revoked_at = now(), token_valid_after = ? WHERE user_id = ?", now(), userId);
-        // Chuyển quyền quản trị nhóm cho người khác thuộc Phase 4; ở Phase 3 chỉ đánh dấu đã rời.
         jdbc.update("UPDATE conversation_members SET left_at = now() WHERE user_id = ? AND left_at IS NULL", userId);
     }
 
