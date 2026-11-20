@@ -2,7 +2,7 @@
 param([string]$DeviceSerial, [switch]$Repository, [switch]$ContactsUi,
     [ValidateSet('Focus','Suite')][string]$UiCheck)
 
-# Mặc định 11/14; -Repository thêm 12/13; -ContactsUi thêm 15/16 cùng toàn bộ hồi quy này.
+# Mặc định 11/14; -Repository thêm 12/13; -ContactsUi thêm UI 15–19 cùng toàn bộ hồi quy này.
 $ErrorActionPreference = 'Stop'
 $repo = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $oldSerial = $env:ANDROID_SERIAL
@@ -45,15 +45,17 @@ try {
     }
     if ($ContactsUi) {
         $unit['com.utechat.ui.contacts.ContactsViewModelTest'] = 31
-        $device['com.utechat.ui.contacts.ContactsListUiTest'] = 12
+        # Bao gồm định dạng SĐT và năm luồng thao tác trên ba màn con mới.
+        $unit['com.utechat.ui.contacts.ContactsTextTest'] = 5
+        $device['com.utechat.ui.contacts.ContactsListUiTest'] = 17
     }
     # Chẩn đoán theo hai bước: một ca đại diện trước, cả lớp UI sau; chưa chạy bộ đầy đủ.
     $focusMethod = 'listsFriendsAndFiltersNameWithoutChangingCache'
     if ($UiCheck) {
         $unit = @{}
-        $device = @{ 'com.utechat.ui.contacts.ContactsListUiTest' = $(if ($UiCheck -eq 'Focus') { 1 } else { 12 }) }
+        $device = @{ 'com.utechat.ui.contacts.ContactsListUiTest' = $(if ($UiCheck -eq 'Focus') { 1 } else { 17 }) }
     }
-    $scope = if ($UiCheck) { "UI $UiCheck của 15/16, chưa nghiệm thu toàn đợt" } elseif ($ContactsUi) { '15/16 cùng hồi quy 11–14 và hợp đồng client' } elseif ($Repository) { '12/13 cùng hồi quy 11/14 và hợp đồng client' } else { '11/14' }
+    $scope = if ($UiCheck) { "UI $UiCheck của 15–19, chưa nghiệm thu toàn đợt" } elseif ($ContactsUi) { '15–19 cùng hồi quy 11–14 và hợp đồng client' } elseif ($Repository) { '12/13 cùng hồi quy 11/14 và hợp đồng client' } else { '11/14' }
     $unitTotal = [int]($unit.Values | Measure-Object -Sum).Sum
     $deviceTotal = ($device.Values | Measure-Object -Sum).Sum
     $unitPath = 'app/build/test-results/testDebugUnitTest'

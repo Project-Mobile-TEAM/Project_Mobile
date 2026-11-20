@@ -42,6 +42,26 @@ final class ContactsUi {
         }
         return "RATE_LIMITED".equals(r.errorCode)?f.getString(R.string.contacts_limited,r.retryAfterSeconds):f.getString(label);
     }
+    /**
+     * Phần chung của màn con: nút Back, kéo làm mới (swipe có thể null) và Snackbar thông báo một lần.
+     * Lỗi số sai và không tìm thấy hiện ngay trên màn Thêm bạn nên không phát Snackbar nữa.
+     */
+    static void bindChrome(Fragment f,ContactsViewModel vm,com.google.android.material.appbar.MaterialToolbar toolbar,
+                           androidx.swiperefreshlayout.widget.SwipeRefreshLayout swipe,Runnable retry) {
+        toolbar.setNavigationOnClickListener(v->androidx.navigation.fragment.NavHostFragment.findNavController(f).navigateUp());
+        if(swipe!=null) {
+            swipe.setOnRefreshListener(vm::refresh);
+            swipe.setColorSchemeColors(com.google.android.material.color.MaterialColors.getColor(swipe,androidx.appcompat.R.attr.colorPrimary));
+            swipe.setProgressBackgroundColorSchemeColor(com.google.android.material.color.MaterialColors.getColor(swipe,com.google.android.material.R.attr.colorSurface));
+        }
+        vm.notice.observe(f.getViewLifecycleOwner(),value->{
+            if(value==null) return;
+            var event=vm.consumeNotice();
+            if(event!=null&&!java.util.List.of("PHONE_INVALID","NOT_FOUND").contains(event.errorCode==null?"":event.errorCode))
+                // Sau ACK chưa đối soát, phải tải lại cache trước khi cho phép ghi tiếp; không gửi lặp mutation.
+                notice(f,f.requireView(),event,()->{if(event.refreshRequired) vm.refresh();else retry.run();});
+        });
+    }
     static Snackbar notice(Fragment f,View root,ContactsResult<?> r,Runnable retry) {
         // Fragment có thể phát cache trước khi gắn đủ ancestor; content Activity nhận Snackbar, không phải FragmentContainerView.
         Snackbar bar=Snackbar.make(f.requireActivity().findViewById(android.R.id.content),message(f,r),Snackbar.LENGTH_LONG);

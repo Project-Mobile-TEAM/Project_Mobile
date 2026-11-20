@@ -77,9 +77,13 @@ public class ContactsListUiTest {
     }
     /** Chờ AsyncListDiffer theo điều kiện thực, không xem luồng Espresso rảnh là diff đã xong. */
     private void rows(int expected) {
+        rows(R.id.list,expected);
+    }
+    /** Các màn con dùng RecyclerView riêng; vẫn chờ diff thật trước khi bấm thao tác. */
+    private void rows(int listId,int expected) {
         AtomicInteger actual=new AtomicInteger(-1);long until=android.os.SystemClock.uptimeMillis()+5000;
         do {
-            scenario.onActivity(a->{RecyclerView list=a.findViewById(R.id.list);actual.set(list.getAdapter().getItemCount());});
+            scenario.onActivity(a->{RecyclerView list=a.findViewById(listId);actual.set(list.getAdapter().getItemCount());});
             if(actual.get()==expected) return;
             android.os.SystemClock.sleep(20);
         } while(android.os.SystemClock.uptimeMillis()<until);
@@ -204,6 +208,64 @@ public class ContactsListUiTest {
         });
     }
 
+    /** Kiểm tra màn mới với Repository giả: lời mời phải gửi đúng ID và đúng chiều. */
+    @Test public void requestScreenRoutesAcceptRejectAndCancelToRequestIds() {
+        repo.mutationResult=ContactsResult.ok(true);launch();
+        onView(withId(R.id.requests)).perform(click());
+        rows(R.id.incoming_list,1);rows(R.id.outgoing_list,1);
+        onView(org.hamcrest.Matchers.allOf(withId(R.id.chip_filled),isDescendantOfA(withId(R.id.incoming_list)))).perform(click());
+        assertEquals("accept",repo.lastAction);assertEquals("incoming-PENDING",repo.lastTarget);
+        onView(org.hamcrest.Matchers.allOf(withId(R.id.chip_tonal),isDescendantOfA(withId(R.id.incoming_list)))).perform(click());
+        assertEquals("reject",repo.lastAction);assertEquals("incoming-PENDING",repo.lastTarget);
+        onView(org.hamcrest.Matchers.allOf(withId(R.id.chip_outlined),isDescendantOfA(withId(R.id.outgoing_list)))).perform(click());
+        assertEquals("cancel",repo.lastAction);assertEquals("outgoing-PENDING",repo.lastTarget);assertEquals(3,repo.mutations);
+    }
+
+    /** Nhập số, tìm người lạ và xoay màn hình phải giữ đúng người nhận khi gửi lời mời. */
+    @Test public void searchSurvivesRecreationAndSendsToSelectedUser() {
+        launch();openDavidSearch();scenario.recreate();rows(R.id.result,1);
+        onView(withId(R.id.chip_filled)).perform(click());
+        assertEquals("send",repo.lastAction);assertEquals(DemoData.DAVID,repo.lastTarget);assertEquals(1,repo.mutations);
+    }
+
+    /** Người lạ cũng cần lối chặn; không chỉ chặn được người đã nằm trong danh sách bạn. */
+    @Test public void searchCanBlockStrangerAfterConfirmation() {
+        launch();openDavidSearch();
+        onView(withId(R.id.actions)).perform(click());onView(withText(R.string.contacts_block)).perform(click());
+        assertEquals(0,repo.mutations);
+        onView(withId(android.R.id.button1)).inRoot(isDialog()).perform(click());
+        assertEquals("block",repo.lastAction);assertEquals(DemoData.DAVID,repo.lastTarget);assertEquals(1,repo.mutations);
+    }
+
+    /** ACK chưa chắc chắn chỉ được đối soát cache; nút thử lại không gửi lặp thao tác ghi. */
+    @Test public void searchRetryReconcilesUncertainMutationBeforeEnablingActions() {
+        launch();openDavidSearch();
+        ContactsResult<Boolean> uncertain=ContactsResult.error("NETWORK");uncertain.refreshRequired=true;repo.mutationResult=uncertain;
+        onView(withId(R.id.chip_filled)).perform(click());
+        onView(withId(com.google.android.material.R.id.snackbar_action)).perform(click());
+        assertEquals(2,repo.refreshCalls);assertEquals(1,repo.mutations);
+        // Tìm lại sau đối soát phải cho phép thao tác, không kẹt needsRefresh mãi mãi.
+        onView(withId(R.id.find)).perform(click());rows(R.id.result,1);
+        onView(withId(R.id.chip_filled)).check(matches(isEnabled()));
+    }
+
+    /** Bỏ chặn chỉ chạy sau xác nhận và danh sách cập nhật từ nguồn quan hệ. */
+    @Test public void blockedScreenCancelsThenConfirmsUnblock() {
+        launch();onView(withId(R.id.blocked)).perform(click());rows(1);
+        onView(withId(R.id.chip_outlined)).perform(click());
+        onView(withId(android.R.id.button2)).inRoot(isDialog()).perform(click());assertEquals(0,repo.mutations);
+        onView(withId(R.id.chip_outlined)).perform(click());
+        onView(withId(android.R.id.button1)).inRoot(isDialog()).perform(click());rows(0);
+        assertEquals("unblock",repo.lastAction);assertEquals(DemoData.EVE,repo.lastTarget);assertEquals(1,repo.mutations);
+        onView(withId(R.id.empty)).check(matches(withText(R.string.contacts_blocked_empty)));
+    }
+
+    private void openDavidSearch() {
+        onView(withId(R.id.find)).perform(click());
+        onView(withId(R.id.phone)).perform(replaceText("904444444"),closeSoftKeyboard());
+        onView(withId(R.id.find)).perform(click());rows(R.id.result,1);
+    }
+
     /** Fixture UI có cache demo; trạng thái chờ/lỗi tách khỏi bộ test Room thật hồi quy. */
     private static final class Fixture extends FakeContactsRepository {
         int refreshCalls,mutations;
@@ -215,6 +277,8 @@ public class ContactsListUiTest {
         void seedRequests(List<ContactRequestWithUser> value) { requestRows.setValue(value); }
         private static ContactRequestWithUser request(String status,boolean outgoing) {
             ContactRequestWithUser row=new ContactRequestWithUser();row.request=new ContactRequestEntity();row.request.setStatus(status);
+            // ID/tên tối thiểu để màn lời mời kiểm được thao tác theo chiều, không phụ thuộc dữ liệu server.
+            row.request.setId((outgoing?"outgoing-":"incoming-")+status);row.requesterName="David";row.addresseeName="David";
             row.request.setRequesterId(outgoing?DemoData.ALICE:DemoData.DAVID);row.request.setAddresseeId(outgoing?DemoData.DAVID:DemoData.ALICE);return row;
         }
         @Override public LiveData<List<ContactRequestWithUser>> getRequests() { return requestRows; }
