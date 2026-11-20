@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Lời mời kết bạn (Figma 80:4): hai nhóm "Nhận được" và "Đã gửi", mỗi nhóm một thẻ bo 16dp. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:background="?attr/colorSurface">
+
+    <com.google.android.material.appbar.MaterialToolbar android:id="@+id/toolbar"
+        android:layout_width="match_parent" android:layout_height="?attr/actionBarSize"
+        app:title="@string/contacts_requests"
+        app:navigationIcon="@drawable/ic_arrow_back" app:navigationContentDescription="@string/contacts_back" />
+    <com.google.android.material.progressindicator.LinearProgressIndicator android:id="@+id/progress"
+        android:layout_width="match_parent" android:layout_height="wrap_content" android:indeterminate="true"
+        android:contentDescription="@string/contacts_loading" android:visibility="gone" />
+
+    <androidx.swiperefreshlayout.widget.SwipeRefreshLayout android:id="@+id/swipe"
+        android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
+        <androidx.core.widget.NestedScrollView android:layout_width="match_parent" android:layout_height="match_parent"
+            android:fillViewport="true">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="vertical" android:paddingHorizontal="16dp" android:paddingTop="14dp" android:paddingBottom="16dp">
+
+                <LinearLayout android:id="@+id/incoming_group" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="vertical" android:visibility="gone">
+                    <TextView android:id="@+id/incoming_label" android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp" android:layout_marginBottom="8dp"
+                        android:textAppearance="@style/TextAppearance.UTEChat.Section" android:accessibilityHeading="true" />
+                    <com.google.android.material.card.MaterialCardView style="@style/Widget.UTEChat.Card"
+                        android:layout_width="match_parent" android:layout_height="wrap_content">
+                        <androidx.recyclerview.widget.RecyclerView android:id="@+id/incoming_list"
+                            android:layout_width="match_parent" android:layout_height="wrap_content"
+                            android:overScrollMode="never" android:nestedScrollingEnabled="false" />
+                    </com.google.android.material.card.MaterialCardView>
+                </LinearLayout>
+
+                <LinearLayout android:id="@+id/outgoing_group" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp" android:orientation="vertical" android:visibility="gone">
+                    <TextView android:id="@+id/outgoing_label" android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp" android:layout_marginBottom="8dp"
+                        android:textAppearance="@style/TextAppearance.UTEChat.Section" android:accessibilityHeading="true" />
+                    <com.google.android.material.card.MaterialCardView style="@style/Widget.UTEChat.Card"
+                        android:layout_width="match_parent" android:layout_height="wrap_content">
+                        <androidx.recyclerview.widget.RecyclerView android:id="@+id/outgoing_list"
+                            android:layout_width="match_parent" android:layout_height="wrap_content"
+                            android:overScrollMode="never" android:nestedScrollingEnabled="false" />
+                    </com.google.android.material.card.MaterialCardView>
+                </LinearLayout>
+
+                <TextView android:id="@+id/empty" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:padding="24dp" android:gravity="center" android:textSize="14sp"
+                    android:textColor="?attr/colorOnSurfaceVariant" android:accessibilityLiveRegion="polite" android:visibility="gone" />
+            </LinearLayout>
+        </androidx.core.widget.NestedScrollView>
+    </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+</LinearLayout>

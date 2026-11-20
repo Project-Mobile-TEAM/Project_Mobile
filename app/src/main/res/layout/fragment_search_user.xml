@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Thêm bạn (Figma 80:119 và 80:171): ô SĐT +84, nút Tìm kiếm, thẻ kết quả hoặc trạng thái "Không tìm thấy". -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:background="?attr/colorSurface">
+
+    <com.google.android.material.appbar.MaterialToolbar android:id="@+id/toolbar"
+        android:layout_width="match_parent" android:layout_height="?attr/actionBarSize"
+        app:title="@string/contacts_add_friend"
+        app:navigationIcon="@drawable/ic_arrow_back" app:navigationContentDescription="@string/contacts_back" />
+    <com.google.android.material.progressindicator.LinearProgressIndicator android:id="@+id/progress"
+        android:layout_width="match_parent" android:layout_height="wrap_content" android:indeterminate="true"
+        android:contentDescription="@string/contacts_loading" android:visibility="gone" />
+
+    <androidx.core.widget.NestedScrollView android:layout_width="match_parent" android:layout_height="0dp"
+        android:layout_weight="1" android:fillViewport="true">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical"
+            android:paddingHorizontal="16dp" android:paddingTop="22dp" android:paddingBottom="16dp">
+
+            <com.google.android.material.textfield.TextInputLayout android:id="@+id/phone_layout"
+                style="@style/Widget.UTEChat.InputLayout" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:hint="@string/contacts_phone_label" app:helperText="@string/contacts_phone_helper" app:helperTextEnabled="true">
+                <com.google.android.material.textfield.TextInputEditText android:id="@+id/phone"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:inputType="phone" android:maxLength="14" android:imeOptions="actionSearch"
+                    android:autofillHints="phoneNational" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <com.google.android.material.button.MaterialButton android:id="@+id/find" style="@style/Widget.UTEChat.PrimaryButton"
+                android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="16dp"
+                android:text="@string/contacts_find" />
+
+            <LinearLayout android:id="@+id/result_group" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="16dp" android:orientation="vertical" android:visibility="gone">
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp" android:layout_marginBottom="8dp" android:text="@string/contacts_result"
+                    android:textAppearance="@style/TextAppearance.UTEChat.Section" android:accessibilityHeading="true" />
+                <com.google.android.material.card.MaterialCardView style="@style/Widget.UTEChat.Card"
+                    android:layout_width="match_parent" android:layout_height="wrap_content">
+                    <androidx.recyclerview.widget.RecyclerView android:id="@+id/result"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:overScrollMode="never" android:nestedScrollingEnabled="false" />
+                </com.google.android.material.card.MaterialCardView>
+            </LinearLayout>
+
+            <LinearLayout android:id="@+id/not_found" android:layout_width="match_parent" android:layout_height="0dp"
+                android:layout_weight="1" android:orientation="vertical" android:gravity="center"
+                android:paddingHorizontal="24dp" android:paddingBottom="40dp" android:visibility="gone"
+                android:accessibilityLiveRegion="polite">
+                <FrameLayout android:layout_width="96dp" android:layout_height="96dp" android:background="@drawable/bg_avatar">
+                    <ImageView android:layout_width="44dp" android:layout_height="44dp" android:layout_gravity="center"
+                        android:src="@drawable/ic_search" android:importantForAccessibility="no" />
+                </FrameLayout>
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp"
+                    android:gravity="center" android:text="@string/contacts_not_found_title" android:textSize="20sp"
+                    android:fontFamily="@font/poppins_medium" android:textColor="?attr/colorOnSurface" />
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp"
+                    android:gravity="center" android:text="@string/contacts_not_found_hint" android:textSize="14sp"
+                    android:textColor="?attr/colorOnSurfaceVariant" />
+            </LinearLayout>
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
+</LinearLayout>

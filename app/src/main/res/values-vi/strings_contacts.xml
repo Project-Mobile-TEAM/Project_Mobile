@@ -46,6 +46,21 @@
     <string name="contacts_session_changed">Đăng nhập lại để xem danh bạ của bạn</string>
     <string name="contacts_uncertain">Chưa xác nhận được kết quả. Hãy tải lại trước khi thực hiện lại thao tác.</string>
     <string name="contacts_cache_error">Chưa cập nhật được danh sách. Hãy tải lại để thử lại.</string>
-    <string name="contacts_destination_pending">Màn hình này hiện chưa khả dụng.</string>
     <string name="contacts_loading">Đang tải danh bạ</string>
+    <!-- Màn Thêm bạn, Lời mời, Đã chặn (Figma trang Danh bạ). -->
+    <string name="contacts_add_friend">Thêm bạn</string>
+    <string name="contacts_blocked_title">Đã chặn</string>
+    <string name="contacts_phone_label">Số điện thoại</string>
+    <string name="contacts_phone_helper">Nhập chính xác số điện thoại của người bạn muốn kết nối.</string>
+    <string name="contacts_find">Tìm kiếm</string>
+    <string name="contacts_result">Kết quả</string>
+    <string name="contacts_section_received">Nhận được · %1$d</string>
+    <string name="contacts_section_sent">Đã gửi · %1$d</string>
+    <string name="contacts_dismiss">Xóa</string>
+    <string name="contacts_chip_desc">%1$s: %2$s</string>
+    <string name="contacts_requests_empty">Chưa có lời mời kết bạn nào</string>
+    <string name="contacts_not_found_title">Không tìm thấy tài khoản</string>
+    <string name="contacts_not_found_hint">Kiểm tra lại số điện thoại. Chỉ tìm được số điện thoại chính xác.</string>
+    <string name="contacts_blocked_hint">Người bị chặn không thể nhắn tin hay gọi cho bạn.</string>
+    <string name="contacts_blocked_empty">Bạn chưa chặn ai</string>
 </resources>
