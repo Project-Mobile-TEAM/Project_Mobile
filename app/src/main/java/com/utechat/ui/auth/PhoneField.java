@@ -12,10 +12,10 @@ import com.google.android.material.textfield.TextInputLayout;
 import com.utechat.R;
 
 /** Ô số điện thoại theo Figma: tiền tố "+84" đậm, vạch ngăn, và số tự nhóm 3-3-3 (912 345 678). */
-final class PhoneField {
+public final class PhoneField {
     private PhoneField() { }
 
-    static void attach(TextInputLayout layout, TextInputEditText edit) {
+    public static void attach(TextInputLayout layout, TextInputEditText edit) {
         SpannableStringBuilder prefix = new SpannableStringBuilder("+84  |  ");
         prefix.setSpan(new ForegroundColorSpan(ContextCompat.getColor(layout.getContext(), R.color.ute_text)),
                 0, 3, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
