@@ -17,9 +17,10 @@ RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
 BEGIN
-    -- Bảo đảm giao dịch hiện tại đã được gán xid thật trước khi đọc xmax snapshot.
-    PERFORM pg_current_xact_id();
-    NEW.barrier_xid := pg_snapshot_xmax(pg_current_snapshot());
+    -- Lấy giá trị lớn hơn giữa xid của chính giao dịch này và xmax snapshot hiện hành
+    -- (vì xmax của PostgreSQL chỉ bằng latestCompletedXid + 1, cần GREATEST với pg_current_xact_id()
+    -- để luôn giữ lại giao dịch commit vượt mặt một giao dịch cũ hơn vẫn đang mở).
+    NEW.barrier_xid := GREATEST(pg_current_xact_id(), pg_snapshot_xmax(pg_current_snapshot()));
     RETURN NEW;
 END;
 $$;

@@ -30,7 +30,8 @@ class ContactsMigrationTest {
     @Test void freshDatabaseMigratesWithoutDemoAndUsesRequiredDefault() throws Exception {
         try (var db = new PostgresFixture()) {
             db.migrate();
-            assertEquals(13, db.jdbc.queryForObject("SELECT count(*) FROM pg_tables WHERE schemaname='public' AND tablename<>'flyway_schema_history'", Integer.class));
+            // 13 bảng nghiệp vụ cốt lõi V1 (loại trừ 2 bảng kỹ thuật flyway_schema_history và sync_retention_state của V5), tuyệt đối không có demo_sms_outbox.
+            assertEquals(13, db.jdbc.queryForObject("SELECT count(*) FROM pg_tables WHERE schemaname='public' AND tablename NOT IN ('flyway_schema_history', 'sync_retention_state')", Integer.class));
             assertEquals(0, db.jdbc.queryForObject("SELECT count(*) FROM users", Integer.class));
             var column = db.jdbc.queryForMap("SELECT data_type,is_nullable,column_default FROM information_schema.columns WHERE table_schema='public' AND table_name='contacts' AND column_name='is_friend'");
             assertEquals("boolean", column.get("data_type"));

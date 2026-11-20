@@ -6,18 +6,22 @@ import com.utechat.backend.exception.ApiException;
 import com.utechat.backend.security.AuthenticatedActor;
 import com.utechat.backend.security.JwtService;
 import com.utechat.backend.util.HashUtils;
+import com.utechat.backend.websocket.WebSocketSessionRegistry;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * Đăng ký, đăng nhập (mật khẩu / OTP), quên mật khẩu và đăng xuất (F-01 đến F-06).
@@ -34,15 +38,18 @@ public class AuthService {
     private final OtpService otp;
     private final ThrottleService throttle;
     private final AccountService account;
+    private final ObjectProvider<WebSocketSessionRegistry> wsRegistryProvider;
 
     public AuthService(JdbcTemplate jdbc, PasswordEncoder encoder, JwtService jwt, OtpService otp,
-            ThrottleService throttle, AccountService account) {
+            ThrottleService throttle, AccountService account,
+            ObjectProvider<WebSocketSessionRegistry> wsRegistryProvider) {
         this.jdbc = jdbc;
         this.encoder = encoder;
         this.jwt = jwt;
         this.otp = otp;
         this.throttle = throttle;
         this.account = account;
+        this.wsRegistryProvider = wsRegistryProvider;
         this.dummyHash = encoder.encode("not-a-real-password"); // Băm hợp lệ thật, tạo một lần lúc khởi động.
     }
 
@@ -134,15 +141,44 @@ public class AuthService {
         String deviceHash = claims.get("did", String.class);
         jdbc.update("UPDATE users SET password_hash = ? WHERE id = ?", encoder.encode(newPassword), userId);
         jdbc.update("UPDATE user_devices SET token_valid_after = ? WHERE user_id = ? AND device_id_hash <> ?", now(), userId, deviceHash);
+        // Đóng ngay WebSocket của các thiết bị khác bằng mã 4401 sau khi transaction đặt lại mật khẩu commit.
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    WebSocketSessionRegistry registry = wsRegistryProvider.getIfAvailable();
+                    if (registry != null) {
+                        registry.closeUserDevicesExcept(userId, deviceHash, WebSocketSessionRegistry.CLOSE_SESSION_EXPIRED);
+                    }
+                }
+            });
+        }
         return success(userId, deviceHash, deviceName);
     }
 
     // ================= Đăng xuất (F-06) =================
 
-    /** Vô hiệu hoá mọi token đã cấp cho thiết bị này. */
+    /** Vô hiệu hoá mọi token đã cấp cho thiết bị này và đóng ngay kết nối WebSocket 4401. */
+    @Transactional
     public void logout(AuthenticatedActor actor) {
         jdbc.update("UPDATE user_devices SET token_valid_after = ? WHERE user_id = ? AND device_id_hash = ?",
                 now(), actor.userId(), actor.deviceIdHash());
+        Runnable closeAction = () -> {
+            WebSocketSessionRegistry registry = wsRegistryProvider.getIfAvailable();
+            if (registry != null) {
+                registry.closeDevice(actor.userId(), actor.deviceIdHash(), WebSocketSessionRegistry.CLOSE_SESSION_EXPIRED);
+            }
+        };
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    closeAction.run();
+                }
+            });
+        } else {
+            closeAction.run();
+        }
     }
 
     // ================= Hàm phụ =================

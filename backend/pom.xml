@@ -18,8 +18,9 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
     <dependencies>
-        <!-- REST JSON, JDBC/HikariCP và driver PostgreSQL phục vụ health probe. -->
+        <!-- REST JSON, WebSocket thuần JSON (/ws), JDBC/HikariCP và driver PostgreSQL. -->
         <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-web</artifactId></dependency>
+        <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-websocket</artifactId></dependency>
         <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-jdbc</artifactId></dependency>
         <dependency><groupId>org.postgresql</groupId><artifactId>postgresql</artifactId><scope>runtime</scope></dependency>
         <!-- Flyway tự động áp dụng các migration (V1, V3, V4...) khi backend khởi động; kết nối qua port 5432 (Session/Direct). -->
@@ -40,8 +41,8 @@
         <!-- Chỉ test hợp đồng client Android qua HTTP thật; cùng phiên bản với app, không đưa vào JAR production. -->
         <dependency><groupId>com.squareup.retrofit2</groupId><artifactId>retrofit</artifactId><version>2.11.0</version><scope>test</scope></dependency>
         <dependency><groupId>com.squareup.retrofit2</groupId><artifactId>converter-gson</artifactId><version>2.11.0</version><scope>test</scope></dependency>
-        <!-- Giữ Gson đúng bản transitive của app, tránh BOM backend đổi hành vi JSON trong gate client. -->
-        <dependency><groupId>com.google.code.gson</groupId><artifactId>gson</artifactId><version>2.10.1</version><scope>test</scope></dependency>
+        <!-- Giữ Gson đúng bản 2.10.1 ở runtime/compile để Flyway 10 và gate client dùng chung ổn định. -->
+        <dependency><groupId>com.google.code.gson</groupId><artifactId>gson</artifactId><version>2.10.1</version></dependency>
         <dependency><groupId>com.squareup.okhttp3</groupId><artifactId>okhttp</artifactId><version>4.12.0</version><scope>test</scope></dependency>
         <!-- Chạy trực tiếp các test JUnit4 thuần Java đang có của app trong cổng nghiệm thu client. -->
         <dependency><groupId>junit</groupId><artifactId>junit</artifactId><version>4.13.2</version><scope>test</scope></dependency>
