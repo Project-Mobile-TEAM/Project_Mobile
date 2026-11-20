@@ -19,6 +19,23 @@ public abstract class SyncStateDao {
         }
     }
 
+    /**
+     * Đặt lại con trỏ đồng bộ không điều kiện; CHỈ dùng khi bootstrap lần đầu
+     * hoặc khi hồi phục từ lỗi 410 SYNC_CURSOR_EXPIRED.
+     */
+    @Transaction
+    public void reset(String userId, long cursor, long at) {
+        SyncStateEntity state = new SyncStateEntity();
+        state.setUserId(userId);
+        state.setLastSyncEventId(cursor);
+        state.setLastSyncAt(at);
+        upsert(state);
+    }
+
+    /** Xóa mốc đồng bộ của một tài khoản khi cần dọn trạng thái phiên cục bộ. */
+    @Query("DELETE FROM sync_state WHERE userId = :userId")
+    public abstract void clear(String userId);
+
     @Upsert protected abstract void upsert(SyncStateEntity state);
     @Query("SELECT * FROM sync_state WHERE userId = :userId")
     public abstract SyncStateEntity get(String userId);

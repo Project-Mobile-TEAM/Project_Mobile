@@ -50,6 +50,14 @@ public class MessageEntity {
     @NonNull
     private String status;
 
+    /** Mã lỗi bền vững khi tin nhắn FAILED (VD: BLOCKED, CONTACT_REQUIRED, NOT_A_MEMBER). */
+    @Nullable
+    private String errorCode;
+
+    /** Mốc visibleFromMessageId của nhóm lúc xếp hàng gửi; null với chat 1-1 hoặc dữ liệu cũ v1. */
+    @Nullable
+    private Long queuedVisibleFromMessageId;
+
     // Room dùng constructor rỗng để tạo đối tượng rồi đọc/ghi qua getter và setter.
     public MessageEntity() { }
 
@@ -96,4 +104,14 @@ public class MessageEntity {
     // Đọc và cập nhật status khi ánh xạ DTO hoặc khôi phục cache.
     public String getStatus() { return status; }
     public void setStatus(String value) { this.status = value; }
+
+    // Đọc và cập nhật errorCode hiển thị nguyên nhân thất bại cho tin nhắn FAILED.
+    @Nullable
+    public String getErrorCode() { return errorCode; }
+    public void setErrorCode(@Nullable String value) { this.errorCode = value; }
+
+    // Đọc và cập nhật mốc tham gia nhóm tại lúc đưa tin vào hàng đợi gửi offline.
+    @Nullable
+    public Long getQueuedVisibleFromMessageId() { return queuedVisibleFromMessageId; }
+    public void setQueuedVisibleFromMessageId(@Nullable Long value) { this.queuedVisibleFromMessageId = value; }
 }

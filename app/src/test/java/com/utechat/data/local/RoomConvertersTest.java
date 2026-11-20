@@ -33,4 +33,14 @@ public class RoomConvertersTest {
         assertEquals("\"chao\"* \"ban\"*", MessageText.matchQuery("Chào bạn"));
         assertEquals("\"\"\"\"* \"or\"*", MessageText.matchQuery("\" OR"));
     }
+
+    @Test public void safeMatchQueryHandlesVietnamesePunctuationAndBlank() {
+        // Chuỗi rỗng, khoảng trắng hoặc chỉ toàn dấu câu FTS4 phải trả về null để DAO bỏ qua MATCH an toàn.
+        assertNull(MessageText.safeMatchQuery(null));
+        assertNull(MessageText.safeMatchQuery(""));
+        assertNull(MessageText.safeMatchQuery("   "));
+        assertNull(MessageText.safeMatchQuery("\"\"*():-"));
+        // Chuẩn hóa tiếng Việt (bỏ dấu + đổi đ/Đ) và tách token sạch, loại bỏ toán tử gây lỗi cú pháp.
+        assertEquals("\"chao\"* \"dang\"* \"v2\"*", MessageText.safeMatchQuery("Chào-Đặng (v2)!"));
+    }
 }
