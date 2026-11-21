@@ -64,6 +64,12 @@ public class MainActivity extends AppCompatActivity {
             // Auth/Splash/detail không hiển thị tab để người dùng không đi tắt qua xác thực.
             boolean topLevel = id == R.id.chatListFragment || id == R.id.contactsListFragment || id == R.id.profileFragment;
             binding.bottomNav.setVisibility(topLevel ? View.VISIBLE : View.GONE);
+            // Vào vùng đã đăng nhập thì mở WebSocket và đồng bộ bù; repository tự bỏ qua khi chưa có phiên.
+            if (topLevel) {
+                var chat = Injection.provideChatRepository(this);
+                chat.connectRealtime();
+                chat.triggerSync();
+            }
             // Splash tự có gradient phủ tới mép trên; các màn khác có status bar xanh nên icon luôn trắng.
             boolean splash = id == R.id.splashFragment;
             binding.statusBg.setVisibility(splash ? View.GONE : View.VISIBLE);

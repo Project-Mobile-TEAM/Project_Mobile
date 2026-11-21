@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Biểu ngữ kết nối (D-08) ngay dưới thanh tiêu đề; ẩn khi đã kết nối và đồng bộ xong. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/ws_banner" android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:orientation="horizontal" android:gravity="center_vertical" android:background="@color/ute_warning_bg"
+    android:paddingHorizontal="16dp" android:paddingVertical="10dp" android:visibility="gone"
+    android:accessibilityLiveRegion="polite">
+    <ImageView android:layout_width="18dp" android:layout_height="18dp" android:src="@drawable/ic_wifi_off"
+        android:importantForAccessibility="no" app:tint="@color/ute_warning_text" />
+    <TextView android:id="@+id/ws_banner_text" android:layout_width="0dp" android:layout_height="wrap_content"
+        android:layout_weight="1" android:layout_marginStart="8dp" android:textSize="14sp"
+        android:textColor="@color/ute_warning_text" android:text="@string/chat_ws_reconnecting" />
+</LinearLayout>

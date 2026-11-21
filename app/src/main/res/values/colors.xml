@@ -33,4 +33,9 @@
     <color name="ute_bar_off">#DEDEDE</color>
     <!-- Nền nhạt cho nút "Thu hồi" (chữ dùng ute_error). -->
     <color name="ute_error_bg">#FDE7E8</color>
+    <!-- Biểu ngữ mất kết nối ở danh sách chat (Figma "L · 8 · Mất kết nối"); chữ đạt ≥ 4.5:1 trên nền. -->
+    <color name="ute_warning_bg">#FFF4E5</color>
+    <color name="ute_warning_text">#8A5300</color>
+    <!-- Ô tìm kiếm nằm trên thanh xanh. -->
+    <color name="ute_search_bg">#EFEFF1</color>
 </resources>

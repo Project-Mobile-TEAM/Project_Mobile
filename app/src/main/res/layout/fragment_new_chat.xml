@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Tin nhắn mới (Figma "L · 7 · Tin nhắn mới"): một ô tìm cả tên bạn bè lẫn SĐT người lạ. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:background="?attr/colorSurface">
+
+    <com.google.android.material.appbar.MaterialToolbar android:id="@+id/toolbar"
+        android:layout_width="match_parent" android:layout_height="?attr/actionBarSize" app:title="@string/chat_new"
+        app:navigationIcon="@drawable/ic_arrow_back" app:navigationContentDescription="@string/chat_back" />
+
+    <FrameLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:background="@color/ute_bar" android:paddingHorizontal="16dp" android:paddingBottom="12dp">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="44dp"
+            android:background="@drawable/bg_search_field" android:gravity="center_vertical" android:paddingHorizontal="12dp">
+            <ImageView android:layout_width="20dp" android:layout_height="20dp" android:src="@drawable/ic_search"
+                android:importantForAccessibility="no" app:tint="@color/ute_text_secondary" />
+            <EditText android:id="@+id/search" android:layout_width="0dp" android:layout_height="match_parent"
+                android:layout_weight="1" android:layout_marginStart="10dp" android:background="@null"
+                android:hint="@string/chat_new_search_hint" android:textColorHint="@color/ute_text_secondary"
+                android:textColor="?attr/colorOnSurface" android:textSize="16sp" android:inputType="text"
+                android:imeOptions="actionSearch" android:maxLines="1" android:importantForAutofill="no" />
+        </LinearLayout>
+    </FrameLayout>
+
+    <com.google.android.material.progressindicator.LinearProgressIndicator android:id="@+id/progress"
+        android:layout_width="match_parent" android:layout_height="wrap_content" android:indeterminate="true"
+        android:visibility="gone" />
+
+    <!-- Lối tắt tạo nhóm, dòng tra SĐT và thẻ kết quả dùng lại item_conversation cho đồng bộ giao diện. -->
+    <include android:id="@+id/create_group" layout="@layout/item_conversation" />
+    <include android:id="@+id/lookup_row" layout="@layout/item_conversation" android:visibility="gone" />
+
+    <LinearLayout android:id="@+id/result_group" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="vertical" android:visibility="gone" android:accessibilityLiveRegion="polite">
+        <include android:id="@+id/result_header" layout="@layout/item_chat_section" />
+        <include android:id="@+id/result" layout="@layout/item_conversation" />
+        <TextView android:id="@+id/result_note" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:paddingHorizontal="16dp" android:textSize="14sp" android:textColor="?attr/colorOnSurfaceVariant" />
+        <com.google.android.material.button.MaterialButton android:id="@+id/result_action" style="@style/Widget.UTEChat.PrimaryButton"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginHorizontal="16dp" android:layout_marginTop="8dp" />
+    </LinearLayout>
+
+    <include android:id="@+id/friends_header" layout="@layout/item_chat_section" />
+    <TextView android:id="@+id/empty" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:padding="24dp" android:gravity="center" android:textSize="14sp"
+        android:textColor="?attr/colorOnSurfaceVariant" android:visibility="gone" />
+    <androidx.recyclerview.widget.RecyclerView android:id="@+id/friends"
+        android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" />
+</LinearLayout>

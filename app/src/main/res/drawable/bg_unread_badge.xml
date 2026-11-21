@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Huy hiệu số tin chưa đọc: viên thuốc đỏ như Figma. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/ute_error" />
+    <corners android:radius="10dp" />
+</shape>

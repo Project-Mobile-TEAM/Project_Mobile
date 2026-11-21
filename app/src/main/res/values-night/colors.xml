@@ -20,4 +20,7 @@
     <color name="ute_warning">#F5A04A</color>
     <color name="ute_bar_off">#2A2B2F</color>
     <color name="ute_error_bg">#3A1A1B</color>
+    <color name="ute_warning_bg">#3A2A10</color>
+    <color name="ute_warning_text">#FFC777</color>
+    <color name="ute_search_bg">#1B1C20</color>
 </resources>
