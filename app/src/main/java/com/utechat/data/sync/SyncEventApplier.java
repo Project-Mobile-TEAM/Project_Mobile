@@ -300,6 +300,15 @@ public class SyncEventApplier {
         }
     }
 
+    /** Áp dụng trực tiếp ConversationDto trả về từ REST (tạo phòng 1-1, tạo/sửa nhóm) trong cùng transaction Room. */
+    public void applyConversationDto(
+            @NonNull String myUserId,
+            @NonNull ChatDtos.ConversationDto dto,
+            long nowMs) {
+        if (dto.id == null || dto.type == null) return;
+        upsertConversationAndMembers(myUserId, dto, nowMs, false);
+    }
+
     private void applyConversationUpdated(String myUserId, ChatDtos.SyncEventDto event) {
         ChatDtos.ConversationDto dto = parseRequired(event.payload, ChatDtos.ConversationDto.class, event.eventType);
         if (dto.id == null || dto.type == null) {

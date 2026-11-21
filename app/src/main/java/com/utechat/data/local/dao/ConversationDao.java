@@ -47,6 +47,10 @@ public interface ConversationDao {
     @Query("SELECT * FROM conversation WHERE id = :id LIMIT 1")
     ConversationEntity getConversationSync(String id);
 
+    /** Quan sát thông tin một hội thoại theo thời gian thực cho màn hình phòng chat và chi tiết nhóm. */
+    @Query("SELECT * FROM conversation WHERE id = :id LIMIT 1")
+    LiveData<ConversationEntity> observeConversation(String id);
+
     /** Đọc đồng bộ toàn bộ danh sách hội thoại trên luồng đĩa. */
     @Query("SELECT * FROM conversation ORDER BY lastMessageAt DESC, id ASC")
     List<ConversationEntity> getAllConversationsListSync();

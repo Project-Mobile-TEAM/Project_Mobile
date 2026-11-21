@@ -32,21 +32,42 @@ public class RealAuthRepository implements AuthRepository {
     private final UserDao userDao;
     private final Executor disk; // Một luồng đĩa duy nhất: ghi cache và xoá cache luôn chạy đúng thứ tự gọi.
     private final Executor main; // Cho test điều khiển hàng đợi; ứng dụng dùng main Looper thật.
+    private final java.util.function.Consumer<String> onDepartingSession; // Hủy hàng đợi/WS đúng phiên cũ ngay khi chuyển phiên.
+    private String trackedSessionKey;
     private final MutableLiveData<UserEntity> current = new MutableLiveData<>(null);
     private final MutableLiveData<UserProfile> profile = new MutableLiveData<>(null);
 
     public RealAuthRepository(AuthApi api, SessionManager session, UserDao userDao, Executor disk, Runnable clearCache) {
-        this(api, session, userDao, disk, clearCache, MainThreadExecutor.INSTANCE);
+        this(api, session, userDao, disk, clearCache, MainThreadExecutor.INSTANCE, departing -> { });
     }
 
     public RealAuthRepository(AuthApi api, SessionManager session, UserDao userDao, Executor disk, Runnable clearCache, Executor main) {
+        this(api, session, userDao, disk, clearCache, main, departing -> { });
+    }
+
+    public RealAuthRepository(
+            AuthApi api,
+            SessionManager session,
+            UserDao userDao,
+            Executor disk,
+            Runnable clearCache,
+            Executor main,
+            java.util.function.Consumer<String> onDepartingSession) {
         this.api = api;
         this.session = session;
         this.userDao = userDao;
         this.disk = disk;
         this.main = java.util.Objects.requireNonNull(main);
-        // Mọi đường đổi phiên, kể cả 401 khi không có Activity, dùng chung hàng đợi ghi Room.
+        this.onDepartingSession = java.util.Objects.requireNonNull(onDepartingSession);
+        this.trackedSessionKey = session.sessionKey();
+        // Mọi đường đổi phiên (logout, deleteAccount, 401, WS 4401) dọn đúng phiên cũ rồi xếp xóa Room trên DISK.
         session.setOnSessionChanged(() -> {
+            String departing = trackedSessionKey;
+            String next = session.sessionKey();
+            trackedSessionKey = next;
+            if (departing != null && !departing.equals(next)) {
+                this.onDepartingSession.accept(departing);
+            }
             disk.execute(clearCache);
             String version = session.versionKey();
             main.execute(() -> {
