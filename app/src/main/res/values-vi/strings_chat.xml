@@ -1,6 +1,124 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Chuỗi chat do nhóm phụ trách module này quản lý; bản tiếng Việt. -->
 <resources>
-    <string name="title_chats">Cuộc trò chuyện của bạn</string>
-    <string name="chat_placeholder">Nơi trò chuyện cùng bạn bè và các nhóm.</string>
+    <string name="title_chats">UTE-chat</string>
+    <string name="chat_search_hint">Tìm kiếm trong UTE-chat</string>
+    <string name="chat_search_clear">Xóa tìm kiếm</string>
+    <string name="chat_new">Tin nhắn mới</string>
+    <string name="chat_empty_title">Chưa có cuộc trò chuyện</string>
+    <string name="chat_empty_hint">Nhấn nút bút để bắt đầu nhắn tin với bạn bè.</string>
+    <plurals name="chat_unread_desc">
+        <item quantity="other">%1$d tin chưa đọc</item>
+    </plurals>
+    <string name="chat_muted_desc">Đã tắt thông báo</string>
+    <string name="chat_yesterday">Hôm qua</string>
+    <string name="chat_you">Bạn</string>
+    <string name="chat_someone">Ai đó</string>
+    <string name="chat_preview_me">Bạn: %1$s</string>
+    <string name="chat_preview_sender">%1$s: %2$s</string>
+
+    <string name="chat_ws_reconnecting">Mất kết nối. Đang thử kết nối lại…</string>
+    <string name="chat_ws_disconnected">Đang ngoại tuyến. Tin nhắn sẽ được gửi khi có mạng.</string>
+
+    <string name="chat_section_conversations">Hội thoại</string>
+    <string name="chat_section_messages">Tin nhắn trên thiết bị</string>
+    <string name="chat_search_empty_title">Không tìm thấy tin nhắn</string>
+    <string name="chat_search_empty_hint">Không có tin nhắn nào trên thiết bị khớp với “%1$s”. Thử từ khóa ngắn hơn hoặc kiểm tra chính tả.</string>
+    <string name="chat_search_counter">%1$d/%2$d</string>
+
+    <string name="chat_back">Quay lại</string>
+    <string name="chat_new_search_hint">Tìm bạn bè theo tên hoặc SĐT</string>
+    <string name="chat_create_group">Tạo nhóm mới</string>
+    <string name="chat_create_group_hint">Chọn từ 2 bạn bè trở lên</string>
+    <string name="chat_friends_count">BẠN BÈ (%1$d)</string>
+    <string name="chat_lookup_phone">Tìm số điện thoại %1$s</string>
+    <string name="chat_lookup_result">Kết quả tìm kiếm</string>
+    <string name="chat_message">Nhắn tin</string>
+    <string name="chat_send_friend_request">Kết bạn</string>
+    <string name="chat_friend_request_sent">Đã gửi lời mời kết bạn</string>
+    <string name="chat_no_friends">Bạn chưa có bạn bè. Nhập số điện thoại để tìm người quen.</string>
+    <string name="chat_no_friend_match">Không có bạn bè phù hợp</string>
+    <string name="chat_lookup_not_found">Không có người dùng UTE-chat nào có số này.</string>
+    <string name="chat_lookup_self">Đây là số của bạn.</string>
+    <string name="chat_contact_required">Người này chỉ nhận tin nhắn từ bạn bè</string>
+
+    <string name="chat_status_sending">Đang gửi</string>
+    <string name="chat_status_sent">Đã gửi</string>
+    <string name="chat_status_delivered">Đã nhận</string>
+    <string name="chat_status_read">Đã xem</string>
+    <string name="chat_status_failed">Chưa gửi được. Chạm để thử lại</string>
+    <string name="chat_status_failed_short">Chưa gửi</string>
+    <string name="chat_dot_pair">%1$s · %2$s</string>
+    <string name="chat_today">Hôm nay</string>
+    <string name="chat_message_hint">Nhắn tin</string>
+    <string name="chat_send">Gửi</string>
+    <string name="chat_search_room">Tìm trong cuộc trò chuyện</string>
+    <string name="chat_search_prev">Kết quả cũ hơn</string>
+    <string name="chat_search_next">Kết quả mới hơn</string>
+    <string name="chat_search_close">Đóng tìm kiếm</string>
+    <string name="chat_failed_title">Tin nhắn chưa gửi được</string>
+    <string name="chat_typing">Đang nhập…</string>
+    <string name="chat_blocked_banner">Bạn không thể gửi tin nhắn trong cuộc trò chuyện này.</string>
+    <string name="chat_non_contact_banner">Hai bạn chưa là bạn bè. Tin nhắn có thể bị giới hạn.</string>
+    <string name="chat_resend">Gửi lại</string>
+    <string name="chat_delete_failed">Xóa tin lỗi</string>
+    <string name="chat_load_older">Tải tin cũ hơn</string>
+
+    <string name="group_create_title">Nhóm mới</string>
+    <string name="group_name">Tên nhóm</string>
+    <string name="group_name_error">Tên nhóm từ 1 đến 50 ký tự</string>
+    <string name="group_min_members">Chọn ít nhất 2 bạn bè</string>
+    <string name="group_create_action">Tạo nhóm (%1$d)</string>
+    <string name="group_selected">Thành viên · đã chọn %1$d</string>
+    <string name="group_create_short">Tạo</string>
+    <string name="group_you_suffix">%1$s (Bạn)</string>
+    <string name="group_member_actions">Thao tác với %1$s</string>
+    <string name="group_remove_confirm">Xóa %1$s khỏi nhóm?</string>
+    <string name="group_leave_confirm">Bạn sẽ không nhận tin nhắn của nhóm này nữa.</string>
+    <string name="group_no_addable">Tất cả bạn bè của bạn đã ở trong nhóm.</string>
+    <string name="group_members_section">Thành viên</string>
+    <string name="group_info">Thông tin nhóm</string>
+    <plurals name="group_member_count">
+        <item quantity="other">%1$d thành viên</item>
+    </plurals>
+    <string name="group_rename">Đổi tên nhóm</string>
+    <string name="group_mute">Tắt thông báo</string>
+    <string name="group_add_members">Thêm thành viên</string>
+    <string name="group_admin_badge">Quản trị viên</string>
+    <string name="group_promote">Đặt làm quản trị viên</string>
+    <string name="group_demote">Bỏ quyền quản trị viên</string>
+    <string name="group_remove_member">Xóa khỏi nhóm</string>
+    <string name="group_leave">Rời nhóm</string>
+    <string name="group_pick_admin_title">Chọn quản trị viên mới</string>
+    <string name="group_pick_admin_message">Bạn là quản trị viên duy nhất. Hãy chọn người thay bạn trước khi rời nhóm.</string>
+    <string name="group_pick_admin_confirm">Chuyển &amp; rời nhóm</string>
+
+    <string name="chat_sys_group_created">%1$s đã tạo nhóm “%2$s”</string>
+    <string name="chat_sys_group_renamed">%1$s đã đổi tên nhóm thành “%2$s”</string>
+    <string name="chat_sys_member_added">%1$s đã thêm %2$s vào nhóm</string>
+    <string name="chat_sys_member_removed">%1$s đã xóa %2$s khỏi nhóm</string>
+    <string name="chat_sys_member_left">%1$s đã rời nhóm</string>
+    <string name="chat_sys_role_admin">%1$s đã trở thành quản trị viên</string>
+    <string name="chat_sys_role_member">%1$s không còn là quản trị viên</string>
+    <string name="chat_sys_unknown">Nhóm đã được cập nhật</string>
+
+    <string name="chat_type_image">Hình ảnh</string>
+    <string name="chat_type_audio">Tin nhắn thoại</string>
+    <string name="chat_type_video">Video</string>
+    <string name="chat_type_file">Tệp tin</string>
+    <string name="chat_type_location">Vị trí</string>
+    <string name="chat_type_call">Cuộc gọi thoại</string>
+    <string name="chat_type_unknown">Tin nhắn không hỗ trợ hiển thị</string>
+
+    <string name="chat_error_generic">Đã có lỗi xảy ra. Vui lòng thử lại.</string>
+    <string name="chat_error_blocked">Bạn không thể nhắn tin với người này.</string>
+    <string name="chat_error_not_member">Bạn không còn là thành viên của nhóm này</string>
+    <string name="chat_error_not_admin">Chỉ quản trị viên mới làm được việc này.</string>
+    <string name="chat_error_group_full">Nhóm tối đa 50 thành viên.</string>
+    <string name="chat_error_handover_required">Hãy chọn quản trị viên mới trước khi rời nhóm.</string>
+    <string name="chat_error_membership_changed">Bạn đã tham gia lại nhóm. Hãy chọn Gửi lại nếu vẫn muốn gửi tin này.</string>
+    <string name="chat_error_rate_limited">Bạn thao tác quá nhanh. Vui lòng đợi một chút.</string>
+    <string name="chat_error_validation">Thông tin không hợp lệ.</string>
+    <string name="chat_error_not_found">Không tìm thấy cuộc trò chuyện.</string>
+    <string name="chat_error_network">Không có kết nối. Kiểm tra mạng rồi thử lại.</string>
 </resources>

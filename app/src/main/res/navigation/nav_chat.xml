@@ -1,7 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Nhóm chat chỉ sửa graph con này, không sửa graph của các nhóm khác. -->
+<!-- Nhóm chat chỉ sửa graph con này, không sửa nav_graph.xml của nhóm trưởng (ADR-025). -->
 <navigation xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/nav_chat" app:startDestination="@id/chatListFragment">
+    <!-- Màn chính tab Tin nhắn: danh sách hội thoại + tìm kiếm toàn cục. -->
     <fragment android:id="@+id/chatListFragment" android:name="com.utechat.ui.chat.ChatListFragment">
+        <action android:id="@+id/action_chatList_to_chatRoom" app:destination="@id/chatRoomFragment" />
+        <action android:id="@+id/action_chatList_to_newChat" app:destination="@id/newChatFragment" />
+    </fragment>
+    <!-- Tin nhắn mới: chọn bạn bè, tra số điện thoại người lạ hoặc tạo nhóm. -->
+    <fragment android:id="@+id/newChatFragment" android:name="com.utechat.ui.chat.NewChatFragment">
+        <!-- Vào phòng chat thì bỏ màn Tin nhắn mới khỏi back stack để Back về thẳng danh sách. -->
+        <action android:id="@+id/action_newChat_to_chatRoom" app:destination="@id/chatRoomFragment"
+            app:popUpTo="@id/chatListFragment" />
+        <action android:id="@+id/action_newChat_to_groupCreate" app:destination="@id/groupCreateFragment" />
+    </fragment>
+    <fragment android:id="@+id/groupCreateFragment" android:name="com.utechat.ui.chat.GroupCreateFragment">
+        <action android:id="@+id/action_groupCreate_to_chatRoom" app:destination="@id/chatRoomFragment"
+            app:popUpTo="@id/chatListFragment" app:popUpToInclusive="false" />
+    </fragment>
+    <!-- Phòng chat: mở bằng conversationId, hoặc bằng peerUserId qua deep link (D-02) từ màn Danh bạ. -->
+    <fragment android:id="@+id/chatRoomFragment" android:name="com.utechat.ui.chat.ChatRoomFragment">
+        <argument android:name="conversationId" app:argType="string" app:nullable="true" android:defaultValue="@null" />
+        <argument android:name="peerUserId" app:argType="string" app:nullable="true" android:defaultValue="@null" />
+        <!-- Tin cần cuộn tới khi mở từ kết quả tìm kiếm; -1 = không cuộn. -->
+        <argument android:name="targetMessageLocalId" app:argType="long" android:defaultValue="-1L" />
+        <deepLink app:uri="utechat://chat/direct/{peerUserId}" />
+        <action android:id="@+id/action_chatRoom_to_groupInfo" app:destination="@id/groupInfoFragment" />
+    </fragment>
+    <fragment android:id="@+id/groupInfoFragment" android:name="com.utechat.ui.chat.GroupInfoFragment">
+        <argument android:name="conversationId" app:argType="string" />
     </fragment>
 </navigation>

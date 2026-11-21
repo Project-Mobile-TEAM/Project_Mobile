@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Thanh tiêu đề phòng chat: tìm trong phòng (D-13) và thông tin nhóm (chỉ hiện với nhóm). -->
+<menu xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
+    <item android:id="@+id/action_search_room" android:title="@string/chat_search_room" android:icon="@drawable/ic_search"
+        app:iconTint="@color/ute_on_bar" app:showAsAction="always" />
+    <item android:id="@+id/action_group_info" android:title="@string/group_info" android:icon="@drawable/ic_people"
+        app:iconTint="@color/ute_on_bar" app:showAsAction="always" android:visible="false" />
+</menu>

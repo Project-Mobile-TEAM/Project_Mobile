@@ -1,6 +1,135 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Chuỗi chat do nhóm phụ trách module này quản lý; bản tiếng Anh mặc định. -->
 <resources>
-    <string name="title_chats">Your conversations</string>
-    <string name="chat_placeholder">A place for conversations with friends and groups.</string>
+    <!-- Danh sách chat (Figma "L · 2 · Tin nhắn"). -->
+    <string name="title_chats">UTE-chat</string>
+    <string name="chat_search_hint">Search UTE-chat</string>
+    <string name="chat_search_clear">Clear search</string>
+    <string name="chat_new">New message</string>
+    <string name="chat_empty_title">No conversations yet</string>
+    <string name="chat_empty_hint">Tap the pen button to start chatting with friends.</string>
+    <plurals name="chat_unread_desc">
+        <item quantity="one">%1$d unread message</item>
+        <item quantity="other">%1$d unread messages</item>
+    </plurals>
+    <string name="chat_muted_desc">Notifications muted</string>
+    <string name="chat_yesterday">Yesterday</string>
+    <string name="chat_you">You</string>
+    <string name="chat_someone">Someone</string>
+    <string name="chat_preview_me">You: %1$s</string>
+    <string name="chat_preview_sender">%1$s: %2$s</string>
+
+    <!-- Biểu ngữ kết nối WebSocket (D-08). -->
+    <string name="chat_ws_reconnecting">Disconnected. Reconnecting…</string>
+    <string name="chat_ws_disconnected">Offline. Messages will be sent when you\'re back online.</string>
+
+    <!-- Tìm kiếm toàn cục (D-13): chỉ tìm tin đã lưu trên máy. -->
+    <string name="chat_section_conversations">Conversations</string>
+    <string name="chat_section_messages">On-device messages</string>
+    <string name="chat_search_empty_title">No messages found</string>
+    <string name="chat_search_empty_hint">No messages on this device match “%1$s”. Try a shorter keyword or check the spelling.</string>
+    <string name="chat_search_counter">%1$d/%2$d</string>
+
+    <!-- Tin nhắn mới (D-01). -->
+    <string name="chat_back">Back</string>
+    <string name="chat_new_search_hint">Search friends by name or phone</string>
+    <string name="chat_create_group">Create new group</string>
+    <string name="chat_create_group_hint">Pick 2 or more friends</string>
+    <string name="chat_friends_count">FRIENDS (%1$d)</string>
+    <string name="chat_lookup_phone">Find phone number %1$s</string>
+    <string name="chat_lookup_result">Search result</string>
+    <string name="chat_message">Message</string>
+    <string name="chat_send_friend_request">Send friend request</string>
+    <string name="chat_friend_request_sent">Friend request sent</string>
+    <string name="chat_no_friends">You have no friends yet. Enter a phone number to find someone.</string>
+    <string name="chat_no_friend_match">No friends match your search</string>
+    <string name="chat_lookup_not_found">No UTE-chat user has this phone number.</string>
+    <string name="chat_lookup_self">This is your own number.</string>
+    <string name="chat_contact_required">This user only accepts messages from friends</string>
+
+    <!-- Phòng chat (D-04, D-05, D-11, D-12). -->
+    <string name="chat_status_sending">Sending</string>
+    <string name="chat_status_sent">Sent</string>
+    <string name="chat_status_delivered">Delivered</string>
+    <string name="chat_status_read">Read</string>
+    <string name="chat_status_failed">Not sent. Tap to retry</string>
+    <string name="chat_status_failed_short">Not sent</string>
+    <string name="chat_dot_pair">%1$s · %2$s</string>
+    <string name="chat_today">Today</string>
+    <string name="chat_message_hint">Message</string>
+    <string name="chat_send">Send</string>
+    <string name="chat_search_room">Search in conversation</string>
+    <string name="chat_search_prev">Older result</string>
+    <string name="chat_search_next">Newer result</string>
+    <string name="chat_search_close">Close search</string>
+    <string name="chat_failed_title">Message not sent</string>
+    <string name="chat_typing">Typing…</string>
+    <string name="chat_blocked_banner">You can\'t send messages in this conversation.</string>
+    <string name="chat_non_contact_banner">You\'re not friends yet. Messages may be limited.</string>
+    <string name="chat_resend">Resend</string>
+    <string name="chat_delete_failed">Delete failed message</string>
+    <string name="chat_load_older">Load older messages</string>
+
+    <!-- Nhóm (D-09, D-10). -->
+    <string name="group_create_title">New group</string>
+    <string name="group_name">Group name</string>
+    <string name="group_name_error">Group name must be 1–50 characters</string>
+    <string name="group_min_members">Pick at least 2 friends</string>
+    <string name="group_create_action">Create group (%1$d)</string>
+    <string name="group_selected">Members · %1$d selected</string>
+    <string name="group_create_short">Create</string>
+    <string name="group_you_suffix">%1$s (You)</string>
+    <string name="group_member_actions">Actions for %1$s</string>
+    <string name="group_remove_confirm">Remove %1$s from the group?</string>
+    <string name="group_leave_confirm">You will stop receiving messages from this group.</string>
+    <string name="group_no_addable">All your friends are already in this group.</string>
+    <string name="group_members_section">Members</string>
+    <string name="group_info">Group info</string>
+    <plurals name="group_member_count">
+        <item quantity="one">%1$d member</item>
+        <item quantity="other">%1$d members</item>
+    </plurals>
+    <string name="group_rename">Rename group</string>
+    <string name="group_mute">Mute notifications</string>
+    <string name="group_add_members">Add members</string>
+    <string name="group_admin_badge">Admin</string>
+    <string name="group_promote">Make admin</string>
+    <string name="group_demote">Remove admin</string>
+    <string name="group_remove_member">Remove from group</string>
+    <string name="group_leave">Leave group</string>
+    <string name="group_pick_admin_title">Choose a new admin</string>
+    <string name="group_pick_admin_message">You\'re the only admin. Choose someone to take over before you leave.</string>
+    <string name="group_pick_admin_confirm">Transfer &amp; leave</string>
+
+    <!-- Tin SYSTEM (D-09). -->
+    <string name="chat_sys_group_created">%1$s created the group “%2$s”</string>
+    <string name="chat_sys_group_renamed">%1$s renamed the group to “%2$s”</string>
+    <string name="chat_sys_member_added">%1$s added %2$s to the group</string>
+    <string name="chat_sys_member_removed">%1$s removed %2$s from the group</string>
+    <string name="chat_sys_member_left">%1$s left the group</string>
+    <string name="chat_sys_role_admin">%1$s is now an admin</string>
+    <string name="chat_sys_role_member">%1$s is no longer an admin</string>
+    <string name="chat_sys_unknown">Group updated</string>
+
+    <!-- Nhãn tóm tắt tin không phải chữ (D-15). -->
+    <string name="chat_type_image">Photo</string>
+    <string name="chat_type_audio">Voice message</string>
+    <string name="chat_type_video">Video</string>
+    <string name="chat_type_file">File</string>
+    <string name="chat_type_location">Location</string>
+    <string name="chat_type_call">Voice call</string>
+    <string name="chat_type_unknown">Unsupported message type</string>
+
+    <!-- Lỗi (ChatErrors). -->
+    <string name="chat_error_generic">Something went wrong. Please try again.</string>
+    <string name="chat_error_blocked">You can\'t message this person.</string>
+    <string name="chat_error_not_member">You are no longer a member of this group</string>
+    <string name="chat_error_not_admin">Only admins can do this.</string>
+    <string name="chat_error_group_full">A group can have at most 50 members.</string>
+    <string name="chat_error_handover_required">Choose a new admin before leaving the group.</string>
+    <string name="chat_error_membership_changed">You rejoined this group. Tap Retry if you still want to send this message.</string>
+    <string name="chat_error_rate_limited">Too many attempts. Please wait a moment.</string>
+    <string name="chat_error_validation">Invalid information.</string>
+    <string name="chat_error_not_found">Conversation not found.</string>
+    <string name="chat_error_network">No connection. Check your network and try again.</string>
 </resources>

@@ -123,13 +123,14 @@ Sự kiện và dữ liệu nghiệp vụ phải cùng commit/rollback; SyncEven
 | `GET /conversations/{id}` | — | chi tiết kèm thành viên và vai trò | `403 FORBIDDEN` |
 | `PATCH /conversations/{id}` | `title`, `muted` | hội thoại (đổi tên cần `ADMIN`) | `403 NOT_ADMIN` |
 | `POST /conversations/{id}/members` | `userIds[]` | 204 (`ADMIN`) | `403 CONTACT_REQUIRED` (chỉ thêm người đã kết bạn `ACCEPTED`), `403 NOT_ADMIN` |
-| `DELETE /conversations/{id}/members/{userId}` | — | 204 (`ADMIN`, hoặc chính mình = rời nhóm) | `403 FORBIDDEN` |
+| `DELETE /conversations/{id}/members/{userId}?successorUserId=` | — | 204 (`ADMIN`, hoặc chính mình = rời nhóm; nếu là `ADMIN` duy nhất còn thành viên khác bắt buộc truyền `successorUserId` để bàn giao trong cùng transaction, nếu không trả `409 ADMIN_HANDOVER_REQUIRED`) | `403 FORBIDDEN`, `403 NOT_A_MEMBER`, `409 ADMIN_HANDOVER_REQUIRED` |
 | `PUT /conversations/{id}/members/{userId}/role` | `role` | 204 (`ADMIN`) | `403 NOT_ADMIN` |
-| `GET /conversations/{id}/messages?before=&limit=` | — | tin cũ hơn `before` (`messageId`), mới nhất trước (phân trang lịch sử) | — |
-| `POST /conversations/{id}/messages` | `clientId`, `type`, `text`, `mediaUrl`, `latitude`, `longitude` | `messageId`, `createdAt` (201) | `403 CONTACT_REQUIRED` (nếu hội thoại 1-1 mà đối phương tắt nhận tin người lạ và chưa kết bạn), `403 BLOCKED` |
-| `POST /conversations/{id}/delivered` | `upToMessageId` | 204 | — |
-| `POST /conversations/{id}/read` | `upToMessageId` | 204 | — |
-| `GET /sync?after=<syncEventId>` | — | `{events: [{id, eventType, entityType, entityId, payload, createdAt}], nextCursor}` | — |
+| `GET /conversations/{id}/messages?before=&limit=` | — | tin cũ hơn `before` (`messageId`), mới nhất trước (phân trang lịch sử, lọc chặt `id > visibleFromMessageId`) | `403 NOT_A_MEMBER` |
+| `POST /conversations/{id}/messages` | `clientId`, `type`, `text`, `mediaUrl`, `latitude`, `longitude`, `expectedVisibleFromMessageId` (tùy chọn; bắt buộc với `GROUP`, `null` với `DIRECT`) | `MessageDto` (201 mới tạo / 200 trùng `clientId`) | `403 BLOCKED`, `403 CONTACT_REQUIRED`, `403 NOT_A_MEMBER`, `409 MEMBERSHIP_CHANGED`, `429 RATE_LIMITED` |
+| `POST /conversations/{id}/delivered` | `upToMessageId` | 204 | `403 NOT_A_MEMBER` |
+| `POST /conversations/{id}/read` | `upToMessageId` | 204 | `403 NOT_A_MEMBER` |
+| `GET /sync/bootstrap` | — | `{me, conversations, friends, blocked, contactRequests, syncCursor}` nhất quán trong 1 transaction `REPEATABLE READ READ ONLY` | — |
+| `GET /sync?after=<syncEventId>&limit=` | — | `{events: [{id, eventType, entityType, entityId, payload, createdAt}], nextCursor, hasMore, retryAfterMs}` (`retryAfterMs = 1000` khi còn sự kiện bị sync barrier giữ, ngược lại `null`) | `410 SYNC_CURSOR_EXPIRED` |
 
 > **Chính sách nhận tin nhắn người lạ (`allowMessagesFromNonContacts`):**
 > - Mặc định là `true` (cho phép nhận tin từ người lạ tìm thấy qua SĐT).
@@ -141,11 +142,31 @@ Sự kiện và dữ liệu nghiệp vụ phải cùng commit/rollback; SyncEven
 > **Quy ước gửi tin từ Client:**
 > Client chỉ gửi các trường: `clientId`, `type`, `text`, `mediaUrl`, `latitude`, `longitude`. Với tin có tệp, `mediaUrl` phải là URL `/api/media/{attachmentId}` do server trả về từ `POST /media`; client không được tự tạo URL. Server lấy `attachmentId` từ URL, kiểm tra attachment thuộc người gửi, chưa gắn vào message khác và `kind` phù hợp với `type`, sau đó tự lấy metadata (`durationMs`, `sizeBytes`, `width`, `height`, `mime`) từ bản ghi `attachments`.
 >
-> **Định nghĩa con trỏ đồng bộ (`GET /sync?after=<syncEventId>`):**
-> - `syncEventId` tăng đơn điệu toàn cục.
-> - `nextCursor` là `syncEventId` lớn nhất trong đợt trả về. Nếu không có sự kiện mới hơn, `nextCursor` giữ nguyên giá trị `after`.
-> - Client lưu `lastSyncEventId` trong Room và chỉ tăng khi đã xử lý thành công sự kiện tương ứng. Sự kiện xử lý theo cơ chế idempotent.
+> **Định nghĩa con trỏ đồng bộ (`GET /sync/bootstrap` và `GET /sync?after=<syncEventId>&limit=`):**
+> - `GET /sync/bootstrap` chạy trong 1 transaction `REPEATABLE READ READ ONLY`, trả về snapshot `{ me, conversations, friends, blocked, contactRequests, syncCursor }` nhất quán để khởi tạo thiết bị trống hoặc khôi phục sau `410 SYNC_CURSOR_EXPIRED`.
+> - `syncEventId` tăng đơn điệu toàn cục; **không** giả định các sự kiện của một người dùng có ID liên tiếp (`eventId == last + 1`).
+> - `nextCursor` là `syncEventId` lớn nhất trong đợt trả về (`hasMore = true` nếu còn trang tiếp theo). Nếu không có sự kiện mới hơn, `nextCursor` giữ nguyên giá trị `after`. Khi có transaction đang ghi song song bị sync barrier giữ, server trả `retryAfterMs = 1000` (ngược lại `null`).
+> - Nếu `after` cũ hơn ngưỡng lưu trữ 30 ngày (`min_available_cursor`) hoặc lớn hơn sequence hiện tại, server trả HTTP `410 SYNC_CURSOR_EXPIRED` để client chạy lại `GET /sync/bootstrap`.
+> - Client lưu `lastSyncEventId` trong Room và chỉ tăng khi đã xử lý thành công batch `/sync` trong cùng transaction. Sự kiện xử lý theo cơ chế idempotent; `CALL_UPDATED` (`{ callId, state, endReason }`) là sự kiện đã biết (Phase 5 chỉ cập nhật metadata `CALL` đã cache nếu khớp).
 > - `messages.id` **chỉ được dùng cho phân trang lịch sử tin nhắn** (`?before=<messageId>`).
+>
+> **Cô lập lịch sử nhóm (`visibleFromMessageId` & `leftAt`):**
+> - DTO thành viên trong `/sync/bootstrap`, `GET /conversations`, `GET /conversations/{id}` và `conversation.updated` gồm `visibleFromMessageId` (`bigint`) và `leftAt` (`ISO-8601 | null`).
+> - Mọi truy vấn hiển thị/tải/tìm kiếm tin nhắn chỉ áp dụng bất đẳng thức chặt **`messageId > visibleFromMessageId`** (không dùng `>=`).
+> - Với hội thoại `GROUP`, `POST /conversations/{id}/messages` bắt buộc gửi `expectedVisibleFromMessageId` khớp mốc thành viên hiện tại dưới khóa hội thoại (`FOR UPDATE`); nếu lệch trả `409 MEMBERSHIP_CHANGED` mà không ghi tin nhắn hay sự kiện.
+>
+> **Danh mục tin nhắn hệ thống `SYSTEM` (`systemEvent` & `systemParams`):**
+>
+> | `systemEvent` | `systemParams` (JSON) | Ghi chú |
+> |---|---|---|
+> | `GROUP_CREATED` | `{ "actorId", "title", "memberCount" }` | Sinh khi tạo nhóm mới |
+> | `GROUP_RENAMED` | `{ "actorId", "title" }` | Sinh khi `ADMIN` đổi tên nhóm thực sự thay đổi |
+> | `MEMBER_ADDED` | `{ "actorId", "targetUserIds": [...] }` | Sinh sau khi tính `visible_from_message_id` cho thành viên mới |
+> | `MEMBER_REMOVED` | `{ "actorId", "targetUserId" }` | Sinh khi `ADMIN` xóa thành viên khác |
+> | `MEMBER_LEFT` | `{ "actorId" }` | Sinh khi thành viên tự rời nhóm |
+> | `ROLE_CHANGED` | `{ "actorId", "targetUserId", "role" }` | Sinh khi đổi quyền `ADMIN`/`MEMBER` hoặc bàn giao `ADMIN` |
+>
+> Thiết lập `muted` là cài đặt cá nhân, **không bao giờ** sinh tin `SYSTEM` hay `sync_events`. Thao tác thất bại hoặc lặp không đổi dữ liệu không sinh thêm tin `SYSTEM`.
 >
 > **Định nghĩa biên nhận (Receipts):**
 > - `DELIVERED`: Ít nhất một thiết bị của người nhận đã lưu thành công tin nhắn vào dữ liệu cục bộ.
@@ -218,6 +239,7 @@ Trường `syncEventId` trỏ trực tiếp tới `sync_events.id`. Client cập
 | `conversation.updated` | Có | hội thoại rút gọn | Đổi tên nhóm, thêm/xoá thành viên, đổi vai trò |
 | `contact_request.new` | Có | thông tin lời mời kết bạn | Có người gửi lời mời kết bạn mới |
 | `contact_request.updated` | Có | thông tin lời mời và trạng thái mới | Lời mời kết bạn được chấp nhận/từ chối/hủy |
+| `contact.updated` | Có | `{contactUserId, isFriend, blocked, removed, user?}` | Thay đổi quan hệ bạn bè, hủy kết bạn, chặn/bỏ chặn |
 | `call.incoming` | Có | `callId`, `conversationId`, `caller`, `media` (`VOICE`) | Có người gọi đến |
 | `call.accepted`, `call.ended` | Có | `callId`, `state`, `endReason` | Thay đổi trạng thái cuộc gọi; được ghi vào `sync_events` với `eventType = CALL_UPDATED` |
 | `call.offer`, `call.answer`, `call.ice` | Không | `callId`, `sdp` hoặc `candidate` | Báo hiệu WebRTC từ phía bên kia |
@@ -253,7 +275,7 @@ Bảng `auth_throttles` kiểm soát theo `(scope_type, scope_key_hash, purpose)
 
 ## 5. Danh mục mã lỗi chính
 
-`VALIDATION`, `PHONE_TAKEN`, `PHONE_INVALID`, `BAD_CREDENTIALS`, `LOCKED`, `WEAK_PASSWORD`, `OTP_INVALID`, `OTP_EXPIRED`, `OTP_ATTEMPTS`, `OTP_RATE_LIMIT`, `SESSION_EXPIRED`, `NOT_FOUND`, `FORBIDDEN`, `NOT_A_MEMBER`, `NOT_ADMIN`, `GROUP_FULL`, `BLOCKED`, `CONTACT_REQUIRED`, `REQUEST_ALREADY_PENDING`, `ALREADY_FRIENDS`, `INVALID_STATE`, `FILE_TOO_LARGE`, `UNSUPPORTED_TYPE`, `CALL_BUSY`, `CALL_NOT_FOUND`, `CALL_UNSUPPORTED`, `SELF`, `RATE_LIMITED`, `INTERNAL`.
+`VALIDATION`, `PHONE_TAKEN`, `PHONE_INVALID`, `BAD_CREDENTIALS`, `LOCKED`, `WEAK_PASSWORD`, `OTP_INVALID`, `OTP_EXPIRED`, `OTP_ATTEMPTS`, `OTP_RATE_LIMIT`, `SESSION_EXPIRED`, `NOT_FOUND`, `FORBIDDEN`, `NOT_A_MEMBER`, `NOT_ADMIN`, `GROUP_FULL`, `ADMIN_HANDOVER_REQUIRED`, `MEMBERSHIP_CHANGED`, `SYNC_CURSOR_EXPIRED`, `BLOCKED`, `CONTACT_REQUIRED`, `REQUEST_ALREADY_PENDING`, `ALREADY_FRIENDS`, `INVALID_STATE`, `FILE_TOO_LARGE`, `UNSUPPORTED_TYPE`, `CALL_BUSY`, `CALL_NOT_FOUND`, `CALL_UNSUPPORTED`, `SELF`, `RATE_LIMITED`, `INTERNAL`.
 
 ## 6. Chính sách thông báo (Notification)
 

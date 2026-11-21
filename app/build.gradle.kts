@@ -52,6 +52,9 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+
+    // Nạp thư mục schemas vào assets của androidTest để MigrationTestHelper đọc được 1.json và 2.json.
+    sourceSets.getByName("androidTest").assets.directories.add("$projectDir/schemas")
 }
 
 dependencies {

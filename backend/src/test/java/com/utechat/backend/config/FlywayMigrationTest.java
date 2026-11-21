@@ -56,8 +56,24 @@ class FlywayMigrationTest {
             Integer hasV4Col = jdbc.queryForObject(
                     "SELECT count(*) FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'contacts' AND column_name = 'is_friend'",
                     Integer.class);
+            Integer hasV5BarrierCol = jdbc.queryForObject(
+                    "SELECT count(*) FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'sync_events' AND column_name = 'barrier_xid'",
+                    Integer.class);
+            Integer hasV5Trigger = jdbc.queryForObject(
+                    "SELECT count(*) FROM pg_trigger WHERE tgname = 'trg_sync_events_set_barrier' AND NOT tgisinternal",
+                    Integer.class);
+            Boolean retentionRls = jdbc.queryForObject(
+                    "SELECT rowsecurity FROM pg_tables WHERE schemaname = 'public' AND tablename = 'sync_retention_state'",
+                    Boolean.class);
+            Long initialCursor = jdbc.queryForObject(
+                    "SELECT min_available_cursor FROM public.sync_retention_state WHERE id = 1",
+                    Long.class);
             assertEquals(1, hasV3Col);
             assertEquals(1, hasV4Col);
+            assertEquals(1, hasV5BarrierCol);
+            assertEquals(1, hasV5Trigger);
+            assertEquals(Boolean.TRUE, retentionRls);
+            assertEquals(0L, initialCursor);
         }
     }
 

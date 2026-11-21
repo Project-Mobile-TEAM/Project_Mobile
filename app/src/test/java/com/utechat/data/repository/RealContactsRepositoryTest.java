@@ -102,7 +102,7 @@ public class RealContactsRepositoryTest {
         verify(contacts).clearContacts(); verify(contacts).clearRequests();
         verify(contacts).insert(argThat(c -> "C".equals(c.getContactUserId())&&c.getBlocked()));
         verify(contacts).insertRequest(argThat(r -> "r1".equals(r.getId())&&r.getCreatedAt()>0));
-        verify(users,atLeastOnce()).upsertPreservingPrivacy(argThat(u -> "B".equals(u.getId())));
+        verify(users,atLeastOnce()).upsertPreservingPrivacy(argThat((com.utechat.data.local.entity.UserEntity u) -> "B".equals(u.getId())));
     }
     @Test public void partialRefreshFailurePreservesEntireCache() throws Exception {
         when(api.blocked()).thenReturn(failure(new IOException("offline")));
@@ -251,7 +251,7 @@ public class RealContactsRepositoryTest {
     }
     @Test public void unrelatedProfileIsNotCachedWhenBlocking() throws Exception {
         when(api.block("B")).thenReturn(response(Response.success(204,null)));offlineRefresh();repo.act("block","B",user("C"));
-        verify(users,never()).upsertPreservingPrivacy(any());
+        verify(users,never()).upsertPreservingPrivacy(any(com.utechat.data.local.entity.UserEntity.class));
     }
     @Test public void unblockDoesNotGuessFriendshipWhenReloadFails() throws Exception {
         when(api.unblock("B")).thenReturn(response(Response.success(204,null)));offlineRefresh();

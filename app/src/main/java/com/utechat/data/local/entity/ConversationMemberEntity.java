@@ -28,6 +28,10 @@ public class ConversationMemberEntity {
     /** Thành viên đã rời nhóm hay chưa. */
     private boolean left;
 
+    /** Mốc serverId cô lập lịch sử nhóm khi thành viên được thêm lại; null nghĩa là xem từ đầu. */
+    @Nullable
+    private Long visibleFromMessageId;
+
     // Room dùng constructor rỗng để tạo đối tượng rồi đọc/ghi qua getter và setter.
     public ConversationMemberEntity() { }
 
@@ -54,4 +58,9 @@ public class ConversationMemberEntity {
     // Đọc và cập nhật left khi ánh xạ DTO hoặc khôi phục cache.
     public boolean getLeft() { return left; }
     public void setLeft(boolean value) { this.left = value; }
+
+    // Đọc và cập nhật mốc visibleFromMessageId để lọc chặt tin nhắn nhóm sau khi tham gia lại.
+    @Nullable
+    public Long getVisibleFromMessageId() { return visibleFromMessageId; }
+    public void setVisibleFromMessageId(@Nullable Long value) { this.visibleFromMessageId = value; }
 }

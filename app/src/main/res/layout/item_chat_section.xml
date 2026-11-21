@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Tiêu đề nhóm kết quả: "Hội thoại", "Tin nhắn trên thiết bị", "BẠN BÈ (5)". -->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/section"
+    android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:paddingHorizontal="16dp" android:paddingTop="16dp" android:paddingBottom="6dp"
+    android:textSize="13sp" android:fontFamily="@font/poppins_semibold" android:textAllCaps="true"
+    android:textColor="?attr/colorOnSurfaceVariant" android:accessibilityHeading="true" />

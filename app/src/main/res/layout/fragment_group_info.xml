@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Thông tin nhóm (Figma "L · 10 · Thông tin nhóm"): đầu xanh có avatar + tên + số thành viên, các thẻ hàng bên dưới. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:background="?attr/colorSurface">
+
+    <com.google.android.material.appbar.MaterialToolbar android:id="@+id/toolbar"
+        android:layout_width="match_parent" android:layout_height="?attr/actionBarSize"
+        app:navigationIcon="@drawable/ic_arrow_back" app:navigationContentDescription="@string/chat_back" />
+    <com.google.android.material.progressindicator.LinearProgressIndicator android:id="@+id/progress"
+        android:layout_width="match_parent" android:layout_height="wrap_content" android:indeterminate="true"
+        android:visibility="gone" />
+
+    <androidx.core.widget.NestedScrollView android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical"
+            android:paddingBottom="24dp">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical"
+                android:gravity="center_horizontal" android:background="@color/ute_bar" android:paddingBottom="20dp">
+                <FrameLayout android:layout_width="80dp" android:layout_height="80dp" android:background="@drawable/bg_avatar">
+                    <ImageView android:layout_width="36dp" android:layout_height="36dp" android:layout_gravity="center"
+                        android:src="@drawable/ic_people" android:importantForAccessibility="no" app:tint="@color/ute_avatar_text" />
+                </FrameLayout>
+                <TextView android:id="@+id/group_title" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp" android:paddingHorizontal="16dp" android:gravity="center"
+                    android:textSize="20sp" android:fontFamily="@font/poppins_semibold" android:textColor="@color/ute_on_bar" />
+                <TextView android:id="@+id/group_count" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:textSize="14sp" android:textColor="@color/ute_on_bar" />
+            </LinearLayout>
+
+            <com.google.android.material.card.MaterialCardView style="@style/Widget.UTEChat.Card"
+                android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_margin="16dp">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
+                    <include android:id="@+id/row_rename" layout="@layout/item_setting_row" />
+                    <include android:id="@+id/row_mute" layout="@layout/item_setting_row" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingHorizontal="28dp"
+                android:text="@string/group_members_section" android:textAppearance="@style/TextAppearance.UTEChat.Section"
+                android:accessibilityHeading="true" />
+            <com.google.android.material.card.MaterialCardView style="@style/Widget.UTEChat.Card"
+                android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_margin="16dp">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
+                    <include android:id="@+id/row_add" layout="@layout/item_setting_row" />
+                    <androidx.recyclerview.widget.RecyclerView android:id="@+id/members"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:nestedScrollingEnabled="false" android:overScrollMode="never" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <com.google.android.material.card.MaterialCardView style="@style/Widget.UTEChat.Card"
+                android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginHorizontal="16dp">
+                <include android:id="@+id/row_leave" layout="@layout/item_setting_row" />
+            </com.google.android.material.card.MaterialCardView>
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
+</LinearLayout>

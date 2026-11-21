@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Phòng chat (Figma "L · 3 · Chat 1-1", "L · 5 · Tìm tin nhắn"). Khung soạn chỉ có chữ: chưa có nút đính kèm/ghi âm/gọi (D-15). -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:background="?attr/colorSurface">
+
+    <com.google.android.material.appbar.MaterialToolbar android:id="@+id/toolbar"
+        android:layout_width="match_parent" android:layout_height="?attr/actionBarSize"
+        app:navigationIcon="@drawable/ic_arrow_back" app:navigationContentDescription="@string/chat_back"
+        app:subtitleTextColor="@color/ute_on_bar" />
+
+    <include android:id="@+id/ws" layout="@layout/view_ws_status_banner" />
+
+    <!-- Thanh tìm trong phòng: ô nhập, bộ đếm X/Y, lên (cũ hơn), xuống (mới hơn), đóng. -->
+    <LinearLayout android:id="@+id/room_search" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:background="@color/ute_bar" android:gravity="center_vertical" android:paddingStart="16dp"
+        android:paddingEnd="4dp" android:paddingBottom="8dp" android:visibility="gone">
+        <EditText android:id="@+id/room_query" android:layout_width="0dp" android:layout_height="44dp" android:layout_weight="1"
+            android:background="@drawable/bg_search_field" android:paddingHorizontal="12dp"
+            android:hint="@string/chat_search_room" android:textColorHint="@color/ute_text_secondary"
+            android:textColor="?attr/colorOnSurface" android:textSize="16sp" android:inputType="text"
+            android:imeOptions="actionSearch" android:maxLines="1" android:importantForAutofill="no" />
+        <TextView android:id="@+id/room_counter" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginStart="8dp" android:textColor="@color/ute_on_bar" android:textSize="14sp"
+            android:accessibilityLiveRegion="polite" />
+        <ImageButton android:id="@+id/room_prev" android:layout_width="44dp" android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless" android:src="@drawable/ic_arrow_back"
+            android:rotation="90" android:contentDescription="@string/chat_search_prev" app:tint="@color/ute_on_bar" />
+        <ImageButton android:id="@+id/room_next" android:layout_width="44dp" android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless" android:src="@drawable/ic_arrow_back"
+            android:rotation="270" android:contentDescription="@string/chat_search_next" app:tint="@color/ute_on_bar" />
+        <ImageButton android:id="@+id/room_close" android:layout_width="44dp" android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless" android:src="@drawable/ic_close"
+            android:contentDescription="@string/chat_search_close" app:tint="@color/ute_on_bar" />
+    </LinearLayout>
+
+    <FrameLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
+        <androidx.recyclerview.widget.RecyclerView android:id="@+id/messages"
+            android:layout_width="match_parent" android:layout_height="match_parent" android:paddingVertical="8dp"
+            android:clipToPadding="false" />
+        <com.google.android.material.progressindicator.CircularProgressIndicator android:id="@+id/loading_more"
+            android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="top|center_horizontal"
+            android:layout_marginTop="8dp" android:indeterminate="true" android:visibility="gone"
+            android:contentDescription="@string/chat_load_older" app:indicatorSize="24dp" />
+    </FrameLayout>
+
+    <!-- D-04: bị chặn / chỉ nhận tin từ bạn bè. -->
+    <LinearLayout android:id="@+id/policy_banner" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:background="@color/ute_warning_bg" android:gravity="center_vertical" android:paddingStart="16dp"
+        android:paddingEnd="8dp" android:paddingVertical="4dp" android:minHeight="48dp" android:visibility="gone">
+        <TextView android:id="@+id/policy_text" android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:paddingVertical="6dp" android:textSize="14sp"
+            android:textColor="@color/ute_warning_text" android:accessibilityLiveRegion="polite" />
+        <!-- CONTACT_REQUIRED: gửi lời mời kết bạn ngay tại đây, không phải quay ra màn Danh bạ. -->
+        <com.google.android.material.button.MaterialButton android:id="@+id/policy_action"
+            style="@style/Widget.Material3.Button.TextButton" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="@string/chat_send_friend_request" android:textColor="@color/ute_warning_text" android:visibility="gone" />
+    </LinearLayout>
+    <!-- D-12: đã rời/bị xóa khỏi nhóm thì chỉ đọc. -->
+    <TextView android:id="@+id/read_only_bar" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:minHeight="56dp" android:gravity="center" android:padding="16dp" android:background="@color/ute_card"
+        android:text="@string/chat_error_not_member" android:textSize="14sp" android:textColor="?attr/colorOnSurfaceVariant"
+        android:visibility="gone" />
+
+    <LinearLayout android:id="@+id/composer" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:background="@color/ute_card" android:gravity="center_vertical" android:padding="8dp">
+        <EditText android:id="@+id/input" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+            android:minHeight="48dp" android:background="@drawable/bg_search_field" android:paddingHorizontal="16dp"
+            android:paddingVertical="10dp" android:hint="@string/chat_message_hint" android:textColorHint="@color/ute_text_secondary"
+            android:textColor="?attr/colorOnSurface" android:textSize="16sp" android:maxLines="5"
+            android:inputType="textMultiLine|textCapSentences" android:importantForAutofill="no" />
+        <ImageButton android:id="@+id/send" android:layout_width="48dp" android:layout_height="48dp"
+            android:layout_marginStart="8dp" android:background="@drawable/bg_send_button" android:src="@drawable/ic_send"
+            android:contentDescription="@string/chat_send" app:tint="@color/ute_on_accent" />
+    </LinearLayout>
+</LinearLayout>

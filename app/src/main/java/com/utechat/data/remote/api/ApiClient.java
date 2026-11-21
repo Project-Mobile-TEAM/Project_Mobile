@@ -21,7 +21,18 @@ public final class ApiClient {
                         .readTimeout(15, TimeUnit.SECONDS).callTimeout(20, TimeUnit.SECONDS)
                         .addInterceptor(new AuthInterceptor()).addInterceptor(LOGGING).build())
                 .addConverterFactory(GsonConverterFactory.create()).build();
+
+        // OkHttpClient riêng cho WebSocket: tắt ping giao thức và readTimeout để dùng heartbeat JSON 25s của ứng dụng.
+        private static final OkHttpClient WS_CLIENT = new OkHttpClient.Builder()
+                .connectTimeout(15, TimeUnit.SECONDS)
+                .pingInterval(0, TimeUnit.SECONDS)
+                .readTimeout(0, TimeUnit.MILLISECONDS)
+                .addInterceptor(LOGGING)
+                .build();
     }
 
     public static Retrofit getRetrofit() { return Holder.INSTANCE; }
+
+    /** Trả về OkHttpClient chuyên dụng cho ChatWebSocketManager, giữ chung chính sách logging an toàn. */
+    public static OkHttpClient getWebSocketClient() { return Holder.WS_CLIENT; }
 }

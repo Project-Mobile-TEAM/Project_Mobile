@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Tin người khác (TEXT_IN, SUMMARY_IN, UNKNOWN_FALLBACK): bong bóng trắng bên trái, trong nhóm có avatar + tên người gửi. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical"
+    android:paddingHorizontal="12dp" android:paddingVertical="3dp">
+    <include android:id="@+id/date" layout="@layout/view_date_pill" />
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="bottom">
+        <TextView android:id="@+id/avatar" android:layout_width="28dp" android:layout_height="28dp"
+            android:layout_marginEnd="6dp" android:background="@drawable/bg_avatar" android:gravity="center"
+            android:textSize="11sp" android:fontFamily="@font/poppins_semibold" android:textColor="@color/ute_avatar_text"
+            android:importantForAccessibility="no" android:visibility="gone" />
+        <LinearLayout android:id="@+id/bubble" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginEnd="64dp" android:orientation="vertical"
+            android:background="@drawable/bg_bubble_in" android:paddingHorizontal="12dp" android:paddingVertical="8dp">
+            <TextView android:id="@+id/sender" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:textSize="12sp" android:fontFamily="@font/poppins_medium" android:textColor="?attr/colorOnSurfaceVariant"
+                android:visibility="gone" />
+            <LinearLayout android:id="@+id/summary" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:gravity="center_vertical" android:visibility="gone">
+                <ImageView android:id="@+id/summary_icon" android:layout_width="20dp" android:layout_height="20dp"
+                    android:importantForAccessibility="no" app:tint="@color/ute_accent" />
+                <TextView android:id="@+id/summary_label" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp" android:textSize="16sp" android:fontFamily="@font/poppins_medium"
+                    android:textColor="?attr/colorOnSurface" />
+            </LinearLayout>
+            <TextView android:id="@+id/text" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:textSize="16sp" android:textColor="?attr/colorOnSurface" />
+            <TextView android:id="@+id/meta" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_gravity="end" android:layout_marginTop="2dp" android:textSize="11sp"
+                android:textColor="?attr/colorOnSurfaceVariant" />
+        </LinearLayout>
+    </LinearLayout>
+</LinearLayout>

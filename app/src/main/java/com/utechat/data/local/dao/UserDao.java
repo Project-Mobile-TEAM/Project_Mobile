@@ -20,8 +20,11 @@ public interface UserDao {
     // Đọc đồng bộ trên luồng đĩa: hồ sơ của mình khi mở app offline.
     @Query("SELECT * FROM user_cache WHERE id = :id") UserEntity findById(String id);
     @Query("SELECT * FROM user_cache WHERE phone = :phone") LiveData<UserEntity> getUserByPhone(String phone);
+    /** Quan sát toàn bộ hồ sơ cache để Repository dựng bảng tra cứu tên/ảnh người dùng theo thời gian thực. */
+    @Query("SELECT * FROM user_cache") LiveData<List<UserEntity>> observeAllUsers();
     /** API danh bạ có thể thiếu phone hoặc quyền riêng tư; bảo toàn giá trị đã biết. */
     @Transaction default void upsertPreservingPrivacy(UserEntity user) {
+        if (user == null || user.getId() == null) return;
         UserEntity old=findById(user.getId());
         // Tạo bản sao, không sửa DTO/entity mà caller còn dùng cho một phản hồi khác.
         UserEntity merged=new UserEntity();
@@ -37,5 +40,13 @@ public interface UserDao {
             if(user.getAvatarUrl()==null) merged.setAvatarUrl(old.getAvatarUrl());
         }
         insert(merged);
+    }
+
+    /** Cập nhật hàng loạt danh sách hồ sơ người dùng trong cùng một transaction, giữ nguyên quyền riêng tư cũ. */
+    @Transaction default void upsertPreservingPrivacy(List<UserEntity> incoming) {
+        if (incoming == null || incoming.isEmpty()) return;
+        for (UserEntity user : incoming) {
+            upsertPreservingPrivacy(user);
+        }
     }
 }
