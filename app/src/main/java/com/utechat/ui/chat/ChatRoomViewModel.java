@@ -17,6 +17,7 @@ import com.utechat.data.local.entity.ConversationMemberEntity;
 import com.utechat.data.local.entity.MessageEntity;
 import com.utechat.data.local.entity.UserEntity;
 import com.utechat.data.repository.ChatRepository;
+import com.utechat.data.repository.ContactsRepository;
 import com.utechat.data.sync.WsConnectionState;
 import com.utechat.di.Injection;
 import java.util.ArrayList;
@@ -38,11 +39,16 @@ public class ChatRoomViewModel extends ViewModel {
     public static final ViewModelProvider.Factory FACTORY = ViewModelProvider.Factory.from(
             new ViewModelInitializer<>(ChatRoomViewModel.class, extras -> {
                 Application app = extras.get(APPLICATION_KEY);
-                return new ChatRoomViewModel(createSavedStateHandle(extras), Injection.provideChatRepository(app));
+                return new ChatRoomViewModel(createSavedStateHandle(extras), Injection.provideChatRepository(app),
+                        Injection.provideContactsRepository(app));
             }));
 
     private final SavedStateHandle state;
     private final ChatRepository repo;
+    private final ContactsRepository contacts;
+    /** true khi đã gửi lời mời kết bạn từ biểu ngữ CONTACT_REQUIRED (ẩn nút, hiện "Đã gửi lời mời"). */
+    public final MutableLiveData<Boolean> requestSent = new MutableLiveData<>(false);
+    public final MutableLiveData<Integer> notice = new MutableLiveData<>();
     private final LiveData<String> conversationId;
     private final LiveData<List<MessageEntity>> messages;
     private final LiveData<ConversationEntity> conversation;
@@ -59,9 +65,10 @@ public class ChatRoomViewModel extends ViewModel {
     private boolean endReached;
     private long readWatermark; // serverId cao nhất đã gửi báo đọc, để không gửi lặp khi cuộn/layout liên tục.
 
-    public ChatRoomViewModel(SavedStateHandle state, ChatRepository repo) {
+    public ChatRoomViewModel(SavedStateHandle state, ChatRepository repo, ContactsRepository contacts) {
         this.state = state;
         this.repo = repo;
+        this.contacts = contacts;
         conversationId = state.getLiveData(K_CONV);
         LiveData<Integer> window = state.getLiveData(K_WINDOW, PAGE);
         messages = Transformations.switchMap(conversationId, id -> id == null
@@ -188,6 +195,32 @@ public class ChatRoomViewModel extends ViewModel {
         repo.enqueueTextMessage(id, text.trim());
         repo.sendTypingStop(id);
     }
+
+    /**
+     * Người kia chỉ nhận tin từ bạn bè (CONTACT_REQUIRED): gửi lời mời kết bạn ngay trong phòng chat,
+     * dùng lại ContactsRepository của Phase 4. Lời mời đã chờ sẵn cũng coi như đã gửi.
+     */
+    public void sendFriendRequest(@Nullable String peerUserId) {
+        if (peerUserId == null || Boolean.TRUE.equals(requestSent.getValue())) return;
+        Once.observe(contacts.act("send", peerUserId, null), r -> {
+            if (r.isSuccess() || "REQUEST_ALREADY_PENDING".equals(r.errorCode)) {
+                requestSent.setValue(true);
+                notice.setValue(com.utechat.R.string.chat_friend_request_sent);
+            } else {
+                notice.setValue(ChatErrors.message(r.errorCode));
+            }
+        });
+    }
+
+    /** Người còn lại của chat 1-1: lấy từ deep link, nếu không thì từ danh sách thành viên. */
+    @Nullable public static String peerOf(@Nullable String deepLinkPeer, @Nullable List<ConversationMemberEntity> members, @Nullable String meId) {
+        if (deepLinkPeer != null) return deepLinkPeer;
+        if (members != null) for (ConversationMemberEntity m : members) if (!m.getUserId().equals(meId)) return m.getUserId();
+        return null;
+    }
+
+    @Nullable public String deepLinkPeer() { return state.get(K_PEER); }
+    public void consumeNotice() { notice.setValue(null); }
 
     public void retryFailed(String clientId) { repo.retryFailedMessage(clientId); }
     public void deleteFailed(String clientId) { repo.deleteFailedMessage(clientId); }

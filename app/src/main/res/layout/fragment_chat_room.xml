@@ -45,10 +45,17 @@
     </FrameLayout>
 
     <!-- D-04: bị chặn / chỉ nhận tin từ bạn bè. -->
-    <TextView android:id="@+id/policy_banner" android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:background="@color/ute_warning_bg" android:paddingHorizontal="16dp" android:paddingVertical="10dp"
-        android:textSize="14sp" android:textColor="@color/ute_warning_text" android:visibility="gone"
-        android:accessibilityLiveRegion="polite" />
+    <LinearLayout android:id="@+id/policy_banner" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:background="@color/ute_warning_bg" android:gravity="center_vertical" android:paddingStart="16dp"
+        android:paddingEnd="8dp" android:paddingVertical="4dp" android:minHeight="48dp" android:visibility="gone">
+        <TextView android:id="@+id/policy_text" android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:paddingVertical="6dp" android:textSize="14sp"
+            android:textColor="@color/ute_warning_text" android:accessibilityLiveRegion="polite" />
+        <!-- CONTACT_REQUIRED: gửi lời mời kết bạn ngay tại đây, không phải quay ra màn Danh bạ. -->
+        <com.google.android.material.button.MaterialButton android:id="@+id/policy_action"
+            style="@style/Widget.Material3.Button.TextButton" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="@string/chat_send_friend_request" android:textColor="@color/ute_warning_text" android:visibility="gone" />
+    </LinearLayout>
     <!-- D-12: đã rời/bị xóa khỏi nhóm thì chỉ đọc. -->
     <TextView android:id="@+id/read_only_bar" android:layout_width="match_parent" android:layout_height="wrap_content"
         android:minHeight="56dp" android:gravity="center" android:padding="16dp" android:background="@color/ute_card"

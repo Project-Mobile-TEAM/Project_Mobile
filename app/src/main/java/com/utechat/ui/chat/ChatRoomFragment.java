@@ -88,6 +88,15 @@ public class ChatRoomFragment extends Fragment {
         });
 
         bindSearch();
+        binding.policyAction.setOnClickListener(v -> vm.sendFriendRequest(
+                ChatRoomViewModel.peerOf(vm.deepLinkPeer(), vm.getMembers().getValue(), vm.meId())));
+        vm.requestSent.observe(getViewLifecycleOwner(), b -> renderComposer());
+        vm.notice.observe(getViewLifecycleOwner(), res -> {
+            if (res == null) return;
+            vm.consumeNotice();
+            com.google.android.material.snackbar.Snackbar.make(binding.getRoot(), res,
+                    com.google.android.material.snackbar.Snackbar.LENGTH_LONG).show();
+        });
 
         vm.getWsState().observe(getViewLifecycleOwner(), this::renderBanner);
         vm.getUsers().observe(getViewLifecycleOwner(), users -> { adapter.setUsers(users); renderHeader(); });
@@ -180,7 +189,11 @@ public class ChatRoomFragment extends Fragment {
         if (binding == null) return;
         String policy = ChatRoomViewModel.policyBanner(vm.openError.getValue(), vm.getMessages().getValue(), vm.meId());
         binding.policyBanner.setVisibility(policy == null ? View.GONE : View.VISIBLE);
-        if (policy != null) binding.policyBanner.setText("BLOCKED".equals(policy) ? R.string.chat_blocked_banner : R.string.chat_contact_required);
+        boolean contactRequired = "CONTACT_REQUIRED".equals(policy);
+        boolean sent = Boolean.TRUE.equals(vm.requestSent.getValue());
+        if (policy != null) binding.policyText.setText(!contactRequired ? R.string.chat_blocked_banner
+                : sent ? R.string.chat_friend_request_sent : R.string.chat_contact_required);
+        binding.policyAction.setVisibility(contactRequired && !sent ? View.VISIBLE : View.GONE);
         // Chưa mở được hội thoại (bị chặn/cần kết bạn) hoặc đã rời nhóm thì không cho soạn tin.
         boolean noConversation = vm.getConversationId().getValue() == null && vm.openError.getValue() != null;
         binding.readOnlyBar.setVisibility(readOnly ? View.VISIBLE : View.GONE);
