@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Viên thuốc giữa màn hình cho mốc ngày và tin hệ thống (Figma "Hôm nay"). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/ute_card" />
+    <corners android:radius="12dp" />
+</shape>

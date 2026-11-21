@@ -28,8 +28,15 @@ public class MemberSelectAdapter extends ListAdapter<UserEntity, MemberSelectAda
         this.onClick = onClick;
     }
 
-    /** Id đã chọn theo thứ tự chọn (Tạo nhóm gửi danh sách này lên server). */
-    public Set<String> getSelected() { return Set.copyOf(selected); }
+    /** Lựa chọn do ViewModel giữ (sống qua xoay màn hình); adapter chỉ vẽ lại các dòng đổi trạng thái. */
+    public void setSelected(java.util.Collection<String> ids) {
+        for (int i = 0; i < getItemCount(); i++) {
+            String id = getItem(i).getId();
+            if (selected.contains(id) != ids.contains(id)) notifyItemChanged(i);
+        }
+        selected.clear();
+        selected.addAll(ids);
+    }
 
     static class Holder extends RecyclerView.ViewHolder {
         final ItemMemberSelectBinding b;
@@ -48,11 +55,7 @@ public class MemberSelectAdapter extends ListAdapter<UserEntity, MemberSelectAda
         h.b.avatar.setText(ConversationListAdapter.initials(name));
         h.b.check.setVisibility(selectable ? View.VISIBLE : View.GONE);
         h.b.check.setChecked(selected.contains(u.getId()));
-        h.itemView.setOnClickListener(v -> {
-            if (selectable && !selected.remove(u.getId())) selected.add(u.getId());
-            if (selectable) notifyItemChanged(h.getAdapterPosition());
-            onClick.accept(u);
-        });
+        h.itemView.setOnClickListener(v -> onClick.accept(u));
     }
 
     private static final DiffUtil.ItemCallback<UserEntity> DIFF = new DiffUtil.ItemCallback<>() {

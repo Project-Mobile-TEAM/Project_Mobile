@@ -7,7 +7,6 @@ import android.app.Application;
 import androidx.annotation.Nullable;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
-import androidx.lifecycle.Observer;
 import androidx.lifecycle.SavedStateHandle;
 import androidx.lifecycle.ViewModel;
 import androidx.lifecycle.ViewModelProvider;
@@ -21,7 +20,6 @@ import com.utechat.di.Injection;
 import com.utechat.ui.auth.AuthValidator;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.Consumer;
 
 /**
  * Tin nhắn mới (D-01): chọn bạn bè, tra SĐT người lạ qua ContactsRepository của Phase 4 (không viết API tra cứu thứ hai),
@@ -84,7 +82,7 @@ public class NewChatViewModel extends ViewModel {
         String e164 = phoneOf(getInput().getValue());
         if (e164 == null || Boolean.TRUE.equals(busy.getValue())) return;
         busy.setValue(true);
-        once(contacts.lookup(e164), r -> {
+        Once.observe(contacts.lookup(e164), r -> {
             busy.setValue(false);
             lookup.setValue(r.isSuccess() ? new LookupState(r.data, null, false, false) : new LookupState(null, r.errorCode, false, false));
         });
@@ -94,7 +92,7 @@ public class NewChatViewModel extends ViewModel {
     public void openDirect(String userId, @Nullable ContactDtos.User profile) {
         if (Boolean.TRUE.equals(busy.getValue())) return;
         busy.setValue(true);
-        once(chat.openOrCreateDirect(userId), r -> {
+        Once.observe(chat.openOrCreateDirect(userId), r -> {
             busy.setValue(false);
             if (r.isSuccess() && r.data != null) { openConversation.setValue(r.data); return; }
             if ("CONTACT_REQUIRED".equals(r.errorCode)) {
@@ -108,7 +106,7 @@ public class NewChatViewModel extends ViewModel {
     public void sendFriendRequest(String userId, @Nullable ContactDtos.User profile) {
         if (Boolean.TRUE.equals(busy.getValue())) return;
         busy.setValue(true);
-        once(contacts.act("send", userId, profile), r -> {
+        Once.observe(contacts.act("send", userId, profile), r -> {
             busy.setValue(false);
             // Lời mời đã chờ sẵn cũng coi như đã gửi: người dùng không cần làm gì thêm.
             boolean sent = r.isSuccess() || "REQUEST_ALREADY_PENDING".equals(r.errorCode);
@@ -133,14 +131,4 @@ public class NewChatViewModel extends ViewModel {
         return l;
     }
 
-    /** Repository trả LiveData phát một lần; nghe đúng một giá trị rồi gỡ observer. */
-    private static <T> void once(LiveData<T> source, Consumer<T> handler) {
-        source.observeForever(new Observer<T>() {
-            @Override public void onChanged(T value) {
-                if (value == null) return;
-                source.removeObserver(this);
-                handler.accept(value);
-            }
-        });
-    }
 }

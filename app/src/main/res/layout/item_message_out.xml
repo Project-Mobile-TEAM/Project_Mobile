@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Tin của mình (TEXT_OUT và SUMMARY_OUT): bong bóng xanh bên phải, giờ + trạng thái; FAILED hiện dòng đỏ chạm để xử lý. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical"
+    android:paddingHorizontal="12dp" android:paddingVertical="3dp">
+    <include android:id="@+id/date" layout="@layout/view_date_pill" />
+    <LinearLayout android:id="@+id/bubble" android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:layout_gravity="end" android:layout_marginStart="64dp" android:orientation="vertical"
+        android:background="@drawable/bg_bubble_out" android:paddingHorizontal="12dp" android:paddingVertical="8dp">
+        <LinearLayout android:id="@+id/summary" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:gravity="center_vertical" android:visibility="gone">
+            <ImageView android:id="@+id/summary_icon" android:layout_width="20dp" android:layout_height="20dp"
+                android:importantForAccessibility="no" app:tint="@color/ute_on_accent" />
+            <TextView android:id="@+id/summary_label" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_marginStart="8dp" android:textSize="16sp" android:fontFamily="@font/poppins_medium"
+                android:textColor="@color/ute_on_accent" />
+        </LinearLayout>
+        <TextView android:id="@+id/text" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:textSize="16sp" android:textColor="@color/ute_on_accent" android:textIsSelectable="false" />
+        <TextView android:id="@+id/meta" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_gravity="end" android:layout_marginTop="2dp" android:textSize="11sp"
+            android:textColor="@color/ute_on_accent" />
+    </LinearLayout>
+    <TextView android:id="@+id/failed" android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:layout_gravity="end" android:minHeight="32dp" android:gravity="center_vertical"
+        android:text="@string/chat_status_failed" android:textSize="12sp" android:textColor="@color/ute_error"
+        android:visibility="gone" />
+</LinearLayout>
