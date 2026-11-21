@@ -235,6 +235,14 @@ public interface MessageDao {
     @Query("SELECT MAX(serverId) FROM message WHERE conversationId = :conversationId AND serverId IS NOT NULL AND senderId <> :myUserId")
     Long findLatestOtherMessageId(String conversationId, String myUserId);
 
+    /** Đếm số tin nhắn đến từ người khác vượt trên ngưỡng max(lastReadId, visibleFromMessageId) để tính lại unread cục bộ. */
+    @Query("SELECT COUNT(*) FROM message "
+            + "WHERE conversationId = :conversationId "
+            + "AND senderId <> :myUserId "
+            + "AND serverId IS NOT NULL "
+            + "AND serverId > :floorMessageId")
+    int countIncomingAfter(String conversationId, String myUserId, long floorMessageId);
+
     /**
      * Đánh dấu tin đã gửi thành công từ SendMessageWorker:
      * gán serverId/createdAt, xóa errorCode = NULL và không hạ bậc nếu tin đã ở DELIVERED hoặc READ.

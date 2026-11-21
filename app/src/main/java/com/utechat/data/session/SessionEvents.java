@@ -16,7 +16,8 @@ public final class SessionEvents {
 
     /** Sự kiện nằm trong hàng đợi main không được đăng xuất phiên vừa đăng nhập sau 401. */
     public static boolean isCurrentExpiration() {
-        return expiredVersion != null && expiredVersion.equals(SessionManager.get().versionKey());
+        SessionManager session = SessionManager.get();
+        return session != null && expiredVersion != null && expiredVersion.equals(session.versionKey());
     }
 
     /** Người nhận gọi sau khi xử lý để xoay màn hình không xử lý lại sự kiện cũ; gọi trên luồng chính. */
