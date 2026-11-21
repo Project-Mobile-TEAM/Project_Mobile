@@ -140,7 +140,7 @@ Sự kiện và dữ liệu nghiệp vụ phải cùng commit/rollback; SyncEven
 > - Gửi lời mời kết bạn qua `POST /contact-requests` vẫn luôn được phép kể cả khi tắt nhận tin từ người lạ.
 >
 > **Quy ước gửi tin từ Client:**
-> Client chỉ gửi các trường: `clientId`, `type`, `text`, `mediaUrl`, `latitude`, `longitude`. Với tin có tệp, `mediaUrl` phải là URL `/api/media/{attachmentId}` do server trả về từ `POST /media`; client không được tự tạo URL. Server lấy `attachmentId` từ URL, kiểm tra attachment thuộc người gửi, chưa gắn vào message khác và `kind` phù hợp với `type`, sau đó tự lấy metadata (`durationMs`, `sizeBytes`, `width`, `height`, `mime`) từ bản ghi `attachments`.
+> Client chỉ gửi các trường: `clientId`, `type`, `text`, `mediaUrl`, `latitude`, `longitude` và `expectedVisibleFromMessageId` với hội thoại `GROUP`. Với tin có tệp, `mediaUrl` phải là URL `/api/media/{attachmentId}` do server trả về từ `POST /media`; client không được tự tạo URL. Server lấy `attachmentId` từ URL, kiểm tra attachment thuộc người gửi, chưa gắn vào message khác và `kind` phù hợp với `type`, sau đó tự lấy metadata (`durationMs`, `sizeBytes`, `width`, `height`, `mime`) từ bản ghi `attachments`.
 >
 > **Định nghĩa con trỏ đồng bộ (`GET /sync/bootstrap` và `GET /sync?after=<syncEventId>&limit=`):**
 > - `GET /sync/bootstrap` chạy trong 1 transaction `REPEATABLE READ READ ONLY`, trả về snapshot `{ me, conversations, friends, blocked, contactRequests, syncCursor }` nhất quán để khởi tạo thiết bị trống hoặc khôi phục sau `410 SYNC_CURSOR_EXPIRED`.
@@ -189,21 +189,25 @@ Sự kiện và dữ liệu nghiệp vụ phải cùng commit/rollback; SyncEven
 
 | Method và đường dẫn | Body chính | Trả về | Lỗi |
 |---|---|---|---|
-| `POST /media` | multipart: `kind`, `file` | `mediaUrl`, `mime`, `sizeBytes`, `width`, `height`, `durationMs` (201) | `FILE_TOO_LARGE` 413, `UNSUPPORTED_TYPE` 415 |
+| `POST /media` | multipart: `clientId` (UUID của tin nhắn), `kind`, `file`, `durationMs` (tùy chọn cho `AUDIO`/`VIDEO`) | `mediaUrl`, `mime`, `sizeBytes`, `width`, `height`, `durationMs`, `fileName` (201 khi tạo mới, 200 khi gửi lại cùng khóa) | `FILE_TOO_LARGE` 413, `UNSUPPORTED_TYPE` 415, `CONFLICT` 409 khi dùng lại khóa với `kind` khác, `RATE_LIMITED` 429 |
 | `GET /media/{id}` | — (URL có bảo vệ: Header `Authorization` Bearer token) | luồng byte, hỗ trợ `Range` (phát video, tải lại) | 403 nếu không phải thành viên |
 
 > **Phát media qua app ngoài:** App dùng `FileProvider` làm phương án duy nhất. App tải/cache file về bộ nhớ tạm bằng token rồi chia sẻ `content://` qua `FileProvider` với cờ `FLAG_GRANT_READ_URI_PERMISSION`. Không dùng query ticket và tuyệt đối không đưa JWT vào URL.
+
+> **Gửi lại khi mất kết nối:** Server dùng cặp người gửi và `clientId` để trả lại URL và metadata của tệp đã lưu. Khi đã có `mediaUrl`, app dùng lại URL đó với cùng `clientId` để gửi tin. `durationMs` ở bước tải lên là gợi ý tùy chọn, được server kiểm tra trước khi lưu.
 
 ### 2.6 Cuộc gọi thoại WebRTC 1-1
 
 | Method và đường dẫn | Body chính | Trả về | Điều kiện kiểm tra |
 |---|---|---|---|
-| `POST /calls` | `conversationId`, `media` (`VOICE`) | `callId`, `state` (`RINGING`, `MISSED`, `BUSY`), `iceServers[]` | Bắt buộc hai bên đã là bạn bè `ACCEPTED` và không bị `blocked`. Trả `403 CONTACT_REQUIRED` nếu chưa kết bạn, `403 BLOCKED` nếu bị chặn |
-| `POST /calls/{id}/accept` | — | `iceServers[]` | — |
-| `POST /calls/{id}/reject` | — | 204 | — |
-| `POST /calls/{id}/end` | — | 204 | — |
+| `POST /calls` | `conversationId`, `media` (`VOICE`) | `201` với `callId`, `state` (`RINGING`), `expiresAt`, `iceServers[]` | Chỉ hỗ trợ hội thoại 1-1. Ưu tiên `403 BLOCKED` trước `403 CONTACT_REQUIRED`. Trả `409 CALL_BUSY` khi một bên đang đổ chuông hoặc đang gọi. |
+| `POST /calls/{id}/accept` | — | `200` với `callId`, `state` (`ACTIVE`), `iceServers[]` | Thiết bị nhận đầu tiên được khóa vào phiên gọi. Gọi lại từ đúng thiết bị đã nhận trả cùng trạng thái. Yêu cầu nhận mới khi quá hạn hoặc sai trạng thái trả `409 INVALID_STATE`. |
+| `POST /calls/{id}/reject` | — | `204` | Kết thúc cuộc gọi đang đổ chuông với `REJECTED/REJECT`. Lặp trên cuộc gọi đã kết thúc trả `204`. |
+| `POST /calls/{id}/end` | — | `204` | Kết thúc cuộc gọi hợp lệ với `ENDED/HANGUP`. Lặp trên cuộc gọi đã kết thúc trả `204`. |
 
 `iceServers` gồm STUN và TURN coturn với credential có thời hạn (HMAC). V1 chỉ hỗ trợ cuộc gọi thoại (`VOICE`), không hỗ trợ video call. Lỗi: `CALL_UNSUPPORTED` 400 (nhóm), `CONTACT_REQUIRED` 403 (chưa kết bạn), `BLOCKED` 403, `CALL_BUSY` 409.
+
+Server áp dụng `expiresAt` cho thao tác nhận, từ chối và kết thúc khi đang đổ chuông. Sau 45 giây, server chuyển cuộc gọi chưa được trả lời sang `MISSED/TIMEOUT`. Sau khi nhận máy, hai thiết bị đã khóa gia hạn riêng bằng `call.keepalive`. Khi một mốc 60 giây hết hạn, server chuyển sang `FAILED/OFFLINE`. Mỗi cuộc gọi đã lưu sinh đúng một tin `CALL` khi kết thúc. `CALL_BUSY` được trả về trước khi tạo bản ghi.
 
 ### 2.7 Môi trường demo
 
@@ -240,7 +244,7 @@ Trường `syncEventId` trỏ trực tiếp tới `sync_events.id`. Client cập
 | `contact_request.new` | Có | thông tin lời mời kết bạn | Có người gửi lời mời kết bạn mới |
 | `contact_request.updated` | Có | thông tin lời mời và trạng thái mới | Lời mời kết bạn được chấp nhận/từ chối/hủy |
 | `contact.updated` | Có | `{contactUserId, isFriend, blocked, removed, user?}` | Thay đổi quan hệ bạn bè, hủy kết bạn, chặn/bỏ chặn |
-| `call.incoming` | Có | `callId`, `conversationId`, `caller`, `media` (`VOICE`) | Có người gọi đến |
+| `call.incoming` | Có | `callId`, `conversationId`, `caller`, `media` (`VOICE`), `expiresAt` | Có người gọi đến. `expiresAt` là hạn đổ chuông do server quyết định. |
 | `call.accepted`, `call.ended` | Có | `callId`, `state`, `endReason` | Thay đổi trạng thái cuộc gọi; được ghi vào `sync_events` với `eventType = CALL_UPDATED` |
 | `call.offer`, `call.answer`, `call.ice` | Không | `callId`, `sdp` hoặc `candidate` | Báo hiệu WebRTC từ phía bên kia |
 | `call.handled_elsewhere` | Có | `callId` | Thiết bị khác của người nhận đã nhận/từ chối cuộc gọi; được ghi vào `sync_events` với `eventType = CALL_UPDATED` |
@@ -251,7 +255,8 @@ Trường `syncEventId` trỏ trực tiếp tới `sync_events.id`. Client cập
 | `type` | `payload` | Ghi chú |
 |---|---|---|
 | `typing.start`, `typing.stop` | `conversationId` | Giới hạn 1 lần mỗi 3 giây cho `start` |
-| `call.offer`, `call.answer`, `call.ice` | `callId`, `sdp` hoặc `candidate` | Báo hiệu WebRTC cuộc gọi thoại |
+| `call.offer`, `call.answer`, `call.ice` | `callId`, `sdp` hoặc `candidate` | Báo hiệu giữa hai thiết bị đã khóa của cuộc gọi `ACTIVE` còn hiệu lực. |
+| `call.keepalive` | `callId` | Mỗi thiết bị đã khóa gửi mỗi 15 giây khi ICE kết nối. Server gia hạn riêng thiết bị gửi lên 60 giây. Gói này không tạo `sync_events`. |
 | `ping` | — | Giữ kết nối |
 
 ## 4. Giới hạn tần suất và chống Brute-force

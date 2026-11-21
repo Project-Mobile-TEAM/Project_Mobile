@@ -66,10 +66,10 @@
 | Voice | `MediaRecorder` (nguồn MIC, MPEG_4, AAC, tệp `.m4a`), bỏ bản quá ngắn, **luôn `release()`**; phát bằng `MediaPlayer` | F-18 | Khớp |
 | Video | `Media3 ExoPlayer` + `PlayerView`, giữ trạng thái qua xoay bằng ViewModel; mở ngoài app bằng `FileProvider` | F-18, ADR-011 | Khớp |
 | Vị trí | `FusedLocationProviderClient.getCurrentLocation`, ưu tiên `BALANCED_POWER_ACCURACY`, **kiểm tra `null`**, huỷ ở `onDestroyView` | F-18 | Khớp |
-| Bản đồ | `play-services-maps`, `SupportMapFragment`, marker, **khoá Maps API lấy từ `local.properties` qua `manifestPlaceholders`, không commit** | F-18 | Điều chỉnh |
+| Bản đồ | Thẻ tọa độ và Intent `geo:` mở ứng dụng bản đồ trên thiết bị | F-18 | Điều chỉnh |
 | Token | **Keystore AES-256-GCM**, lưu `Base64(IV + ciphertext)` trong SharedPreferences, **giữ token trong bộ nhớ sau lần giải mã đầu** | ADR-018 | Khớp |
 | Xác thực | Đăng nhập một lần, server trả **token đã ký**, gửi `Bearer` ở mọi yêu cầu, **401 thì xoá token và về màn hình đăng nhập** (`SessionEvents`) | ADR-018, F-07 | Điều chỉnh |
-| Bảo mật bản dựng | `allowBackup="false"`, không ghi token vào log, R8 **không** che được khoá API trong APK, khoá Maps giới hạn theo package và SHA-1 | ADR-024 | Điều chỉnh |
+| Bảo mật bản dựng | `allowBackup="false"`, không ghi token vào log, thông tin xác thực đặt phía server | ADR-024 | Điều chỉnh |
 | Danh sách OWASP | M1, M3, M5, M7, M8, M9, M10 và các nhóm MASVS | ADR-024 | Điều chỉnh |
 
 ### 1.5 Kiểm thử và phát hành (Session 7)

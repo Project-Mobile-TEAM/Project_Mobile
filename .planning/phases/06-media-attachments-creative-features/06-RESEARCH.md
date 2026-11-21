@@ -25,7 +25,7 @@ Phase 6 builds on the Phase 5 foundation located on branch `feature/phase-5-core
 3. **1-1 Voice Calling with WebRTC & Coturn (`D-09`..`D-12`):**
    - `D-09`: Backend reads `COTURN_URLS`, `COTURN_SHARED_SECRET`, `COTURN_TTL_SECONDS` to issue short-lived coturn REST HMAC-SHA1 `iceServers[]` in `POST /api/calls` and `POST /api/calls/{id}/accept` (supporting TCP/TLS 443 and UDP 3478/443); fallback to public STUN in local dev; provide EC2 `turnserver.conf` template & runbook.
    - `D-10` *(one-way)*: Strict call invariants per F-21/F-22: `ACCEPTED` non-blocked friends only (`403 BLOCKED` before `403 CONTACT_REQUIRED`, group -> `400 CALL_UNSUPPORTED`); `409 CALL_BUSY` without ringing when either party is busy; 45s auto-timeout `RINGING -> MISSED`; atomic `accept` / `reject` / `timeout` state transitions; `call.handled_elsewhere` to callee's other devices on accept/reject; **2-device signaling lock** for `call.offer`/`call.answer`/`call.ice` after accept; **exactly one idempotent `CALL` message** inserted per saved call on terminal state (`ENDED`/`MISSED`/`REJECTED`/`BUSY`/`FAILED`). Sync `docs/API_CONTRACT.md` and `docs/FLOWS.md` before implementation.
-   - `D-11`: Dedicated call screen (`CallActivity` / `CallFragment`) paired with `Foreground CallService` keeping `PeerConnection` alive across rotation, 3 core controls (Mute mic, Speaker/Earpiece toggle, End call), `mm:ss` timer, ringtone/vibration on `call.incoming`, and `RECORD_AUDIO` permission check/request before calling or accepting.
+   - `D-11`: Dedicated call screen (`CallFragment` within `MainActivity`) paired with `Foreground CallService` keeping `PeerConnection` alive across rotation, 3 core controls (Mute mic, Speaker/Earpiece toggle, End call), `mm:ss` timer, ringtone/vibration on `call.incoming`, and `RECORD_AUDIO` permission check/request before calling or accepting.
    - `D-12` *(costly)*: Use `io.getstream:stream-webrtc-android` wrapped behind `WebRtcCallEngine` seam so JVM unit tests verify the full state machine and 2 real devices verify LAN/coturn audio calls.
 4. **On-Device ML Kit Translation (`D-13`..`D-15`):**
    - `D-13`: **No Language Identification library**; long-press context menu on `TEXT` messages offers *"Dịch sang Tiếng Việt"* and *"Dịch sang Tiếng Anh"* directly.
@@ -48,7 +48,7 @@ Phase 6 builds on the Phase 5 foundation located on branch `feature/phase-5-core
    - `COTURN_SHARED_SECRET` never enters APK/logs; Release keeps `HttpLoggingInterceptor.Level.NONE` [VERIFIED: `docs/DEPLOYMENT_SECURITY.md#L27-L28`, `feature/phase-5-core:app/src/main/java/com/utechat/data/remote/api/ApiClient.java#L17`].
    - Every new/altered PostgreSQL table MUST preserve `ENABLE ROW LEVEL SECURITY` with zero public policies [VERIFIED: `docs/ARCHITECTURE_DECISIONS.md#L76`, `feature/phase-5-core:backend/src/main/resources/db/migration/V5__sync_and_messaging.sql#L52`].
 4. **Anti-Conflict Resource/Module Boundaries (`ADR-025`, `06-CONTEXT.md`):**
-   - Keep Phase 5 resource naming (`strings_chat.xml` EN/VI, or separate `strings_media.xml` / `strings_call.xml` — verify `nav_chat.xml` owns chat destinations, while `CallActivity` has its own layout/ViewModel).
+   - Use separate EN/VI strings for media and calls. Keep the media destinations in `nav_chat.xml` and the shared call destination and global action in `nav_graph.xml`.
    - Keep `ChatRepository` backward-compatible with `FakeChatRepository` and `FakeRepositoriesTest` (`getConversations`, `getMessages`, `sendMessage`) [VERIFIED: `feature/phase-5-core:app/src/main/java/com/utechat/data/repository/ChatRepository.java#L21-L24`].
 
 ---
@@ -99,9 +99,9 @@ Add to `app/src/main/AndroidManifest.xml` [VERIFIED baseline: `feature/phase-5-c
   - `<files-path name="pending_media" path="pending_media/" />` (offline queued copies & voice notes)
   - `<cache-path name="media_cache" path="media_cache/" />` (authenticated downloads opened via `Intent.ACTION_VIEW` + `FLAG_GRANT_READ_URI_PERMISSION`)
   - `<cache-path name="camera" path="camera/" />` (temporary camera capture destination before EXIF compression)
-- **`MainActivity` & `CallActivity` & `CallService` declarations:**
+- **`MainActivity`, `CallFragment`, and `CallService` declarations:**
   - `MainActivity`: set `android:launchMode="singleTop"` so tapping a `MessagingStyle` notification routes through `onNewIntent()` cleanly without recreating the activity stack.
-  - `CallActivity`: `android:exported="false"`, `android:launchMode="singleTop"`.
+  - `CallFragment` is declared in `nav_graph.xml` within `MainActivity`.
   - `CallService`: `android:exported="false"`, `android:foregroundServiceType="microphone"`.
 
 ---
@@ -176,12 +176,24 @@ ALTER TABLE public.calls
     ADD COLUMN IF NOT EXISTS caller_device_id_hash VARCHAR(64),
     ADD COLUMN IF NOT EXISTS callee_device_id_hash VARCHAR(64),
     ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ NOT NULL DEFAULT (now() + interval '45 seconds'),
-    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now();
+    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    ADD COLUMN IF NOT EXISTS caller_alive_until TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS callee_alive_until TIMESTAMPTZ;
 
 -- Đồng bộ expires_at cho dữ liệu seed/cũ dựa theo started_at.
 UPDATE public.calls
-SET expires_at = started_at + interval '45 seconds'
-WHERE expires_at IS NULL OR (state <> 'RINGING' AND ended_at IS NOT NULL);
+SET expires_at = started_at + interval '45 seconds';
+
+-- Cho tác vụ quét kết thúc các cuộc gọi ACTIVE cũ chưa có thiết bị đã khóa.
+UPDATE public.calls
+SET caller_alive_until = now(), callee_alive_until = now()
+WHERE state = 'ACTIVE' AND (caller_device_id_hash IS NULL OR callee_device_id_hash IS NULL);
+
+-- Giữ tệp cũ và bảo đảm mỗi lần gửi lại cùng clientId dùng một bản ghi tệp.
+ALTER TABLE public.attachments ADD COLUMN IF NOT EXISTS upload_client_id UUID;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_attachments_upload_client
+    ON public.attachments (uploader_id, upload_client_id)
+    WHERE upload_client_id IS NOT NULL;
 
 -- 2) Chỉ mục duy nhất bán phần: mỗi người dùng tối đa 1 cuộc gọi RINGING/ACTIVE ở vai trò caller hoặc callee (lớp bảo vệ DB cho 409 CALL_BUSY).
 CREATE UNIQUE INDEX IF NOT EXISTS uq_calls_active_caller
@@ -216,6 +228,7 @@ Before backend/Android implementation starts in Phase 6, `docs/API_CONTRACT.md` 
 1. **Section 2.4 (`POST /conversations/{id}/messages`):**
    - Expand Phase 5 `TEXT`-only rule to V1 full client types: `TEXT`, `IMAGE`, `AUDIO`, `VIDEO`, `FILE`, `LOCATION` (keep rejecting `SYSTEM` and `CALL` from client with `400 VALIDATION`).
    - Document `attachmentId` extraction from `mediaUrl` (`/api/media/{uuid}`), strict ownership check (`attachments.uploader_id == actorId`), single-use binding (`uq_messages_attachment` — returning `409 CONFLICT` / `400 VALIDATION` if already attached to a different `clientId`), and `kind == type` validation (`400 VALIDATION`).
+   - Require the message `clientId` on multipart upload. Replay returns the saved attachment and concurrent upload attempts with the same key converge on a single file.
    - Document `LOCATION` validation (`latitude` in `[-90, 90]`, `longitude` in `[-180, 180]`, finite, non-null; `mediaUrl == null`).
    - Clarify `expectedVisibleFromMessageId` applies to media & location messages in `GROUP` chats (`409 MEMBERSHIP_CHANGED`).
 2. **Section 2.5 (`POST /media`, `GET /media/{id}`):**
@@ -225,6 +238,7 @@ Before backend/Android implementation starts in Phase 6, `docs/API_CONTRACT.md` 
 3. **Section 2.6 (`POST /calls`, `/accept`, `/reject`, `/end`):**
    - Align `POST /calls` return: returns `201` `{ callId, state: "RINGING", expiresAt, iceServers[] }` when valid; returns `400 CALL_UNSUPPORTED` (group chat), `403 BLOCKED` (priority over `403 CONTACT_REQUIRED`), `403 CONTACT_REQUIRED` (not `ACCEPTED` friends), `429 RATE_LIMITED` (5 calls/min), or **`409 CALL_BUSY`** (without creating a call or ringing!). Remove misleading `MISSED`/`BUSY` from `POST /calls` success return column (`API_CONTRACT.md#L180`).
    - Document `POST /calls/{id}/accept`: atomic `RINGING -> ACTIVE` (caller cannot accept own call -> `403 FORBIDDEN`; expired/non-ringing -> `409 INVALID_STATE`; same callee device replay -> `200` idempotent), locks `callee_device_id_hash`, returns `{ callId, state: "ACTIVE", iceServers[] }`, triggers `call.accepted` (to caller) and `call.handled_elsewhere` (to callee's other devices).
+   - Use the server deadline for ringing actions. Each locked device sends `call.keepalive` every 15s while ICE is connected. Either device missing its 60s deadline causes one `FAILED/OFFLINE` terminal event and one `CALL` message.
    - Document `POST /calls/{id}/reject`: atomic `RINGING -> REJECTED` (only callee; replay when already `REJECTED` -> `204` idempotent; if `ACTIVE`/`ENDED`/`MISSED` -> `409 INVALID_STATE`), emits `call.ended` + `call.handled_elsewhere`, inserts **1 idempotent `CALL` message**.
    - Document `POST /calls/{id}/end`: allowed for caller or callee (`403 FORBIDDEN` otherwise); atomic `RINGING/ACTIVE -> ENDED (HANGUP)`; replay on any terminal state (`ENDED`/`MISSED`/`REJECTED`/`BUSY`/`FAILED`) returns `204` idempotently without duplicate `CALL` messages.
    - Document 45-second timeout: `RINGING -> MISSED (TIMEOUT)`, emits `call.ended` (`MISSED`) to both users, inserts **1 idempotent `CALL` message**.
@@ -327,7 +341,7 @@ Before backend/Android implementation starts in Phase 6, `docs/API_CONTRACT.md` 
      - Load `AttachmentTransferEntity transfer = db.transferDao().findByClientIdSync(clientId)`.
      - **If `transfer.getMediaUrl() == null`:**
        - Check `localPath` exists on disk; if missing -> mark `MessageEntity` + `AttachmentTransferEntity` `FAILED` (`FILE_MISSING`) and return `Result.success()`.
-       - Upload via `MediaApi.uploadMedia("Bearer " + token, kindPart, countingFilePart).execute()` with throttled `TransferDao.updateProgress(clientId, pct)`.
+       - Upload via `MediaApi.uploadMedia("Bearer " + token, clientIdPart, kindPart, countingFilePart, durationPart).execute()` with throttled `TransferDao.updateProgress(clientId, pct)`.
        - On `200`/`201`: **immediately persist `mediaUrl`** + server metadata (`mime`, `sizeBytes`, `width`, `height`, `durationMs`) to `AttachmentTransferEntity` (`state = "UPLOADED", progress = 100`) and `MessageEntity.attachmentJson` under `session.runIfCurrent(...)`! Thus if connectivity drops before `POST /messages`, the retry skips `POST /media` completely (`D-04`)!
        - On `413 FILE_TOO_LARGE` / `415 UNSUPPORTED_TYPE` / `400`/`403`/`404`: mark both `MessageEntity` and `AttachmentTransferEntity` `FAILED` with parsed `errorCode` (`FILE_TOO_LARGE`, `UNSUPPORTED_TYPE`, etc.), delete pending file on `413`/`415`, and **return `Result.success()`** so later queued messages continue (`D-04`).
        - On `401`: cancel `queueName(enqueuedSessionKey)`, `clearIfCurrent(token, version)`, `SessionEvents.notifyExpired(...)`, return `Result.failure()`.
@@ -358,7 +372,7 @@ Before backend/Android implementation starts in Phase 6, `docs/API_CONTRACT.md` 
     3. `!conversation.getMuted()`,
     4. `!conversation.getId().equals(activeRoomTracker.getActiveConversationId())` (where `ActiveRoomTracker` is set in `ChatRoomFragment.onResume()` and cleared in `onPause()`),
     5. `sessionKey.equals(session.sessionKey())` still holds!
-  - **Missed Call notification (`CALL_UPDATED`):** When `/sync` receives a terminal `MISSED` call for which `myUserId` was callee and no active `CallActivity` handled it, post to channel `calls`.
+  - **Missed Call notification (`CALL_UPDATED`):** When `/sync` receives a terminal `MISSED` call for which `myUserId` was callee and no active `CallFragment` handled it, post to channel `calls`.
   - **Grouping & Navigation (`PendingIntent.FLAG_IMMUTABLE`):** Build `NotificationCompat.MessagingStyle(mePerson)` using sender `Person` + recent unread lines for `conversationId`, notification ID `conversationId.hashCode()`, summary group `"utechat_messages"`, tapping opens `MainActivity` (`extra_open_conversation_id = conversationId`) -> `ChatNavigation.openConversation(...)`.
 - **`POST_NOTIFICATIONS` Prompt (`D-07`):** Check `SharedPreferences` flag `notif_prompted_once` in `MainActivity` when entering top-level tabs (`chatListFragment`/`contactsListFragment`/`profileFragment`) on API 33+; if `!prompted && checkSelfPermission != GRANTED`, launch `ActivityResultContracts.RequestPermission` once and set `notif_prompted_once = true`.
 
@@ -370,9 +384,9 @@ Before backend/Android implementation starts in Phase 6, `docs/API_CONTRACT.md` 
 - **`StreamWebRtcCallEngine` (`io.getstream:stream-webrtc-android:1.3.10`) Pitfalls:**
   1. **Early ICE Candidate Buffering:** Remote ICE candidates can arrive before `setRemoteDescription` finishes; buffer `List<IceCandidate> pendingRemoteIce` and drain immediately inside `SdpObserver.onSetSuccess()` for `setRemoteDescription`.
   2. **Audio Routing on API 26–36:** Use `AudioManager.setMode(AudioManager.MODE_IN_COMMUNICATION)` + `requestAudioFocus`; on API 31+ use `AudioManager.setCommunicationDevice(AudioDeviceInfo)` (`TYPE_BUILTIN_SPEAKER` vs `TYPE_BUILTIN_EARPIECE`/`TYPE_BLUETOOTH_SCO`) instead of deprecated `setSpeakerphoneOn()`, falling back to `setSpeakerphoneOn()` on API 26–30! Restore previous mode/clear communication device on `close()`.
-  3. **Android 14+ Foreground Service Microphone Crash (`targetSdk = 36`):** NEVER call `startForeground(..., FOREGROUND_SERVICE_TYPE_MICROPHONE)` until `ContextCompat.checkSelfPermission(RECORD_AUDIO) == GRANTED`! For an incoming call (`call.incoming`), play ringtone/vibration + post high-priority incoming notification / open `CallActivity` first; start `CallService` foreground microphone ONLY after `RECORD_AUDIO` permission is verified and user initiates or accepts the call!
+  3. **Android 14+ microphone service:** For an incoming call, show the notification or the resumed `MainActivity` call screen. Start the microphone foreground service only when the visible call screen handles a tap on Call or Accept and confirms `RECORD_AUDIO`.
 - **UI & Orientation Survival (`D-11`):**
-  - `CallActivity` hosts `CallViewModel` (`SavedStateHandle`) + observes `CallSessionCoordinator.getUiState()` (singleton/service-bound live state) so rotating the phone never drops `PeerConnection` or resets the `mm:ss` timer (timer computed from `answeredAtElapsedRealtime`).
+  - `CallFragment` hosts `CallViewModel` (`SavedStateHandle`) + observes `CallSessionCoordinator.getUiState()` (singleton/service-bound live state) so rotating the phone never drops `PeerConnection` or resets the `mm:ss` timer (timer computed from `answeredAtElapsedRealtime`).
   - Controls: Mute/Unmute (`>= 48dp`), Speaker/Earpiece (`>= 48dp`), End Call (`>= 48dp`), plus Accept & Reject (`>= 48dp`) when ringing, Material 3 DayNight colors, EN/VI strings, and optional `ACTION_DIAL` fallback button if WebRTC/backend call fails and peer phone exists (`ADR-013`).
 
 ### 6.4 ML Kit Translation Manager (`D-13`..`D-15`)

@@ -56,7 +56,7 @@ Hành trình xây dựng ứng dụng chat di động UTEChat cho nhóm 5 ngư�
 **Phụ trách**: Nhóm trưởng & Cả nhóm
 **Success Criteria**:
 
-1. Java17, minSdk26/compileSdk35/targetSdk35, package com.utechat; dependencies tập trung.
+1. Java17, minSdk26/compileSdk36/targetSdk36, package com.utechat; dependencies tập trung.
 2. Một MainActivity, ViewBinding, Fragment và BottomNavigation3 tab.
 3. Chuỗi common/auth/chat/contacts/profile tách EN/VI; Media bổ sung Phase6.
 4. nav_graph include nav_auth/nav_chat/nav_contacts/nav_profile theo CONTEXT.
@@ -164,10 +164,10 @@ Plans:
 **Phụ trách**: Thành viên 5 (độc lập trong `feature/media`, `feature/call`, `feature/translate`)
 **Success Criteria** (what must be TRUE):
 
-  1. Người dùng có thể chọn ảnh nén, ghi âm giọng nói (voice note), quay/chọn video file và gửi tệp tin tài liệu trong cuộc trò chuyện; mở tệp video/file ngoài app qua `FileProvider` (không dùng query ticket).
+  1. Người dùng có thể chọn ảnh nén, ghi âm giọng nói (voice note), quay/chọn video, gửi tệp tài liệu và chia sẻ tọa độ mở bằng `geo:` trong cuộc trò chuyện; mở tệp video/file ngoài app qua `FileProvider` (không dùng query ticket).
   2. Thông báo tin mới xuất hiện trên NotificationChannel khi app đang hoạt động hoặc kết nối WebSocket còn duy trì; đồng bộ nền định kỳ 15 phút qua WorkManager theo cơ chế best-effort (không cam kết tức thời khi app bị force-stop); tự động đồng bộ bù dữ liệu qua API `/api/sync?after=<syncEventId>`.
   3. Người dùng có thể thực hiện và nhận cuộc gọi thoại 1-1 thời gian thực qua WebRTC với coturn STUN/TURN (hỗ trợ cả TCP/TLS 443 và UDP 3478/443); chỉ cho phép gọi giữa hai người dùng đã kết bạn `ACCEPTED` và không bị chặn (`CONTACT_REQUIRED`, `BLOCKED`); hiển thị thông báo cuộc gọi nhỡ.
-  4. Người dùng có thể nhấn giữ tin nhắn bất kỳ để dịch tức thời hai chiều Anh - Việt bằng Google ML Kit Translation trực tiếp on-device (lưu Room `message_translation`).
+  4. Người dùng có thể nhấn giữ tin `TEXT` để dịch hai chiều Anh - Việt bằng Google ML Kit Translation trực tiếp on-device (lưu Room `message_translation`).
 
 **Plans**: 9 plans
 
@@ -180,17 +180,18 @@ Plans:
 
 - [ ] 06-02-PLAN.md — Backend gọi thoại 1-1 WebRTC (`CALL_BUSY`, 45s timeout nguyên tử, 2-device signaling lock, 1 tin `CALL` idempotent) & `TurnCredentialsService` (`coturn` HMAC-SHA1 + `turnserver.conf`)
 - [ ] 06-03-PLAN.md — Gate Room v3 (`MIGRATION_2_3` + `3.json`), Gradle (`media3`, `location`, `stream-webrtc`, `mlkit:translate`, `glide`), `AndroidManifest`/`FileProvider`, `ApiClient` & `MediaApi`/`CallApi`
+- Kiểm tra sớm APK Release trên thiết bị demo và xác nhận cuộc gọi thử qua TURN/TLS 443 trước khi hoàn thiện giao diện tích hợp.
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
 - [ ] 06-04-PLAN.md — Android `MediaPreparationHelper` (EXIF/1600px), `VoiceRecorderHelper`, `MediaDownloadManager`, `LocationFetchHelper` (`geo:`) & `SendMessageWorker` 2 pha lưu `mediaUrl`
 - [ ] 06-05-PLAN.md — Thông báo 2 kênh (`messages`, `calls`), `ActiveRoomTracker`, `NotificationHelper` (`MessagingStyle`, cô lập phiên) & `SyncWorker` 15 phút qua `SyncEngine` single-flight
-- [ ] 06-06-PLAN.md — Android `WebRtcCallEngine` (`stream-webrtc-android`), `CallSessionCoordinator`, `Foreground CallService` (`microphone` sau `RECORD_AUDIO`) & `CallActivity`/`CallViewModel`
+- [ ] 06-06-PLAN.md — Android `WebRtcCallEngine` (`stream-webrtc-android`), `CallSessionCoordinator`, `Foreground CallService` (`microphone` sau `RECORD_AUDIO`) & `CallFragment`/`CallViewModel` trong `MainActivity`
 - [ ] 06-07-PLAN.md — Dịch tin nhắn on-device `RealMlKitTranslator` (EN$\leftrightarrow$VI không `language-id`), `MessageTranslationManager` (xác nhận dữ liệu di động, chờ vô định không %, cache Room)
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 06-08-PLAN.md — Nối `ChatWebSocketManager` `call.*`, `RealChatRepository`/`FakeChatRepository`, `Injection` (tách `MEDIA_IO`/`CALL_NETWORK`, dọn phiên) & `MainActivity` (`POST_NOTIFICATIONS`, deep-link)
+- [ ] 06-08-PLAN.md — Nối `ChatWebSocketManager` `call.*`, `RealChatRepository`/`FakeChatRepository`, `Injection` (tách `MEDIA_IO`/`CALL_NETWORK`, dọn phiên) & `MainActivity` (`POST_NOTIFICATIONS`, deep-link), nút gọi thoại trong chat 1-1 và kiểm tra TURN/TLS 443 trên APK Release
 
 **Wave 5** *(blocked on Wave 4 completion)*
 

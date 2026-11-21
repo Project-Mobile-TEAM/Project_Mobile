@@ -303,10 +303,10 @@ sequenceDiagram
     participant R as Người nhận
     A->>App: Chọn tệp (ảnh / voice / video / file)
     App->>App: Nén ảnh, ghi âm voice, kiểm tra dung lượng
-    App->>S: POST /media (multipart: kind, file)
-    S->>S: Kiểm tra MIME, lưu ổ đĩa EC2, tạo attachments
+    App->>S: POST /media (multipart: clientId, kind, file)
+    S->>S: Kiểm tra MIME và lưu tệp theo cặp người gửi, clientId
     S-->>App: 201 (mediaUrl = /api/media/{id}, metadata)
-    App->>S: POST /conversations/{id}/messages (clientId, type, mediaUrl hoặc toạ độ)
+    App->>S: POST /conversations/{id}/messages (cùng clientId, type, mediaUrl)
     S-->>App: 201 (messageId)
     S-->>R: WebSocket message.new (mang syncEventId)
     R->>S: Tải tệp qua GET /media/{id} (URL bảo vệ bằng Bearer token)
@@ -318,7 +318,7 @@ sequenceDiagram
 | Voice | `MediaRecorder` (`RECORD_AUDIO`) | ≤ 5 phút, dung lượng ≤ 10 MB. Tệp `.m4a` (AAC) |
 | Video | Photo picker | Dung lượng ≤ 50 MB. Phát bằng trình phát trong app (`Media3 ExoPlayer`). Khi chọn mở bằng ứng dụng ngoài: app tải file về bộ nhớ tạm bằng token rồi chia sẻ `content://` qua `FileProvider` kèm cờ `FLAG_GRANT_READ_URI_PERMISSION` (tuyệt đối không đưa JWT vào URL) |
 | File | Trình chọn file hệ thống | Dung lượng ≤ 25 MB, MIME nằm trong danh sách cho phép |
-| Vị trí | `FusedLocationProviderClient` | Một lần toạ độ `(lat, lng)`, hiển thị bản đồ `SupportMapFragment` |
+| Vị trí | `FusedLocationProviderClient` | Lấy tọa độ `(lat, lng)` một lần. Nhấn thẻ tọa độ để mở ứng dụng bản đồ qua `geo:`. |
 
 ---
 
@@ -340,14 +340,14 @@ sequenceDiagram
     participant ML as Google ML Kit Translation
     participant DB as Room Database
     U->>App: Nhấn giữ tin nhắn, chọn "Dịch"
-    App->>DB: Kiểm tra bản dịch trong message_translation
+    App->>DB: Tìm bản dịch của tin TEXT theo ngôn ngữ đích trong message_translation
     alt Đã có bản dịch cục bộ
         DB-->>App: Trả về translatedText
         App->>App: Hiển thị bản dịch ngay bên dưới tin nhắn
     else Chưa có bản dịch
         App->>ML: Yêu cầu dịch Anh - Việt
         alt Gói ngôn ngữ chưa tải
-            App->>App: Hiển thị thanh tiến độ tải gói ngôn ngữ (~30MB)
+            App->>App: Hiển thị trạng thái tải gói ngôn ngữ (~30MB) không có phần trăm
             ML->>ML: Tải mô hình về máy
         end
         ML-->>App: Trả về văn bản đã dịch
@@ -371,14 +371,16 @@ sequenceDiagram
     actor E as Người nhận
     C->>CA: Bấm "Gọi thoại"
     CA->>S: POST /calls (conversationId, media = VOICE)
-    alt Hai bên chưa là bạn bè ACCEPTED
-        S-->>CA: 403 CONTACT_REQUIRED
-    else Một trong hai bên bị chặn
+    alt Một trong hai bên bị chặn
         S-->>CA: 403 BLOCKED
+    else Hai bên chưa là bạn bè ACCEPTED
+        S-->>CA: 403 CONTACT_REQUIRED
+    else Một bên đang đổ chuông hoặc đang gọi
+        S-->>CA: 409 CALL_BUSY
     else Hợp lệ
         S->>S: Tạo bản ghi calls, tạo sync_events (CALL_UPDATED)
-        S-->>CA: 201 (callId, iceServers)
-        S-->>EA: WebSocket call.incoming (callId, caller, VOICE, mang syncEventId)
+        S-->>CA: 201 (callId, expiresAt, iceServers)
+        S-->>EA: WebSocket call.incoming (callId, caller, VOICE, expiresAt, mang syncEventId)
         EA->>EA: Đổ chuông, hiện màn hình cuộc gọi đến
         alt Người nhận bấm Nhận máy
             E->>EA: Bấm "Nhận"
@@ -387,6 +389,7 @@ sequenceDiagram
             S-->>CA: WebSocket call.accepted (mang syncEventId)
             Note over CA,EA: Báo hiệu WebRTC (offer, answer, ice) qua WebSocket /ws
             Note over CA,EA: Luồng âm thanh P2P trực tiếp hoặc qua coturn TURN relay
+            Note over CA,EA: Gửi call.keepalive mỗi 15 giây khi ICE kết nối
         else Người nhận bấm Từ chối
             E->>EA: Bấm "Từ chối"
             EA->>S: POST /calls/{id}/reject
@@ -401,7 +404,7 @@ sequenceDiagram
 
 ### F-22 Cuộc gọi nhỡ
 
-Khi cuộc gọi kết thúc ở trạng thái `MISSED`, `REJECTED`, `BUSY`, hoặc `FAILED`, server tự động chèn một tin nhắn loại `CALL` vào hội thoại để cả hai bên theo dõi lịch sử cuộc gọi.
+Server chèn đúng một tin `CALL` vào hội thoại khi cuộc gọi đã lưu kết thúc. Server quyết định `MISSED/TIMEOUT` theo hạn đổ chuông và `FAILED/OFFLINE` khi một trong hai thiết bị hết hạn 60 giây. `CALL_BUSY` được trả về trước khi tạo cuộc gọi.
 
 ---
 
