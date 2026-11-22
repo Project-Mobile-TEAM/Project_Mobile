@@ -16,6 +16,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -38,6 +39,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
@@ -108,14 +111,14 @@ public class MediaService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "VALIDATION", "File must not be empty");
         }
 
-        // 1. Kiểm tra giới hạn tần suất 20 upload / phút / userId.
-        rateLimiter.checkAndRecord(actorId);
-
-        // 2. Kiểm tra upload idempotent theo (uploader_id, upload_client_id).
+        // 1. Kiểm tra upload idempotent theo (uploader_id, upload_client_id) trước để retry mạng không tốn quota rate limit.
         MediaUploadResponse replay = findExistingUpload(actorId, clientId, kind);
         if (replay != null) {
             return new MediaUploadResult(replay, false);
         }
+
+        // 2. Kiểm tra giới hạn tần suất 20 upload / phút / userId cho upload mới.
+        rateLimiter.checkAndRecord(actorId);
 
         long kindLimit = switch (kind) {
             case "IMAGE" -> maxImageBytes;
@@ -127,6 +130,7 @@ public class MediaService {
 
         Path tempDir = rootDir.resolve(".tmp");
         Path tempFile = null;
+        Path publishedPath = null;
         try {
             Files.createDirectories(tempDir);
             tempFile = Files.createTempFile(tempDir, "upload_", ".bin");
@@ -167,15 +171,11 @@ public class MediaService {
             if (!targetPath.startsWith(rootDir)) {
                 throw new ApiException(HttpStatus.BAD_REQUEST, "VALIDATION", "Invalid target path");
             }
-            Files.createDirectories(targetPath.getParent());
-
-            // 6. Di chuyển file tạm vào vị trí lưu trữ chính thức.
-            Files.move(tempFile, targetPath, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-            tempFile = null; // Đã chuyển thành công
 
             String sanitizedOriginalName = sanitizeFileName(file.getOriginalFilename());
 
-            // 7. Ghi nhận vào CSDL với khóa idempotent uq_attachments_upload_client.
+            // 6. Tranh quyền sở hữu hàng DB trước với khóa idempotent uq_attachments_upload_client;
+            // chỉ luồng thắng cuộc mới công bố file sang vị trí chính thức (tránh sinh file trùng trên đĩa).
             List<UUID> insertedIds = jdbc.query(
                     "INSERT INTO public.attachments ("
                             + "    uploader_id, upload_client_id, kind, mime, size_bytes, "
@@ -188,14 +188,24 @@ public class MediaService {
                     relativePath, sanitizedOriginalName, inspected.durationMs(), inspected.width(), inspected.height());
 
             if (insertedIds.isEmpty()) {
-                // Một luồng đồng thời vừa insert thành công cùng (actorId, clientId); dọn dẹp file vừa ghi.
-                Files.deleteIfExists(targetPath);
+                // Luồng thua trong cuộc đua đồng thời cùng (actorId, clientId); finally sẽ tự xóa tempFile.
                 MediaUploadResponse concurrentWinner = findExistingUpload(actorId, clientId, kind);
                 if (concurrentWinner != null) {
                     return new MediaUploadResult(concurrentWinner, false);
                 }
                 throw new ApiException(HttpStatus.CONFLICT, "CONFLICT", "Concurrent upload conflict");
             }
+
+            // 7. Chỉ luồng thắng cuộc công bố file từ .tmp sang vị trí lưu trữ chính thức và đăng ký dọn nếu rollback.
+            Files.createDirectories(targetPath.getParent());
+            try {
+                Files.move(tempFile, targetPath, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            } catch (AtomicMoveNotSupportedException ex) {
+                Files.move(tempFile, targetPath, StandardCopyOption.REPLACE_EXISTING);
+            }
+            tempFile = null;
+            publishedPath = targetPath;
+            registerRollbackFileCleanup(targetPath);
 
             UUID newAttachmentId = insertedIds.get(0);
             MediaUploadResponse response = new MediaUploadResponse(
@@ -208,15 +218,16 @@ public class MediaService {
                     sanitizedOriginalName);
             return new MediaUploadResult(response, true);
         } catch (IOException e) {
+            deleteQuietly(publishedPath);
             log.error("Lỗi I/O khi lưu tệp tải lên", e);
             throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL", "Failed to store media file");
-        } finally {
-            if (tempFile != null) {
-                try {
-                    Files.deleteIfExists(tempFile);
-                } catch (IOException ignored) {
-                }
+        } catch (RuntimeException e) {
+            if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+                deleteQuietly(publishedPath);
             }
+            throw e;
+        } finally {
+            deleteQuietly(tempFile);
         }
     }
 
@@ -423,10 +434,10 @@ public class MediaService {
             int height = 1 + (((b1 & 0xC0) >> 6) | (b2 << 2) | ((b3 & 0xF) << 10));
             return new Dimensions(width, height);
         }
-        // VP8X (extended)
+        // VP8X (extended): bọc toàn bộ phép OR 24-bit trong ngoặc trước khi cộng 1 để tránh sai ưu tiên toán tử.
         if (header[12] == 'V' && header[13] == 'P' && header[14] == '8' && header[15] == 'X' && header.length >= 30) {
-            int width = 1 + (header[24] & 0xFF) | ((header[25] & 0xFF) << 8) | ((header[26] & 0xFF) << 16);
-            int height = 1 + (header[27] & 0xFF) | ((header[28] & 0xFF) << 8) | ((header[29] & 0xFF) << 16);
+            int width = 1 + ((header[24] & 0xFF) | ((header[25] & 0xFF) << 8) | ((header[26] & 0xFF) << 16));
+            int height = 1 + ((header[27] & 0xFF) | ((header[28] & 0xFF) << 8) | ((header[29] & 0xFF) << 16));
             return new Dimensions(width, height);
         }
         return new Dimensions(null, null);
@@ -472,6 +483,11 @@ public class MediaService {
     }
 
     private InspectedMedia inspectFile(Path tempFile, byte[] header, long totalBytes) {
+        // 0. Nghiêm cấm HTML và SVG dưới mọi hình thức (kể cả gửi qua kind=FILE) để tránh rủi ro XSS.
+        if (isHtmlOrSvg(header)) {
+            throw new ApiException(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "UNSUPPORTED_TYPE", "HTML and SVG files are strictly prohibited");
+        }
+
         // 1. PDF: %PDF- (25 50 44 46 2D)
         if (header.length >= 5
                 && header[0] == '%' && header[1] == 'P' && header[2] == 'D' && header[3] == 'F' && header[4] == '-') {
@@ -481,8 +497,7 @@ public class MediaService {
         // 2. ZIP / OOXML (docx, xlsx, pptx): 50 4B 03 04
         if (header.length >= 4
                 && header[0] == 'P' && header[1] == 'K' && header[2] == 0x03 && header[3] == 0x04) {
-            inspectZipEntries(tempFile);
-            return new InspectedMedia("application/zip", ".zip", null, null, null);
+            return inspectZipEntries(tempFile);
         }
 
         // 3. Plain text UTF-8 (không chứa byte NUL, decode nghiêm ngặt)
@@ -493,7 +508,11 @@ public class MediaService {
         throw new ApiException(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "UNSUPPORTED_TYPE", "Unsupported file type. Only PDF, Office/ZIP documents, and UTF-8 text are allowed");
     }
 
-    private void inspectZipEntries(Path tempFile) {
+    private InspectedMedia inspectZipEntries(Path tempFile) {
+        boolean hasContentTypes = false;
+        boolean hasWord = false;
+        boolean hasXl = false;
+        boolean hasPpt = false;
         try (ZipInputStream zis = new ZipInputStream(new BufferedInputStream(Files.newInputStream(tempFile)))) {
             ZipEntry entry;
             while ((entry = zis.getNextEntry()) != null) {
@@ -502,12 +521,34 @@ public class MediaService {
                 if ("AndroidManifest.xml".equalsIgnoreCase(name) || name.endsWith("/AndroidManifest.xml")) {
                     throw new ApiException(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "UNSUPPORTED_TYPE", "APK packages are strictly prohibited");
                 }
+                if ("[Content_Types].xml".equals(name)) {
+                    hasContentTypes = true;
+                } else if (name.startsWith("word/")) {
+                    hasWord = true;
+                } else if (name.startsWith("xl/")) {
+                    hasXl = true;
+                } else if (name.startsWith("ppt/")) {
+                    hasPpt = true;
+                }
             }
         } catch (ApiException e) {
             throw e;
         } catch (Exception e) {
             throw new ApiException(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "UNSUPPORTED_TYPE", "Invalid ZIP or Office file");
         }
+        if (hasContentTypes && hasWord) {
+            return new InspectedMedia(
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document", ".docx", null, null, null);
+        }
+        if (hasContentTypes && hasXl) {
+            return new InspectedMedia(
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", ".xlsx", null, null, null);
+        }
+        if (hasContentTypes && hasPpt) {
+            return new InspectedMedia(
+                    "application/vnd.openxmlformats-officedocument.presentationml.presentation", ".pptx", null, null, null);
+        }
+        return new InspectedMedia("application/zip", ".zip", null, null, null);
     }
 
     private boolean isValidUtf8Text(Path tempFile, long totalBytes) {
@@ -551,8 +592,23 @@ public class MediaService {
     }
 
     private boolean isHtmlOrSvg(byte[] header) {
-        String prefix = new String(header, 0, Math.min(header.length, 256), StandardCharsets.US_ASCII).toLowerCase(Locale.ROOT);
-        return prefix.contains("<html") || prefix.contains("<!doctype html") || prefix.contains("<svg") || prefix.contains("<?xml");
+        int offset = 0;
+        if (header.length >= 3
+                && (header[0] & 0xFF) == 0xEF
+                && (header[1] & 0xFF) == 0xBB
+                && (header[2] & 0xFF) == 0xBF) {
+            offset = 3; // Bỏ qua UTF-8 BOM nếu có
+        }
+        int len = Math.min(header.length - offset, 512);
+        if (len <= 0) {
+            return false;
+        }
+        String prefix = new String(header, offset, len, StandardCharsets.US_ASCII).toLowerCase(Locale.ROOT);
+        return prefix.contains("<html")
+                || prefix.contains("<!doctype html")
+                || prefix.contains("<svg")
+                || prefix.contains("<?xml")
+                || prefix.contains("<script");
     }
 
     /**
@@ -573,6 +629,9 @@ public class MediaService {
                     byte[] extSize = new byte[8];
                     if (fis.read(extSize) < 8) break;
                     boxSize = ByteBuffer.wrap(extSize).getLong();
+                    if (boxSize < 16) break;
+                } else if (boxSize < 8) {
+                    break;
                 }
 
                 if ("moov".equals(boxType)) {
@@ -600,6 +659,7 @@ public class MediaService {
             if (read < 8) break;
             long boxSize = ((long) (buf[0] & 0xFF) << 24) | ((long) (buf[1] & 0xFF) << 16)
                     | ((long) (buf[2] & 0xFF) << 8) | (buf[3] & 0xFF);
+            if (boxSize < 8) break;
             String boxType = new String(buf, 4, 4, StandardCharsets.ISO_8859_1);
 
             if ("mvhd".equals(boxType)) {
@@ -635,13 +695,56 @@ public class MediaService {
         if (originalName == null || originalName.isBlank()) {
             return "attachment";
         }
-        // Loại bỏ đường dẫn thư mục path traversal
-        String baseName = Paths.get(originalName).getFileName().toString();
-        // Giới hạn độ dài 255 ký tự
-        if (baseName.length() > 255) {
-            baseName = baseName.substring(0, 255);
+        // Làm sạch thủ công thay vì Paths.get() trên chuỗi client chưa tin cậy (tránh InvalidPathException với NUL/ký tự điều khiển).
+        String normalized = originalName.replace('\\', '/');
+        int lastSlash = normalized.lastIndexOf('/');
+        String baseName = lastSlash >= 0 ? normalized.substring(lastSlash + 1) : normalized;
+        StringBuilder cleaned = new StringBuilder(baseName.length());
+        for (int i = 0; i < baseName.length(); i++) {
+            char c = baseName.charAt(i);
+            if (Character.isISOControl(c) || c == ':' || c == '*' || c == '?' || c == '"'
+                    || c == '<' || c == '>' || c == '|') {
+                cleaned.append('_');
+            } else {
+                cleaned.append(c);
+            }
         }
-        return baseName;
+        String result = cleaned.toString().trim();
+        while (result.startsWith(".")) {
+            result = result.substring(1);
+        }
+        if (result.isEmpty()) {
+            return "attachment";
+        }
+        if (result.length() > 255) {
+            result = result.substring(0, 255);
+        }
+        return result;
+    }
+
+    /** Đăng ký xóa tệp đã công bố trên đĩa nếu DB transaction bị rollback. */
+    private void registerRollbackFileCleanup(Path publishedPath) {
+        if (publishedPath == null || !TransactionSynchronizationManager.isSynchronizationActive()) {
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status != STATUS_COMMITTED) {
+                    deleteQuietly(publishedPath);
+                }
+            }
+        });
+    }
+
+    private static void deleteQuietly(Path path) {
+        if (path == null) {
+            return;
+        }
+        try {
+            Files.deleteIfExists(path);
+        } catch (IOException ignored) {
+        }
     }
 
     private record Dimensions(Integer width, Integer height) {}

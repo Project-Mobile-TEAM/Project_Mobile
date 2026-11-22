@@ -225,12 +225,23 @@ public final class MediaPreparationHelper {
         validateClientId(clientId);
         ContentResolver resolver = context.getContentResolver();
         String displayName = queryDisplayName(resolver, sourceUri);
+        String providerMime = resolver.getType(sourceUri);
         String ext = extensionOf(displayName);
         String allowedMime = ext == null ? null : ALLOWED_DOCUMENTS.get(ext);
-        if (allowedMime == null) {
+        if (allowedMime == null && ext == null && providerMime != null) {
+            // Một số document provider SAF không gắn phần mở rộng trong DISPLAY_NAME: suy luận an toàn theo MIME cho phép.
+            String normalizedMime = providerMime.toLowerCase(Locale.ROOT);
+            for (Map.Entry<String, String> entry : ALLOWED_DOCUMENTS.entrySet()) {
+                if (entry.getValue().equals(normalizedMime)) {
+                    ext = entry.getKey();
+                    allowedMime = entry.getValue();
+                    break;
+                }
+            }
+        }
+        if (allowedMime == null || ext == null) {
             throw new PrepareException("UNSUPPORTED_TYPE");
         }
-        String providerMime = resolver.getType(sourceUri);
         if (providerMime != null
                 && !providerMime.equalsIgnoreCase(allowedMime)
                 && !providerMime.equalsIgnoreCase("application/octet-stream")

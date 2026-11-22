@@ -359,6 +359,19 @@ class CallSignalingAndPolicyApiTest {
             assertEquals("MISSED", aliceEnded.path("payload").path("state").asText());
             assertEquals("TIMEOUT", aliceEnded.path("payload").path("endReason").asText());
             assertEquals("MISSED", bobEnded.path("payload").path("state").asText());
+            // Payload MISSED phải mang kèm thông tin caller để Android NotificationHelper dựng thông báo gọi nhỡ kể cả khác batch /sync.
+            assertEquals(alice.id.toString(), bobEnded.path("payload").path("caller").path("id").asText());
+            assertEquals("Alice", bobEnded.path("payload").path("caller").path("displayName").asText());
+            String storedMissedPayload = jdbc.queryForObject(
+                    "SELECT payload_json::text FROM public.sync_events "
+                            + "WHERE user_id = ? AND event_type = 'CALL_UPDATED' AND entity_id = ? "
+                            + "ORDER BY id DESC LIMIT 1",
+                    String.class,
+                    bob.id, callId2);
+            JsonNode storedMissedNode = json.readTree(storedMissedPayload);
+            assertEquals("MISSED", storedMissedNode.path("state").asText());
+            assertEquals(alice.id.toString(), storedMissedNode.path("caller").path("id").asText());
+            assertEquals("Alice", storedMissedNode.path("caller").path("displayName").asText());
             assertEquals(1, countCallMessages(callId2));
 
             // --- Phần C: Đúng mốc biên expires_at (45.000s) -> từ chối accept/reject/end muộn (409 INVALID_STATE), sweeper ghi đúng 1 MISSED ---

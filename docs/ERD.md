@@ -1,6 +1,6 @@
 # UTEChat — ERD và lược đồ dữ liệu
 
-> **Trạng thái:** ĐÃ CHỐT 2026-11-09, cập nhật schema Phase 3/4 ngày 2026-11-17 (migration V1 + V3 + V4; demo thêm V2 trước V3/V4). Chuẩn schema phía server là PostgreSQL do Supabase quản lý (ADR-007). Mermaid ERD chỉ rút gọn cột để dễ đọc; **bảng mô tả cột bên dưới là nguồn chính xác theo cột**. Mọi bảng bật Row Level Security không có policy; backend truy cập qua role JDBC quản trị/owner hoặc BYPASSRLS, không dùng Supabase API key làm mật khẩu JDBC.
+> **Trạng thái:** ĐÃ CHỐT 2026-11-09, cập nhật schema Phase 6 ngày 2026-11-23 (migration V1 + V3 + V4 + V6; demo thêm V2 trước V3/V4/V6). Chuẩn schema phía server là PostgreSQL do Supabase quản lý (ADR-007). Mermaid ERD chỉ rút gọn cột để dễ đọc; **bảng mô tả cột bên dưới là nguồn chính xác theo cột**. Mọi bảng bật Row Level Security không có policy; backend truy cập qua role JDBC quản trị/owner hoặc BYPASSRLS, không dùng Supabase API key làm mật khẩu JDBC.
 >
 > [!NOTE]
 > **Phạm vi CSDL server V1 (đúng 13 bảng cốt lõi):**
@@ -258,7 +258,7 @@ Room là bản lưu cục bộ phục vụ offline-first (ADR-009). **Server là
 | `sync_state` | `lastSyncEventId`, `lastSyncAt` | Con trỏ đồng bộ sự kiện qua `GET /api/sync?after=<lastSyncEventId>` |
 
 - Hàng đợi gửi dùng **WorkManager** (một chuỗi duy nhất `send-messages`, ADR-009), mỗi việc chỉ mang `clientId`, không mang nội dung tin.
-- `fallbackToDestructiveMigration()` được phép bật trong giai đoạn phát triển (build variant Debug); migration cụ thể sẽ được hoàn thiện trước bản demo.
+- Room v3 dùng migration tường minh (`MIGRATION_1_2`, `MIGRATION_2_3`) kèm schema export (`1.json`, `2.json`, `3.json`) và **không bật `fallbackToDestructiveMigration()`** kể cả bản Debug.
 
 ## 5. Dữ liệu mẫu cho demo
 

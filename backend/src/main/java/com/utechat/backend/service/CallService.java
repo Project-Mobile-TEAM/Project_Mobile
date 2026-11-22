@@ -424,6 +424,11 @@ public class CallService {
                 "UPDATE public.calls SET state = ?, end_reason = ?, ended_at = ?, updated_at = ? WHERE id = ?",
                 newState, endReason, Timestamp.from(now), Timestamp.from(now), callId);
 
+        CallerInfoDto callerInfo = null;
+        if ("MISSED".equals(newState)) {
+            callerInfo = loadCallerInfo(call.callerId());
+        }
+
         CallUpdatedEventPayload endedPayload = new CallUpdatedEventPayload(
                 callId.toString(),
                 call.conversationId().toString(),
@@ -431,13 +436,24 @@ public class CallService {
                 endReason,
                 call.media(),
                 "call.ended",
-                null,
+                callerInfo,
                 null,
                 null);
         syncEvents.write(call.callerId(), "CALL_UPDATED", "CALL", callId.toString(), endedPayload);
         syncEvents.write(call.calleeId(), "CALL_UPDATED", "CALL", callId.toString(), endedPayload);
 
         insertTerminalCallMessageOnce(callId, call.conversationId(), call.callerId(), call.calleeId());
+    }
+
+    private CallerInfoDto loadCallerInfo(UUID callerId) {
+        List<CallerInfoDto> rows = jdbc.query(
+                "SELECT display_name, avatar_url FROM public.users WHERE id = ?",
+                (rs, i) -> new CallerInfoDto(
+                        callerId.toString(),
+                        rs.getString("display_name"),
+                        rs.getString("avatar_url")),
+                callerId);
+        return rows.isEmpty() ? new CallerInfoDto(callerId.toString(), null, null) : rows.get(0);
     }
 
     /**

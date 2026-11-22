@@ -19,6 +19,7 @@ import com.utechat.data.local.dao.MessageDao;
 import com.utechat.data.local.dao.SyncStateDao;
 import com.utechat.data.local.dao.UserDao;
 import com.utechat.data.local.entity.ConversationEntity;
+import com.utechat.data.local.entity.ConversationMemberEntity;
 import com.utechat.data.local.entity.MessageEntity;
 import com.utechat.data.local.entity.SyncStateEntity;
 import com.utechat.data.local.entity.UserEntity;
@@ -466,6 +467,66 @@ public class NotificationAndSyncWorkerTest {
                 Collections.emptyList(), activeRoomTracker, () -> true);
         assertEquals(1, fakeSink.conversations.get(fakeSink.conversations.size() - 1).lines.size());
         assertEquals("Fresh", fakeSink.conversations.get(fakeSink.conversations.size() - 1).lines.get(0).text);
+    }
+
+    @Test
+    public void suppressesAlreadyReadMessagesAndResolvesMissedCallOrderingEdgeCases() {
+        NotificationHelper helper = new NotificationHelper(db, fakeSink, fakeStrings, session);
+        when(userDao.findById(BOB)).thenReturn(user(BOB, "Bob"));
+        when(conversationDao.getConversationSync("conv-1")).thenReturn(conv("conv-1", "DIRECT", null, false));
+        when(messageDao.insertRespectingVisibleFrom(any(MessageEntity.class), eq(ME))).thenReturn(true);
+
+        // Mốc đã đọc hiện tại của bản thân trên thiết bị khác đã là 100.
+        ConversationMemberEntity meMember = new ConversationMemberEntity();
+        meMember.setConversationId("conv-1");
+        meMember.setUserId(ME);
+        meMember.setRole("MEMBER");
+        meMember.setLastReadId(100L);
+        meMember.setLastDeliveredId(100L);
+        when(conversationDao.getMemberSync("conv-1", ME)).thenReturn(meMember);
+
+        SyncEventApplier applier = new SyncEventApplier(db);
+
+        // Lô 1:
+        // - Tin #99 <= lastReadId(100) -> không phát thông báo.
+        // - Tin #105 > 100 nhưng đi kèm RECEIPT_UPDATED của chính ME nâng readUpTo=105 trong cùng lô -> không phát thông báo.
+        // - Tin #106 > 105 -> PHẢI phát thông báo.
+        // - CALL_UPDATED(MISSED) không có trường caller đi TRƯỚC MESSAGE_CREATED(type=CALL) -> vẫn đối chiếu được caller=Bob.
+        List<ChatDtos.SyncEventDto> batch = Arrays.asList(
+                syncEvent(50L, "MESSAGE_CREATED",
+                        "{\"id\":99,\"clientId\":\"cli-99\",\"conversationId\":\"conv-1\",\"senderId\":\"u-bob\","
+                                + "\"type\":\"TEXT\",\"text\":\"Tin da doc tu truoc\",\"createdAt\":\"2026-11-22T12:00:00Z\"}"),
+                syncEvent(51L, "MESSAGE_CREATED",
+                        "{\"id\":105,\"clientId\":\"cli-105\",\"conversationId\":\"conv-1\",\"senderId\":\"u-bob\","
+                                + "\"type\":\"TEXT\",\"text\":\"Tin doc cung batch\",\"createdAt\":\"2026-11-22T12:00:01Z\"}"),
+                syncEvent(52L, "RECEIPT_UPDATED",
+                        "{\"conversationId\":\"conv-1\",\"userId\":\"u-me\",\"deliveredUpTo\":105,\"readUpTo\":105}"),
+                syncEvent(53L, "MESSAGE_CREATED",
+                        "{\"id\":106,\"clientId\":\"cli-106\",\"conversationId\":\"conv-1\",\"senderId\":\"u-bob\","
+                                + "\"type\":\"TEXT\",\"text\":\"Tin chua doc\",\"createdAt\":\"2026-11-22T12:00:02Z\"}"),
+                syncEvent(54L, "CALL_UPDATED",
+                        "{\"callId\":\"call-legacy-order\",\"conversationId\":\"conv-1\",\"state\":\"MISSED\","
+                                + "\"endReason\":\"TIMEOUT\",\"wsType\":\"call.ended\"}"),
+                syncEvent(55L, "MESSAGE_CREATED",
+                        "{\"id\":107,\"clientId\":\"call-legacy-order\",\"conversationId\":\"conv-1\",\"senderId\":\"u-bob\","
+                                + "\"type\":\"CALL\",\"call\":{\"id\":\"call-legacy-order\",\"state\":\"MISSED\",\"media\":\"VOICE\",\"endReason\":\"TIMEOUT\"},"
+                                + "\"createdAt\":\"2026-11-22T12:00:03Z\"}")
+        );
+
+        SyncEventApplier.SyncBatchOutcome outcome = applier.applyBatchDetailed(ME, batch);
+        helper.notifyBatch(ME, SESSION_1, outcome.newlyInsertedMessages, outcome.missedCalls,
+                activeRoomTracker, () -> true);
+
+        // Chỉ tin #106 xuất hiện trên kênh messages (tin #99, #105 và tin CALL #107 đều bị lọc).
+        assertEquals(1, fakeSink.conversations.size());
+        assertEquals(1, fakeSink.conversations.get(0).lines.size());
+        assertEquals("Tin chua doc", fakeSink.conversations.get(0).lines.get(0).text);
+
+        // Cuộc gọi nhỡ call-legacy-order vẫn được phát trên kênh calls.
+        assertEquals(1, fakeSink.missedCalls.size());
+        assertEquals("call-legacy-order", fakeSink.missedCalls.get(0).callId);
+        assertEquals(NotificationHelper.CHANNEL_CALLS, fakeSink.missedCalls.get(0).channelId);
+        assertEquals("Missed call from Bob", fakeSink.missedCalls.get(0).body);
     }
 
     // ======================== HELPERS ========================

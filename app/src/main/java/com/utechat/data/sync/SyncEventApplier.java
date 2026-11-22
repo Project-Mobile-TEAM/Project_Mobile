@@ -256,6 +256,8 @@ public class SyncEventApplier {
         List<MessageEntity> newlyInsertedMessages = new ArrayList<>();
         List<NotificationHelper.MissedCallNotice> missedCalls = new ArrayList<>();
         Map<String, CallOrigin> callOrigins = new HashMap<>();
+        List<PendingMissedCall> pendingMissedCalls = new ArrayList<>();
+        Map<String, Long> selfReadUpToInBatch = new HashMap<>();
 
         if (events == null || events.isEmpty()) {
             return new SyncBatchOutcome(highestIncomingByConversation, newlyInsertedMessages, missedCalls);
@@ -273,13 +275,13 @@ public class SyncEventApplier {
                     applyConversationUpdated(myUserId, event);
                     break;
                 case "RECEIPT_UPDATED":
-                    applyReceiptUpdated(myUserId, event);
+                    applyReceiptUpdated(myUserId, event, selfReadUpToInBatch);
                     break;
                 case "DEVICE_REVOKED":
                     applyDeviceRevoked(event);
                     break;
                 case "CALL_UPDATED":
-                    applyCallUpdated(myUserId, event, missedCalls, callOrigins);
+                    applyCallUpdated(myUserId, event, missedCalls, callOrigins, pendingMissedCalls);
                     break;
                 case "CONTACT_REQUEST_CREATED":
                 case "CONTACT_REQUEST_UPDATED":
@@ -293,6 +295,25 @@ public class SyncEventApplier {
                     throw new IllegalStateException("Loại sự kiện đồng bộ không được hỗ trợ: " + event.eventType);
             }
         }
+
+        // Lọc bỏ các tin nhắn mới chèn nhưng đã được chính người dùng đọc ở thiết bị khác trong cùng lô /api/sync.
+        if (!selfReadUpToInBatch.isEmpty() && !newlyInsertedMessages.isEmpty()) {
+            newlyInsertedMessages.removeIf(msg -> {
+                Long readUpTo = selfReadUpToInBatch.get(msg.getConversationId());
+                return readUpTo != null && msg.getServerId() != null && msg.getServerId() <= readUpTo;
+            });
+        }
+
+        // Đối chiếu bổ sung các CALL_UPDATED(MISSED) không có caller khi MESSAGE_CREATED(type=CALL) nằm sau trong cùng lô.
+        for (PendingMissedCall pending : pendingMissedCalls) {
+            CallOrigin origin = callOrigins.get(pending.callId);
+            if (origin != null && origin.callerId != null && !myUserId.equals(origin.callerId)) {
+                String convId = pending.conversationId != null ? pending.conversationId : origin.conversationId;
+                String name = pending.callerDisplayName != null ? pending.callerDisplayName : origin.callerDisplayName;
+                missedCalls.add(new NotificationHelper.MissedCallNotice(pending.callId, convId, origin.callerId, name));
+            }
+        }
+
         return new SyncBatchOutcome(highestIncomingByConversation, newlyInsertedMessages, missedCalls);
     }
 
@@ -325,16 +346,13 @@ public class SyncEventApplier {
 
         conversationDao.updateLastMessageIfNewer(dto.conversationId, dto.id, entity.getCreatedAt());
 
-        if (existing == null) {
-            newlyInsertedMessages.add(entity);
-        }
-
-        // Chỉ tăng unreadCount khi đây là tin nhắn mới từ người khác và vượt quá mốc đã đọc hiện tại.
+        // Chỉ tăng unreadCount và đưa vào hàng đợi thông báo khi đây là tin mới từ người khác vượt quá mốc đã đọc hiện tại.
         if (existing == null && !myUserId.equals(dto.senderId)) {
             ConversationMemberEntity myMember = conversationDao.getMemberSync(dto.conversationId, myUserId);
             long myLastRead = myMember != null ? myMember.getLastReadId() : 0L;
             if (dto.id > myLastRead) {
                 conversationDao.incrementUnread(dto.conversationId);
+                newlyInsertedMessages.add(entity);
             }
             Long prev = highestIncoming.get(dto.conversationId);
             if (prev == null || dto.id > prev) {
@@ -454,7 +472,8 @@ public class SyncEventApplier {
         }
     }
 
-    private void applyReceiptUpdated(String myUserId, ChatDtos.SyncEventDto event) {
+    private void applyReceiptUpdated(
+            String myUserId, ChatDtos.SyncEventDto event, Map<String, Long> selfReadUpToInBatch) {
         ChatDtos.ReceiptUpdatePayload p = parseRequired(event.payload, ChatDtos.ReceiptUpdatePayload.class, event.eventType);
         if (p.conversationId == null || p.userId == null) {
             throw new IllegalStateException("RECEIPT_UPDATED thiếu conversationId hoặc userId");
@@ -480,6 +499,11 @@ public class SyncEventApplier {
                 messageDao.upgradeReceiptsForSender(p.conversationId, myUserId, p.readUpTo, "READ");
             }
         } else if (p.readUpTo > 0) {
+            // Ghi nhận mốc tự đọc trong cùng lô để không phát thông báo cho tin nhắn đã đọc trên thiết bị khác.
+            Long prevRead = selfReadUpToInBatch.get(p.conversationId);
+            if (prevRead == null || p.readUpTo > prevRead) {
+                selfReadUpToInBatch.put(p.conversationId, p.readUpTo);
+            }
             // Biên nhận đọc từ chính tài khoản mình (trên thiết bị này hoặc thiết bị khác):
             // tính lại đúng số tin đến vượt trên max(lastReadId, visibleFromMessageId), không xóa trắng unread khi đọc một phần.
             ConversationMemberEntity persistedMe = conversationDao.getMemberSync(p.conversationId, myUserId);
@@ -512,7 +536,8 @@ public class SyncEventApplier {
             String myUserId,
             ChatDtos.SyncEventDto event,
             List<NotificationHelper.MissedCallNotice> missedCalls,
-            Map<String, CallOrigin> callOrigins) {
+            Map<String, CallOrigin> callOrigins,
+            List<PendingMissedCall> pendingMissedCalls) {
         ChatDtos.CallUpdatePayload p = parseRequired(event.payload, ChatDtos.CallUpdatePayload.class, event.eventType);
         if (p.callId == null || p.callId.trim().isEmpty()) {
             throw new IllegalStateException("CALL_UPDATED thiếu callId");
@@ -566,9 +591,14 @@ public class SyncEventApplier {
             String effectiveCallerId = callerId != null ? callerId : (origin != null ? origin.callerId : null);
             String effectiveConvId = conversationId != null ? conversationId : (origin != null ? origin.conversationId : null);
             String effectiveName = callerDisplayName != null ? callerDisplayName : (origin != null ? origin.callerDisplayName : null);
-            if (effectiveCallerId != null && !myUserId.equals(effectiveCallerId)) {
-                missedCalls.add(new NotificationHelper.MissedCallNotice(
-                        p.callId, effectiveConvId, effectiveCallerId, effectiveName));
+            if (effectiveCallerId != null) {
+                if (!myUserId.equals(effectiveCallerId)) {
+                    missedCalls.add(new NotificationHelper.MissedCallNotice(
+                            p.callId, effectiveConvId, effectiveCallerId, effectiveName));
+                }
+            } else {
+                // Nếu MESSAGE_CREATED(type=CALL) nằm sau CALL_UPDATED trong cùng lô, đối chiếu lại sau khi quét hết lô.
+                pendingMissedCalls.add(new PendingMissedCall(p.callId, effectiveConvId, effectiveName));
             }
         }
     }
@@ -589,6 +619,18 @@ public class SyncEventApplier {
         CallOrigin(@Nullable String conversationId, @Nullable String callerId, @Nullable String callerDisplayName) {
             this.conversationId = conversationId;
             this.callerId = callerId;
+            this.callerDisplayName = callerDisplayName;
+        }
+    }
+
+    private static final class PendingMissedCall {
+        @NonNull final String callId;
+        @Nullable final String conversationId;
+        @Nullable final String callerDisplayName;
+
+        PendingMissedCall(@NonNull String callId, @Nullable String conversationId, @Nullable String callerDisplayName) {
+            this.callId = callId;
+            this.conversationId = conversationId;
             this.callerDisplayName = callerDisplayName;
         }
     }

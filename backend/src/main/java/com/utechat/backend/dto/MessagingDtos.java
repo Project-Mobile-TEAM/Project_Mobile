@@ -33,7 +33,7 @@ public final class MessagingDtos {
     }
 
     /**
-     * Yêu cầu gửi tin nhắn từ client; Phase 5 chỉ nhận type = TEXT.
+     * Yêu cầu gửi tin nhắn từ client; hỗ trợ TEXT, IMAGE, AUDIO, VIDEO, FILE, LOCATION (Phase 6).
      * expectedVisibleFromMessageId bắt buộc với nhóm để chặn tin offline thuộc lần tham gia cũ.
      */
     public record SendMessageRequest(
