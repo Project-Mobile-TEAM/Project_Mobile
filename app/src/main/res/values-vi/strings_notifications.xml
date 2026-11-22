@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Chuỗi thông báo 2 kênh (messages & calls) của Phase 6 (ADR-021, ADR-025); bản tiếng Việt. -->
+<resources>
+    <string name="notif_channel_messages_name">Tin nhắn</string>
+    <string name="notif_channel_messages_desc">Thông báo tin nhắn mới</string>
+    <string name="notif_channel_calls_name">Cuộc gọi thoại</string>
+    <string name="notif_channel_calls_desc">Cuộc gọi thoại đến và cuộc gọi nhỡ</string>
+
+    <string name="notif_missed_call_title">Cuộc gọi nhỡ</string>
+    <string name="notif_missed_call_body">Cuộc gọi nhỡ từ %1$s</string>
+    <string name="notif_incoming_call">Cuộc gọi thoại đến</string>
+    <string name="notif_ongoing_call">Đang trong cuộc gọi thoại</string>
+    <string name="notif_group_summary">%1$d tin nhắn mới</string>
+    <string name="notif_new_message_fallback">Tin nhắn mới</string>
+</resources>
