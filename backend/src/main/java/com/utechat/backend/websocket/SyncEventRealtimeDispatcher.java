@@ -2,6 +2,7 @@ package com.utechat.backend.websocket;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.utechat.backend.dto.CallDtos.CallUpdatedEventPayload;
 import com.utechat.backend.dto.MessagingDtos.WsFrame;
 import java.util.List;
 import java.util.Map;
@@ -41,7 +42,9 @@ public class SyncEventRealtimeDispatcher {
     /** Đẩy toàn bộ sự kiện đã commit tới các kết nối WebSocket đang mở của người nhận. */
     public void onEventsCommitted(List<CommittedSyncEvent> events) {
         for (CommittedSyncEvent event : events) {
-            String wsType = mapEventTypeToWsType(event.eventType());
+            String wsType = "CALL_UPDATED".equals(event.eventType())
+                    ? resolveCallWsType(event.payload())
+                    : mapEventTypeToWsType(event.eventType());
             if (wsType == null) {
                 continue;
             }
@@ -60,10 +63,43 @@ public class SyncEventRealtimeDispatcher {
                     registry.sendToDevice(event.userId(), deviceHash, serialized);
                     registry.closeDevice(event.userId(), deviceHash, WebSocketSessionRegistry.CLOSE_DEVICE_REVOKED);
                 }
+            } else if ("CALL_UPDATED".equals(event.eventType()) && "call.handled_elsewhere".equals(wsType)) {
+                // Chỉ báo hủy chuông tới các thiết bị KHÁC của người nhận, không gửi lại cho thiết bị vừa nhận/từ chối.
+                String handledByDeviceHash = resolveHandledByDeviceHash(event.payload());
+                registry.sendToUserExceptDevice(event.userId(), handledByDeviceHash, serialized);
             } else {
                 registry.sendToUser(event.userId(), serialized);
             }
         }
+    }
+
+    /** Trích xuất loại khung WS cụ thể cho sự kiện CALL_UPDATED (mặc định call.ended nếu thiếu). */
+    private static String resolveCallWsType(Object payload) {
+        if (payload instanceof CallUpdatedEventPayload callPayload
+                && callPayload.wsType() != null && !callPayload.wsType().isBlank()) {
+            return callPayload.wsType();
+        }
+        if (payload instanceof Map<?, ?> map) {
+            Object raw = map.get("wsType");
+            if (raw instanceof String s && !s.isBlank()) {
+                return s;
+            }
+        }
+        return "call.ended";
+    }
+
+    /** Lấy device_id_hash của thiết bị đã nhận/từ chối cuộc gọi để loại trừ khi phát call.handled_elsewhere. */
+    private static String resolveHandledByDeviceHash(Object payload) {
+        if (payload instanceof CallUpdatedEventPayload callPayload) {
+            return callPayload.handledByDeviceIdHash();
+        }
+        if (payload instanceof Map<?, ?> map) {
+            Object raw = map.get("handledByDeviceIdHash");
+            if (raw instanceof String s && !s.isBlank()) {
+                return s;
+            }
+        }
+        return null;
     }
 
     /** Ánh xạ tên sự kiện trong sync_events sang trường type của khung WebSocket v1 (API_CONTRACT mục 3). */
