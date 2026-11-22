@@ -21,6 +21,7 @@ local.properties
 
 # Quy hoạch và quy tắc nội bộ (lưu trữ tại nhánh riêng 'planning', không nộp bài)
 .planning/
+PHASE_PROGRESS_SUMMARY.md
 AGENTS.md
 GEMINI.md
 

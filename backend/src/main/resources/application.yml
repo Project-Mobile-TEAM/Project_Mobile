@@ -21,6 +21,10 @@ spring:
       validation-timeout: 3000
       # Server vẫn khởi động để liveness trả lời khi CSDL tạm thời mất kết nối.
       initialization-fail-timeout: -1
+  servlet:
+    multipart:
+      max-file-size: 55MB
+      max-request-size: 60MB
   jdbc:
     template:
       query-timeout: 5s
@@ -49,6 +53,17 @@ app:
   otp:
     # Giãn cách tối thiểu giữa hai lần gửi OTP cho cùng một số (F-01: 60 giây).
     cooldown-seconds: 60
+  media:
+    storage-dir: ${MEDIA_STORAGE_DIR:./data/media}
+    max-image-bytes: 10485760
+    max-audio-bytes: 10485760
+    max-video-bytes: 52428800
+    max-file-bytes:  26214400
+  coturn:
+    urls: ${COTURN_URLS:}
+    shared-secret: ${COTURN_SHARED_SECRET:}
+    ttl-seconds: ${COTURN_TTL_SECONDS:3600}
+    fallback-stun-urls: ${COTURN_FALLBACK_STUN_URLS:stun:stun.l.google.com:19302}
 logging:
   level:
     root: INFO

@@ -11,6 +11,7 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 /** Gom mọi lỗi về một dạng JSON: { "error": { "code", "message", "details" } } (API_CONTRACT mục 1). */
 @RestControllerAdvice
@@ -40,6 +41,11 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, Object>> handleOther(Exception e) {
         log.error("Lỗi không xử lý được", e);
         return body(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL", "Internal error", Map.of());
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<Map<String, Object>> handleMaxUploadSizeExceeded(MaxUploadSizeExceededException e) {
+        return body(HttpStatus.PAYLOAD_TOO_LARGE, "FILE_TOO_LARGE", "File exceeds upload size limit", Map.of());
     }
 
     private static ResponseEntity<Map<String, Object>> body(HttpStatus status, String code, String message, Map<String, Object> details) {

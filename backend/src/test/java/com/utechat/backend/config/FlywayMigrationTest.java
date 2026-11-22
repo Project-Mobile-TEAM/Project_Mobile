@@ -32,7 +32,7 @@ class FlywayMigrationTest {
     }
 
     @Test
-    void migratesPreexistingManualDatabaseWithBaselineAndAppliesV3AndV4() throws Exception {
+    void migratesPreexistingManualDatabaseWithBaselineAndAppliesV6() throws Exception {
         try (var database = new PostgresFixture()) {
             DataSource ds = database.source;
             // Mô phỏng database Supabase cũ chỉ mới chạy tay V1 trong SQL Editor (chưa có flyway_schema_history).
@@ -50,12 +50,15 @@ class FlywayMigrationTest {
             flyway.migrate();
 
             JdbcTemplate jdbc = new JdbcTemplate(ds);
+        // V3 check
             Integer hasV3Col = jdbc.queryForObject(
                     "SELECT count(*) FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'deletion_scheduled_at'",
                     Integer.class);
+        // V4 check
             Integer hasV4Col = jdbc.queryForObject(
                     "SELECT count(*) FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'contacts' AND column_name = 'is_friend'",
                     Integer.class);
+        // V5 check
             Integer hasV5BarrierCol = jdbc.queryForObject(
                     "SELECT count(*) FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'sync_events' AND column_name = 'barrier_xid'",
                     Integer.class);
@@ -68,11 +71,28 @@ class FlywayMigrationTest {
             Long initialCursor = jdbc.queryForObject(
                     "SELECT min_available_cursor FROM public.sync_retention_state WHERE id = 1",
                     Long.class);
+        // V6 check
+            Integer hasV6Cols = jdbc.queryForObject(
+                    "SELECT count(*) FROM information_schema.columns WHERE table_schema = 'public' "
+                            + "AND ((table_name = 'calls' AND column_name IN ('caller_device_id_hash', 'callee_device_id_hash', 'expires_at', 'updated_at', 'caller_alive_until', 'callee_alive_until')) "
+                            + "OR (table_name = 'attachments' AND column_name = 'upload_client_id'))",
+                    Integer.class);
+            Integer hasV6Indexes = jdbc.queryForObject(
+                    "SELECT count(*) FROM pg_indexes WHERE schemaname = 'public' AND indexname IN "
+                            + "('uq_calls_active_caller', 'uq_calls_active_callee', 'idx_calls_ringing_expires', 'uq_messages_call_id', 'uq_attachments_upload_client')",
+                    Integer.class);
+            Integer v6Rls = jdbc.queryForObject(
+                    "SELECT count(*) FROM pg_tables WHERE schemaname = 'public' AND tablename IN ('calls', 'messages', 'attachments') AND rowsecurity = true",
+                    Integer.class);
+            
             assertEquals(1, hasV3Col);
             assertEquals(1, hasV4Col);
             assertEquals(1, hasV5BarrierCol);
             assertEquals(1, hasV5Trigger);
+            assertEquals(7, hasV6Cols);
+            assertEquals(5, hasV6Indexes);
             assertEquals(Boolean.TRUE, retentionRls);
+            assertEquals(3, v6Rls);
             assertEquals(0L, initialCursor);
         }
     }

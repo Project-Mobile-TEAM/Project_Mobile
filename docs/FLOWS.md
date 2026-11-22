@@ -229,8 +229,10 @@ sequenceDiagram
 
 - Một chuỗi duy nhất tên `send-messages` (`enqueueUniqueWork`, `ExistingWorkPolicy.APPEND_OR_REPLACE`) để đảm bảo mọi tin gửi **đúng thứ tự**.
 - `SendMessageWorker` chỉ nhận `clientId`, trả `success` hoặc `retry`, `MAX_ATTEMPTS = 3`. Ràng buộc `NetworkType.CONNECTED`, backoff lũy tiến bắt đầu từ 10 giây.
-- Khi có mạng lại, hàng đợi tự động chạy tuần tự và server chống trùng nhờ `clientId`.
-- Tin có đính kèm: upload file xong (F-18) mới gửi tin; nếu upload lỗi thì tin đánh dấu `FAILED`.
+- **Hàng đợi gửi Media 2 phase:**
+  - **Phase 1 (Upload tệp):** Worker tải tệp lên qua `POST /api/media` mang `clientId` (UUID). Khi server trả về `201` (hoặc `200`), app lưu ngay `mediaUrl` vào bảng Room `attachment_transfer` và `message.attachmentJson` trong cùng 1 transaction Room. Nếu mất mạng sau khi upload thành công, lần thử lại tiếp theo sẽ dùng ngay `mediaUrl` đã lưu mà không upload tệp lần thứ 2.
+  - Nếu gặp lỗi vĩnh viễn từ chối file (`413 FILE_TOO_LARGE`, `415 UNSUPPORTED_TYPE`): lập tức đánh dấu tin nhắn là `FAILED` và kết thúc mà không retry, tránh làm tắc nghẽn hàng đợi offline.
+  - **Phase 2 (Tạo tin nhắn):** `SendMessageWorker` gọi `POST /conversations/{id}/messages` mang `mediaUrl` đã có. Server chống trùng nhờ `clientId`.
 
 ### F-12 Nhận tin và trạng thái đã nhận, đã đọc
 
@@ -318,7 +320,7 @@ sequenceDiagram
 | Voice | `MediaRecorder` (`RECORD_AUDIO`) | ≤ 5 phút, dung lượng ≤ 10 MB. Tệp `.m4a` (AAC) |
 | Video | Photo picker | Dung lượng ≤ 50 MB. Phát bằng trình phát trong app (`Media3 ExoPlayer`). Khi chọn mở bằng ứng dụng ngoài: app tải file về bộ nhớ tạm bằng token rồi chia sẻ `content://` qua `FileProvider` kèm cờ `FLAG_GRANT_READ_URI_PERMISSION` (tuyệt đối không đưa JWT vào URL) |
 | File | Trình chọn file hệ thống | Dung lượng ≤ 25 MB, MIME nằm trong danh sách cho phép |
-| Vị trí | `FusedLocationProviderClient` | Một lần toạ độ `(lat, lng)`, hiển thị bản đồ `SupportMapFragment` |
+| Vị trí | `FusedLocationProviderClient` | Một lần toạ độ `(lat, lng)`. Hiển thị thẻ tọa độ gọn nhẹ trong khung chat (latitude, longitude, nút mở bản đồ); khi người dùng bấm vào thẻ, app bắn Intent ngoài `geo:latitude,longitude?q=latitude,longitude` để mở ứng dụng Google Maps hoặc bản đồ mặc định của hệ thống |
 
 ---
 
@@ -331,30 +333,41 @@ sequenceDiagram
 - **Khi ứng dụng ở nền và WebSocket bị ngắt:** `PeriodicWorkRequest` (chu kỳ tối thiểu 15 phút của WorkManager) định kỳ gọi `GET /api/sync?after=<lastSyncEventId>` và phát thông báo theo cơ chế **best-effort** (không cam kết tức thời).
 - **Khi ứng dụng bị người dùng hoặc hệ điều hành force-stop hoàn toàn:** Hệ thống Android đình chỉ mọi tác vụ nền của ứng dụng, do đó **không cam kết nhận được thông báo ngay lập tức** cho đến khi người dùng khởi động lại ứng dụng.
 
-### F-20 Dịch tin nhắn offline on-device (ADR-014)
+### F-20 Dịch tin nhắn offline on-device
 
 ```mermaid
 sequenceDiagram
     actor U as Người dùng
     participant App as App
-    participant ML as Google ML Kit Translation
+    participant ML as Google ML Kit Translation (EN <-> VI)
     participant DB as Room Database
-    U->>App: Nhấn giữ tin nhắn, chọn "Dịch"
-    App->>DB: Kiểm tra bản dịch trong message_translation
+    U->>App: Nhấn giữ tin nhắn, chọn "Dịch sang tiếng Việt" hoặc "Dịch sang tiếng Anh"
+    App->>DB: Kiểm tra bản dịch trong message_translation (messageKey, targetLang)
     alt Đã có bản dịch cục bộ
         DB-->>App: Trả về translatedText
-        App->>App: Hiển thị bản dịch ngay bên dưới tin nhắn
+        App->>App: Hiển thị bản dịch ngay bên dưới tin nhắn kèm nhãn "Đã dịch" / nút "Ẩn bản dịch"
     else Chưa có bản dịch
-        App->>ML: Yêu cầu dịch Anh - Việt
+        App->>ML: Kiểm tra mô hình dịch trên máy
         alt Gói ngôn ngữ chưa tải
-            App->>App: Hiển thị thanh tiến độ tải gói ngôn ngữ (~30MB)
-            ML->>ML: Tải mô hình về máy
+            alt Đang dùng mạng di động (Cellular)
+                App->>U: Hiển thị dialog xác nhận tải qua 4G/5G (~30MB)
+                U->>App: Bấm "Đồng ý"
+            else Đang kết nối Wi-Fi
+                App->>App: Tự động tải nền không cần hỏi
+            end
+            App->>App: Hiển thị tiến trình không định lượng: "Đang tải gói ngôn ngữ…" (không % ảo)
+            ML->>ML: Tải gói mô hình về bộ nhớ máy
         end
-        ML-->>App: Trả về văn bản đã dịch
+        ML-->>App: Trả về văn bản đã dịch trực tiếp (không qua tầng Language ID)
         App->>DB: Lưu bản dịch vào bảng message_translation
-        App->>App: Cập nhật giao diện hiển thị bản dịch
+        App->>App: Cập nhật giao diện: hiển thị bản dịch bên dưới tin nhắn gốc và nút "Ẩn bản dịch"
     end
 ```
+
+**Quy tắc Dịch tin nhắn:**
+- **Không dùng nhận diện ngôn ngữ động (D-13):** Do tin nhắn chat ngắn thường gây nhận diện sai (ví dụ "ok", "alo", từ viết tắt), app cung cấp trực tiếp 2 lựa chọn rõ ràng trên menu: "Dịch sang tiếng Việt" (`VI`) và "Dịch sang tiếng Anh` (`EN`).
+- **Giao diện bản dịch (D-14):** Hiển thị ngay bên dưới bong bóng chat của tin nhắn gốc, có nhãn "Đã dịch" và nút bấm "Ẩn bản dịch" để thu gọn lại bất cứ lúc nào.
+- **Tiến độ tải gói mô hình (D-15):** Hiển thị thanh tiến trình bất định (indeterminate progress bar), tuyệt đối không tính % ảo gây hiểu lầm cho người dùng. Tự động tải khi có Wi-Fi, hiển thị hộp thoại xác nhận khi đang dùng dữ liệu di động (4G/5G).
 
 ---
 
@@ -367,41 +380,59 @@ sequenceDiagram
     actor C as Người gọi
     participant CA as App người gọi
     participant S as Server
-    participant EA as App người nhận
+    participant EA as App người nhận (Thiết bị 1)
+    participant EA2 as App người nhận (Thiết bị 2)
     actor E as Người nhận
     C->>CA: Bấm "Gọi thoại"
     CA->>S: POST /calls (conversationId, media = VOICE)
-    alt Hai bên chưa là bạn bè ACCEPTED
-        S-->>CA: 403 CONTACT_REQUIRED
+    alt Không phải hội thoại 1-1 (DIRECT)
+        S-->>CA: 400 CALL_UNSUPPORTED
     else Một trong hai bên bị chặn
         S-->>CA: 403 BLOCKED
+    else Hai bên chưa là bạn bè ACCEPTED
+        S-->>CA: 403 CONTACT_REQUIRED
+    else Người gọi hoặc người nhận đang bận cuộc gọi khác (RINGING hoặc ACTIVE)
+        S-->>CA: 409 CALL_BUSY (không tạo row calls, không đổ chuông)
     else Hợp lệ
-        S->>S: Tạo bản ghi calls, tạo sync_events (CALL_UPDATED)
-        S-->>CA: 201 (callId, iceServers)
-        S-->>EA: WebSocket call.incoming (callId, caller, VOICE, mang syncEventId)
+        S->>S: Tạo bản ghi calls (RINGING, expires_at = now + 45s)
+        S-->>CA: 201 (callId, expiresAt, iceServers)
+        S-->>EA: WebSocket call.incoming (callId, caller, expiresAt, mang syncEventId CALL_UPDATED)
+        S-->>EA2: WebSocket call.incoming (callId, caller, expiresAt, mang syncEventId CALL_UPDATED)
         EA->>EA: Đổ chuông, hiện màn hình cuộc gọi đến
-        alt Người nhận bấm Nhận máy
+        EA2->>EA2: Đổ chuông trên thiết bị 2
+        alt Người nhận bấm Nhận máy trên Thiết bị 1
             E->>EA: Bấm "Nhận"
             EA->>S: POST /calls/{id}/accept
+            S->>S: Chuyển state = ACTIVE, khóa cố định callee_device_id_hash của Thiết bị 1
             S-->>EA: 200 (iceServers)
-            S-->>CA: WebSocket call.accepted (mang syncEventId)
-            Note over CA,EA: Báo hiệu WebRTC (offer, answer, ice) qua WebSocket /ws
-            Note over CA,EA: Luồng âm thanh P2P trực tiếp hoặc qua coturn TURN relay
-        else Người nhận bấm Từ chối
+            S-->>CA: WebSocket call.accepted (mang syncEventId CALL_UPDATED)
+            S-->>EA2: WebSocket call.handled_elsewhere (Thiết bị 2 lập tức tắt chuông)
+            Note over CA,EA: Khóa báo hiệu 2 thiết bị: call.offer, call.answer, call.ice chỉ chuyển giữa CA và EA
+            Note over CA,EA: Trao đổi âm thanh P2P trực tiếp hoặc qua coturn TURN relay
+            Note over CA,EA: Định kỳ mỗi 15s gửi call.keepalive lên server để duy trì liveness deadline 60s
+        else Người nhận bấm Từ chối trên Thiết bị 1
             E->>EA: Bấm "Từ chối"
             EA->>S: POST /calls/{id}/reject
-            S-->>CA: WebSocket call.ended (REJECTED, mang syncEventId)
-        else Hết 45 giây không trả lời
-            S->>S: Chuyển state = MISSED
-            S-->>CA: WebSocket call.ended (MISSED, mang syncEventId)
-            S-->>EA: WebSocket call.ended (MISSED, mang syncEventId)
+            S->>S: Chuyển state = REJECTED, end_reason = 'REJECT'
+            S-->>CA: WebSocket call.ended (REJECTED, mang syncEventId CALL_UPDATED)
+            S-->>EA2: WebSocket call.handled_elsewhere (Thiết bị 2 tắt chuông)
+            S->>S: Tự động chèn 1 tin nhắn CALL vào messages
+        else Hết 45 giây không trả lời (Server Timeout)
+            S->>S: Server sweeper chuyển state = MISSED, end_reason = 'TIMEOUT'
+            S-->>CA: WebSocket call.ended (MISSED, mang syncEventId CALL_UPDATED)
+            S-->>EA: WebSocket call.ended (MISSED, mang syncEventId CALL_UPDATED)
+            S-->>EA2: WebSocket call.ended (MISSED, mang syncEventId CALL_UPDATED)
+            S->>S: Tự động chèn 1 tin nhắn CALL vào messages
         end
     end
 ```
 
-### F-22 Cuộc gọi nhỡ
+### F-22 Cuộc gọi nhỡ và Lịch sử cuộc gọi
 
-Khi cuộc gọi kết thúc ở trạng thái `MISSED`, `REJECTED`, `BUSY`, hoặc `FAILED`, server tự động chèn một tin nhắn loại `CALL` vào hội thoại để cả hai bên theo dõi lịch sử cuộc gọi.
+Khi cuộc gọi kết thúc ở bất kỳ trạng thái nào (`MISSED`, `REJECTED`, `ENDED`, hoặc `FAILED`), server đảm bảo:
+1. Ghi nhận `end_reason` rõ ràng (`HANGUP`, `TIMEOUT`, `REJECT`, `BUSY`, `OFFLINE`, `ERROR`).
+2. Tự động chèn **duy nhất 1 tin nhắn loại `CALL`** vào bảng `messages` (được bảo vệ chống trùng lặp bằng partial unique index `uq_messages_call_id`). Cả hai bên đều thấy tin nhắn này hiển thị trực quan trong lịch sử chat kèm icon trạng thái (đã gọi, cuộc gọi nhỡ, thời lượng cuộc gọi).
+3. Phát sinh sự kiện đồng bộ `CALL_UPDATED` tới các thiết bị liên quan để đồng bộ trạng thái cuộc gọi.
 
 ---
 
