@@ -60,6 +60,9 @@ android {
 dependencies {
     // Kéo để tải lại danh bạ khi kết nối được phục hồi.
     implementation(libs.swiperefreshlayout)
+    // Khóa chặt androidx.core 1.17.0 và androidx.activity 1.10.1 tương thích compileSdk = 36.
+    implementation(libs.core)
+    implementation(libs.activity)
     // Views/XML, Material3 và điều hướng một Activity.
     implementation(libs.appcompat)
     implementation(libs.material)
@@ -76,6 +79,17 @@ dependencies {
     implementation(libs.okhttp.core)
     implementation(libs.okhttp.logging)
     implementation(libs.work.runtime)
+    // Phase 6: Media3 ExoPlayer, Vị trí GPS, WebRTC thoại 1-1, ML Kit dịch EN <-> VI, EXIF và Glide.
+    implementation(libs.media3.exoplayer)
+    implementation(libs.media3.ui)
+    implementation(libs.media3.datasource.okhttp)
+    implementation(libs.play.services.location)
+    implementation(libs.stream.webrtc.android)
+    implementation(libs.mlkit.translate)
+    implementation(libs.exifinterface)
+    implementation(libs.glide)
+    implementation(libs.glide.okhttp3.integration)
+    annotationProcessor(libs.glide.compiler)
     // Test JVM cho logic và test thiết bị cho SQLite/FTS thật.
     testImplementation(libs.junit)
     testImplementation(libs.mockito)
