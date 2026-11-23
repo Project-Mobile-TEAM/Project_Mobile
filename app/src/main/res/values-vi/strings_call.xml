@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Chuỗi giao diện cuộc gọi thoại WebRTC 1-1 và dịch vụ nền microphone (VI). -->
+<resources>
+    <string name="call_channel_name">Cuộc gọi thoại</string>
+    <string name="call_ongoing_title">Cuộc gọi thoại</string>
+    <string name="call_ongoing_text">Đang trong cuộc gọi thoại</string>
+
+    <string name="call_status_calling">Đang gọi…</string>
+    <string name="call_status_incoming">Cuộc gọi thoại đến</string>
+    <string name="call_status_connecting">Đang kết nối…</string>
+    <string name="call_status_reconnecting">Đang kết nối lại…</string>
+    <string name="call_status_ended">Đã kết thúc</string>
+    <string name="call_status_busy">Đang bận</string>
+    <string name="call_status_no_answer">Không trả lời</string>
+    <string name="call_status_rejected">Cuộc gọi bị từ chối</string>
+    <string name="call_status_handled_elsewhere">Đã xử lý trên thiết bị khác</string>
+    <string name="call_status_offline">Mất kết nối</string>
+
+    <string name="call_error_blocked">Không thể gọi người dùng này</string>
+    <string name="call_error_contact_required">Hãy kết bạn để gọi thoại</string>
+    <string name="call_error_unsupported">Chỉ hỗ trợ cuộc gọi thoại 1-1</string>
+    <string name="call_error_rate_limited">Gọi quá nhanh. Vui lòng thử lại sau ít phút.</string>
+    <string name="call_error_fgs_failed">Không thể khởi động dịch vụ âm thanh cuộc gọi</string>
+    <string name="call_error_generic">Cuộc gọi thất bại</string>
+
+    <string name="call_action_mute">Tắt mic</string>
+    <string name="call_action_unmute">Bật mic</string>
+    <string name="call_action_speaker">Loa ngoài</string>
+    <string name="call_action_end">Kết thúc</string>
+    <string name="call_action_accept">Nghe máy</string>
+    <string name="call_action_reject">Từ chối</string>
+    <string name="call_action_close">Đóng</string>
+    <string name="call_action_dial_fallback">Gọi qua nhà mạng</string>
+
+    <string name="call_permission_audio_rationale">Cần quyền micro để thực hiện cuộc gọi thoại.</string>
+    <string name="call_permission_audio_denied">Bạn đã từ chối quyền micro nên không thể gọi thoại.</string>
+    <string name="call_unknown_peer">Người dùng UTEChat</string>
+    <string name="call_avatar_cd">Ảnh đại diện người gọi</string>
+</resources>

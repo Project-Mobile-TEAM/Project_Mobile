@@ -62,6 +62,12 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
+        <!-- Dịch vụ nền microphone cho cuộc gọi thoại WebRTC 1-1; không export và chỉ chạy sau khi có RECORD_AUDIO. -->
+        <service
+            android:name=".data.call.CallService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
+
         <!-- AppCompat tự lưu ngôn ngữ người dùng chọn (Android dưới 13), xem ProfileFragment/LanguageFragment. -->
         <service android:name="androidx.appcompat.app.AppLocalesMetadataHolderService"
             android:enabled="false" android:exported="false">
