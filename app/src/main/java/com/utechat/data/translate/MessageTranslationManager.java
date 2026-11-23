@@ -8,7 +8,7 @@ import androidx.annotation.Nullable;
 import com.utechat.data.local.dao.TranslationDao;
 import com.utechat.data.local.entity.MessageEntity;
 import com.utechat.data.local.entity.MessageTranslationEntity;
-import com.utechat.data.session.SessionManager;
+import com.utechat.data.repository.CurrentUserIdProvider;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -36,6 +36,7 @@ public class MessageTranslationManager {
     public enum NetworkState {
         OFFLINE,
         WIFI_UNMETERED,
+        UNMETERED_NON_WIFI,
         CELLULAR_METERED
     }
 
@@ -103,16 +104,16 @@ public class MessageTranslationManager {
     private final TranslationDao translationDao;
     private final MessageTranslator translator;
     private final NetworkChecker networkChecker;
-    private final SessionManager session;
+    private final CurrentUserIdProvider session;
     private final Executor diskExecutor;
     private final Executor mainExecutor;
 
-    /** Constructor chính 100% kiểm thử được trên JVM (tiêm NetworkChecker giả). */
+    /** Constructor chính 100% kiểm thử được trên JVM (tiêm NetworkChecker giả và hỗ trợ cả SessionManager lẫn FakeAuthRepository). */
     public MessageTranslationManager(
             @NonNull TranslationDao translationDao,
             @NonNull MessageTranslator translator,
             @NonNull NetworkChecker networkChecker,
-            @NonNull SessionManager session,
+            @NonNull CurrentUserIdProvider session,
             @NonNull Executor diskExecutor,
             @NonNull Executor mainExecutor) {
         this.translationDao = translationDao;
@@ -128,7 +129,7 @@ public class MessageTranslationManager {
             @NonNull TranslationDao translationDao,
             @NonNull MessageTranslator translator,
             @Nullable ConnectivityManager connectivityManager,
-            @NonNull SessionManager session,
+            @NonNull CurrentUserIdProvider session,
             @NonNull Executor diskExecutor,
             @NonNull Executor mainExecutor) {
         this(translationDao, translator, fromConnectivityManager(connectivityManager),
@@ -151,7 +152,10 @@ public class MessageTranslationManager {
                 return NetworkState.OFFLINE;
             }
             if (caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)) {
-                return NetworkState.WIFI_UNMETERED;
+                // Phân biệt Wi-Fi vs Ethernet/5G không đo lưu lượng để ML Kit không treo khi thiếu TRANSPORT_WIFI.
+                return caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+                        ? NetworkState.WIFI_UNMETERED
+                        : NetworkState.UNMETERED_NON_WIFI;
             }
             return NetworkState.CELLULAR_METERED;
         };
@@ -248,7 +252,8 @@ public class MessageTranslationManager {
                         return;
                     }
 
-                    boolean allowCellular = (netState == NetworkState.CELLULAR_METERED) && cellularConfirmed;
+                    boolean allowCellular = (netState == NetworkState.UNMETERED_NON_WIFI)
+                            || ((netState == NetworkState.CELLULAR_METERED) && cellularConfirmed);
                     deliverIfCurrent(sessionKey, callback, TranslationUpdate.downloadingModel(normalizedTarget));
                     downloadMissingModelsSequentially(
                             sessionKey, missingModels, 0, allowCellular,

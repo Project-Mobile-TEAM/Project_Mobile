@@ -19,6 +19,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -37,6 +39,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  */
 @Service
 public class CallService {
+    private static final Logger log = LoggerFactory.getLogger(CallService.class);
     public static final long RINGING_TIMEOUT_SECONDS = 45L;
     public static final long ACTIVE_LIVENESS_SECONDS = 60L;
 
@@ -388,7 +391,12 @@ public class CallService {
                 nowTs, nowTs, nowTs);
 
         for (UUID callId : dueCallIds) {
-            transactionTemplate.executeWithoutResult(status -> expireSingleCall(callId));
+            try {
+                transactionTemplate.executeWithoutResult(status -> expireSingleCall(callId));
+            } catch (RuntimeException e) {
+                // Cô lập lỗi theo từng cuộc gọi để một bản ghi hỏng không chặn vòng quét các cuộc gọi khác.
+                log.error("Lỗi khi tự động hết hạn cuộc gọi {}", callId, e);
+            }
         }
     }
 
@@ -529,7 +537,9 @@ public class CallService {
                         + "ON CONFLICT (call_id) WHERE call_id IS NOT NULL DO NOTHING "
                         + "RETURNING id",
                 (rs, i) -> rs.getLong("id"),
-                conversationId, callerId, callId, callId);
+                // Dùng UUID mới cho client_id để không bao giờ va chạm uq_messages_client với tin nhắn người dùng;
+                // tính duy nhất mỗi cuộc gọi 1 tin CALL đã được đảm bảo nguyên tử bởi uq_messages_call_id.
+                conversationId, callerId, UUID.randomUUID(), callId);
         if (insertedIds.isEmpty()) {
             return;
         }

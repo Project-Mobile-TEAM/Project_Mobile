@@ -204,4 +204,79 @@ public class MediaDownloadManagerTest {
             netPool.shutdownNow();
         }
     }
+
+    @Test
+    public void deduplicatesConcurrentDownloadsAndRejectsSmuggledMediaUrls() throws Exception {
+        byte[] payload = "%PDF-1.7 dedup-payload".getBytes(StandardCharsets.UTF_8);
+        CountDownLatch inFlight = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        int[] networkHits = {0};
+
+        OkHttpClient client = new OkHttpClient.Builder()
+                .addInterceptor(chain -> {
+                    networkHits[0]++;
+                    inFlight.countDown();
+                    try {
+                        assertTrue(release.await(5, TimeUnit.SECONDS));
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw new IOException("interrupted", e);
+                    }
+                    return new Response.Builder()
+                            .request(chain.request())
+                            .protocol(Protocol.HTTP_1_1)
+                            .code(200)
+                            .message("OK")
+                            .body(ResponseBody.create(payload, MediaType.parse("application/pdf")))
+                            .build();
+                })
+                .build();
+
+        ExecutorService netPool = Executors.newFixedThreadPool(2);
+        try {
+            MediaDownloadManager manager = new MediaDownloadManager(
+                    appContext, client, transferDao, netPool, Runnable::run, Runnable::run, session);
+
+            CountDownLatch bothDone = new CountDownLatch(2);
+            AtomicReference<File> first = new AtomicReference<>();
+            AtomicReference<File> second = new AtomicReference<>();
+
+            manager.downloadToCache(ATT_ID_1, "/api/media/" + ATT_ID_1, "dup.pdf", "application/pdf",
+                    new MediaDownloadManager.Callback() {
+                        @Override public void onSuccess(File file) { first.set(file); bothDone.countDown(); }
+                        @Override public void onError(String code) { fail("Unexpected error 1: " + code); }
+                    });
+            assertTrue(inFlight.await(3, TimeUnit.SECONDS));
+
+            // Lượt tải thứ 2 cùng attachmentId trong cùng phiên -> ghép vào callback đang chạy, không gọi HTTP lần 2.
+            manager.downloadToCache(ATT_ID_1, "/api/media/" + ATT_ID_1, "dup.pdf", "application/pdf",
+                    new MediaDownloadManager.Callback() {
+                        @Override public void onSuccess(File file) { second.set(file); bothDone.countDown(); }
+                        @Override public void onError(String code) { fail("Unexpected error 2: " + code); }
+                    });
+
+            release.countDown();
+            assertTrue(bothDone.await(5, TimeUnit.SECONDS));
+            assertEquals("Chỉ được gọi mạng đúng 1 lần khi tải trùng song song", 1, networkHits[0]);
+            assertEquals(first.get(), second.get());
+
+            // Kiểm tra chặn URL lách đường dẫn/query/fragment/non-UUID (M-08).
+            String[] badUrls = {
+                    "/api/media/" + ATT_ID_1 + "?token=leak",
+                    "/api/media/" + ATT_ID_1 + "#frag",
+                    "/api/media/%2e%2e/users/me",
+                    "/api/media/not-a-uuid"
+            };
+            for (String bad : badUrls) {
+                try {
+                    com.utechat.data.remote.api.ApiClient.resolveBackendMediaUrl("http://10.0.2.2:8080/", bad);
+                    fail("Phải từ chối đường dẫn media không hợp lệ: " + bad);
+                } catch (IllegalArgumentException expected) {
+                    // Đúng kỳ vọng.
+                }
+            }
+        } finally {
+            netPool.shutdownNow();
+        }
+    }
 }

@@ -596,6 +596,37 @@ class CallSignalingAndPolicyApiTest {
         }
     }
 
+    @Test
+    void terminalCallMessageNeverCollidesWithCallerMessageClientIdAndUnblocksSweeper() throws Exception {
+        TestUser alice = createActiveUser("Alice");
+        TestUser bob = createActiveUser("Bob");
+        makeFriends(alice.id, bob.id);
+        String convId = openDirect(alice.token, bob.id);
+
+        // 1. Alice tạo cuộc gọi -> nhận callId
+        HttpResponse<String> startResp = postJson("/api/calls", alice.token,
+                Map.of("conversationId", convId, "media", "VOICE"));
+        assertEquals(201, startResp.statusCode());
+        String callId = json.readTree(startResp.body()).get("callId").asText();
+
+        // 2. Alice cố tình gửi tin nhắn TEXT trùng clientId == callId trước khi cuộc gọi kết thúc
+        HttpResponse<String> msgResp = postJson("/api/conversations/" + convId + "/messages", alice.token,
+                Map.of("clientId", callId, "type", "TEXT", "text", "Collision probe"));
+        assertEquals(201, msgResp.statusCode());
+
+        // 3. Kết thúc cuộc gọi phải thành công 204 (không văng 500 uq_messages_client) và vẫn tạo đúng 1 tin CALL
+        HttpResponse<String> endResp = postJson("/api/calls/" + callId + "/end", alice.token, Map.of());
+        assertEquals(204, endResp.statusCode());
+        assertEquals(1, countCallMessages(callId));
+
+        // 4. Sau khi kết thúc, Alice & Bob có thể gọi lại bình thường (không bị kẹt 409 CALL_BUSY)
+        HttpResponse<String> nextCall = postJson("/api/calls", alice.token,
+                Map.of("conversationId", convId, "media", "VOICE"));
+        assertEquals(201, nextCall.statusCode());
+        String nextCallId = json.readTree(nextCall.body()).get("callId").asText();
+        assertEquals(204, postJson("/api/calls/" + nextCallId + "/reject", bob.token, Map.of()).statusCode());
+    }
+
     private int countCallMessages(String callId) {
         Integer count = jdbc.queryForObject(
                 "SELECT count(*) FROM public.messages WHERE call_id = ?::uuid",

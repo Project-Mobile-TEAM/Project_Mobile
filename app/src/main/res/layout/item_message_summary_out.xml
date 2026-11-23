@@ -72,7 +72,12 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:max="100" />
+                android:contentDescription="@string/media_voice_play_cd"
+                android:max="100"
+                android:minHeight="48dp"
+                android:progressBackgroundTint="@color/ute_on_accent"
+                android:progressTint="@color/ute_on_accent"
+                android:thumbTint="@color/ute_on_accent" />
 
             <TextView
                 android:id="@+id/voice_duration"

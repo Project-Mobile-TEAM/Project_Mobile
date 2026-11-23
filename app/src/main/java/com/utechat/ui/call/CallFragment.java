@@ -4,6 +4,8 @@ import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.drawable.Drawable;
+import android.media.AudioManager;
 import android.media.Ringtone;
 import android.media.RingtoneManager;
 import android.net.Uri;
@@ -24,6 +26,10 @@ import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.navigation.fragment.NavHostFragment;
 import com.bumptech.glide.Glide;
+import com.bumptech.glide.load.DataSource;
+import com.bumptech.glide.load.engine.GlideException;
+import com.bumptech.glide.request.RequestListener;
+import com.bumptech.glide.request.target.Target;
 import com.google.android.material.snackbar.Snackbar;
 import com.utechat.BuildConfig;
 import com.utechat.R;
@@ -35,11 +41,11 @@ import com.utechat.databinding.FragmentCallBinding;
 import java.util.Locale;
 
 /**
- * Màn hình cuộc gọi thoại WebRTC 1-1 chuyên biệt (D-11, ADR-021, T-06-19):
- * - Chỉ khởi chạy CallService microphone foreground khi Fragment đang resumed VÀ quyền RECORD_AUDIO đã được cấp.
- * - Khi có cuộc gọi đến (INCOMING_RINGING): phát chuông + rung; dừng ngay khi nghe máy, từ chối, xử lý thiết bị khác hoặc kết thúc.
- * - Hỗ trợ nút Tắt mic, Loa ngoài, Kết thúc, Nghe máy, Từ chối (>= 48dp), đồng hồ mm:ss sống sót khi xoay,
- *   và nút gọi dự phòng qua nhà mạng (ACTION_DIAL) khi WebRTC lỗi và đã biết SĐT đối phương.
+ * Màn hình cuộc gọi thoại WebRTC 1-1 thuần Views/XML + ViewBinding (D-11, T-06-19):
+ * - Khởi chạy cuộc gọi đi và xử lý hành động sau khi cấp quyền RECORD_AUDIO trong onResume() (khi isResumed() == true)
+ *   để đảm bảo CallService foreground microphone luôn hợp lệ trên Android 14–16.
+ * - Lưu hành động chờ quyền qua CallViewModel (SavedStateHandle) để sống sót khi xoay màn hình lúc hộp thoại quyền mở.
+ * - Dừng chuông/rung sạch sẽ trong onStop() và onDestroyView() để không bao giờ reo vô hạn khi khóa màn hình.
  */
 public class CallFragment extends Fragment {
     public static final String ARG_CALL_ID = "callId";
@@ -49,38 +55,41 @@ public class CallFragment extends Fragment {
     public static final String ARG_PEER_AVATAR_URL = "peerAvatarUrl";
     public static final String ARG_PEER_PHONE = "peerPhone";
 
-    private enum PendingAudioAction {
-        NONE,
-        START_OUTGOING,
-        ACCEPT_INCOMING
-    }
+    private static final String ACTION_NONE = "NONE";
+    private static final String ACTION_START_OUTGOING = "START_OUTGOING";
+    private static final String ACTION_ACCEPT_INCOMING = "ACCEPT_INCOMING";
 
     @Nullable private FragmentCallBinding binding;
     private CallViewModel viewModel;
-    private PendingAudioAction pendingAudioAction = PendingAudioAction.NONE;
 
     @Nullable private Ringtone incomingRingtone;
     private boolean alertingIncoming = false;
 
     private final ActivityResultLauncher<String> audioPermissionLauncher =
             registerForActivityResult(new ActivityResultContracts.RequestPermission(), granted -> {
-                PendingAudioAction action = pendingAudioAction;
-                pendingAudioAction = PendingAudioAction.NONE;
+                if (viewModel == null) {
+                    return;
+                }
+                String action = viewModel.getPendingAudioAction();
+                viewModel.setPendingAudioAction(ACTION_NONE);
                 if (!Boolean.TRUE.equals(granted)) {
                     showPermissionDeniedError();
-                    if (action == PendingAudioAction.START_OUTGOING && viewModel != null) {
-                        viewModel.onForegroundServiceStartFailed();
+                    if (ACTION_START_OUTGOING.equals(action)) {
+                        Bundle args = getArguments();
+                        viewModel.reportPermissionDenied(
+                                args != null ? args.getString(ARG_CONVERSATION_ID) : null,
+                                args != null ? args.getString(ARG_PEER_USER_ID) : null,
+                                args != null ? args.getString(ARG_PEER_NAME) : null,
+                                args != null ? args.getString(ARG_PEER_AVATAR_URL) : null,
+                                args != null ? args.getString(ARG_PEER_PHONE) : null);
                     }
                     return;
                 }
-                // Kiểm tra lại trạng thái resumed + quyền thực tế trước khi khởi chạy FGS microphone (targetSdk 36).
-                if (!isResumed() || !hasRecordAudioPermission()) {
-                    return;
-                }
-                if (action == PendingAudioAction.START_OUTGOING) {
-                    launchOutgoingWithService();
-                } else if (action == PendingAudioAction.ACCEPT_INCOMING) {
-                    acceptIncomingWithService();
+                // Callback ActivityResult chạy ở trạng thái STARTED trước onResume(): lưu vào pendingGrantedAction
+                // để thực thi ngay khi Fragment đạt RESUMED (hoặc ngay lập tức nếu đã resumed).
+                viewModel.setPendingGrantedAction(action);
+                if (isResumed()) {
+                    flushPendingGrantedAction();
                 }
             });
 
@@ -101,7 +110,29 @@ public class CallFragment extends Fragment {
 
         setupButtonListeners();
         observeViewModel();
-        maybeInitiateOutgoingCallFromArgs();
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        if (viewModel == null) {
+            return;
+        }
+        if (!flushPendingGrantedAction()) {
+            maybeInitiateOutgoingCallFromArgs();
+        }
+        // Khôi phục chuông/rung nếu quay lại màn hình khi cuộc gọi đến vẫn đang đổ chuông.
+        CallSessionCoordinator.CallUiState st = viewModel.getCurrentState();
+        if (st.state == CallSessionCoordinator.State.INCOMING_RINGING && !st.ringingDeadlinePassed) {
+            startIncomingAlert();
+        }
+    }
+
+    @Override
+    public void onStop() {
+        // Dừng chuông & rung khi khóa màn hình hoặc thu nhỏ app để không bao giờ reo vô hạn nếu call.ended đến lúc nền.
+        stopIncomingAlert();
+        super.onStop();
     }
 
     @Override
@@ -117,7 +148,7 @@ public class CallFragment extends Fragment {
         }
         binding.btnAcceptCall.setOnClickListener(v -> {
             stopIncomingAlert();
-            requestAudioAndRun(PendingAudioAction.ACCEPT_INCOMING);
+            requestAudioAndRun(ACTION_ACCEPT_INCOMING);
         });
         binding.btnRejectCall.setOnClickListener(v -> {
             stopIncomingAlert();
@@ -152,9 +183,35 @@ public class CallFragment extends Fragment {
         });
     }
 
+    private boolean flushPendingGrantedAction() {
+        if (viewModel == null || !isResumed()) {
+            return false;
+        }
+        String grantedAction = viewModel.getPendingGrantedAction();
+        if (ACTION_NONE.equals(grantedAction)) {
+            return false;
+        }
+        viewModel.setPendingGrantedAction(ACTION_NONE);
+        if (!hasRecordAudioPermission()) {
+            return false;
+        }
+        if (ACTION_START_OUTGOING.equals(grantedAction)) {
+            launchOutgoingWithService();
+            return true;
+        }
+        if (ACTION_ACCEPT_INCOMING.equals(grantedAction)) {
+            acceptIncomingWithService();
+            return true;
+        }
+        return false;
+    }
+
     private void maybeInitiateOutgoingCallFromArgs() {
         Bundle args = getArguments();
-        if (args == null) {
+        if (args == null || viewModel == null) {
+            return;
+        }
+        if (!ACTION_NONE.equals(viewModel.getPendingAudioAction())) {
             return;
         }
         String existingCallId = args.getString(ARG_CALL_ID);
@@ -166,20 +223,24 @@ public class CallFragment extends Fragment {
         if (!viewModel.isOutgoingDispatched()
                 && (current.state == CallSessionCoordinator.State.IDLE
                 || current.state == CallSessionCoordinator.State.ENDED)) {
-            requestAudioAndRun(PendingAudioAction.START_OUTGOING);
+            requestAudioAndRun(ACTION_START_OUTGOING);
         }
     }
 
-    private void requestAudioAndRun(@NonNull PendingAudioAction action) {
+    private void requestAudioAndRun(@NonNull String action) {
         if (hasRecordAudioPermission()) {
-            if (action == PendingAudioAction.START_OUTGOING) {
+            if (!isResumed()) {
+                viewModel.setPendingGrantedAction(action);
+                return;
+            }
+            if (ACTION_START_OUTGOING.equals(action)) {
                 launchOutgoingWithService();
-            } else if (action == PendingAudioAction.ACCEPT_INCOMING) {
+            } else if (ACTION_ACCEPT_INCOMING.equals(action)) {
                 acceptIncomingWithService();
             }
             return;
         }
-        pendingAudioAction = action;
+        viewModel.setPendingAudioAction(action);
         if (binding != null && shouldShowRequestPermissionRationale(Manifest.permission.RECORD_AUDIO)) {
             Snackbar.make(binding.getRoot(), R.string.call_permission_audio_rationale, Snackbar.LENGTH_SHORT).show();
         }
@@ -244,8 +305,8 @@ public class CallFragment extends Fragment {
         binding.tvPeerInitials.setText(buildInitials(displayName));
         renderAvatar(peerAvatar);
 
-        // Chuông và rung chỉ chạy khi đang INCOMING_RINGING và chưa quá hạn 45s.
-        if (state.state == CallSessionCoordinator.State.INCOMING_RINGING && !state.ringingDeadlinePassed) {
+        // Chuông và rung chỉ chạy khi Fragment đang hiện (resumed), INCOMING_RINGING và chưa quá hạn 45s.
+        if (isResumed() && state.state == CallSessionCoordinator.State.INCOMING_RINGING && !state.ringingDeadlinePassed) {
             startIncomingAlert();
         } else {
             stopIncomingAlert();
@@ -267,8 +328,8 @@ public class CallFragment extends Fragment {
 
         binding.layoutActiveControls.setVisibility(inCallControls ? View.VISIBLE : View.GONE);
         binding.btnToggleMute.setText(state.micMuted ? R.string.call_action_unmute : R.string.call_action_mute);
-        binding.btnToggleMute.setSelected(state.micMuted);
-        binding.btnToggleSpeaker.setSelected(state.speakerOn);
+        binding.btnToggleMute.setChecked(state.micMuted);
+        binding.btnToggleSpeaker.setChecked(state.speakerOn);
 
         binding.btnCloseCall.setVisibility(ended ? View.VISIBLE : View.GONE);
 
@@ -300,10 +361,32 @@ public class CallFragment extends Fragment {
             }
         }
         binding.ivPeerAvatar.setVisibility(View.VISIBLE);
-        binding.tvPeerInitials.setVisibility(View.GONE);
+        binding.tvPeerInitials.setVisibility(View.VISIBLE);
         Glide.with(this)
                 .load(resolvedUrl)
                 .circleCrop()
+                .listener(new RequestListener<Drawable>() {
+                    @Override
+                    public boolean onLoadFailed(
+                            @Nullable GlideException e, Object model,
+                            @NonNull Target<Drawable> target, boolean isFirstResource) {
+                        if (binding != null) {
+                            binding.ivPeerAvatar.setVisibility(View.GONE);
+                            binding.tvPeerInitials.setVisibility(View.VISIBLE);
+                        }
+                        return false;
+                    }
+
+                    @Override
+                    public boolean onResourceReady(
+                            @NonNull Drawable resource, @NonNull Object model,
+                            Target<Drawable> target, @NonNull DataSource dataSource, boolean isFirstResource) {
+                        if (binding != null) {
+                            binding.tvPeerInitials.setVisibility(View.GONE);
+                        }
+                        return false;
+                    }
+                })
                 .into(binding.ivPeerAvatar);
     }
 
@@ -344,6 +427,10 @@ public class CallFragment extends Fragment {
                     return getString(R.string.call_error_rate_limited);
                 case "FOREGROUND_SERVICE_FAILED":
                     return getString(R.string.call_error_fgs_failed);
+                case "RECORD_AUDIO_DENIED":
+                    return getString(R.string.call_permission_audio_denied);
+                case "INVALID_STATE":
+                    return getString(R.string.chat_error_invalid_state);
                 case "OFFLINE":
                     return getString(R.string.call_status_offline);
                 default:
@@ -388,26 +475,33 @@ public class CallFragment extends Fragment {
         }
         alertingIncoming = true;
         Context ctx = requireContext();
-        try {
-            Uri ringtoneUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
-            if (ringtoneUri != null) {
-                incomingRingtone = RingtoneManager.getRingtone(ctx, ringtoneUri);
-                if (incomingRingtone != null) {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                        incomingRingtone.setLooping(true);
+        AudioManager am = (AudioManager) ctx.getSystemService(Context.AUDIO_SERVICE);
+        int ringerMode = am != null ? am.getRingerMode() : AudioManager.RINGER_MODE_NORMAL;
+
+        if (ringerMode == AudioManager.RINGER_MODE_NORMAL) {
+            try {
+                Uri ringtoneUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
+                if (ringtoneUri != null) {
+                    incomingRingtone = RingtoneManager.getRingtone(ctx, ringtoneUri);
+                    if (incomingRingtone != null) {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                            incomingRingtone.setLooping(true);
+                        }
+                        incomingRingtone.play();
                     }
-                    incomingRingtone.play();
                 }
+            } catch (RuntimeException ignored) {
             }
-        } catch (RuntimeException ignored) {
         }
-        try {
-            Vibrator vibrator = resolveVibrator(ctx);
-            if (vibrator != null && vibrator.hasVibrator()) {
-                long[] pattern = new long[]{0L, 600L, 900L};
-                vibrator.vibrate(VibrationEffect.createWaveform(pattern, 0));
+        if (ringerMode != AudioManager.RINGER_MODE_SILENT) {
+            try {
+                Vibrator vibrator = resolveVibrator(ctx);
+                if (vibrator != null && vibrator.hasVibrator()) {
+                    long[] pattern = new long[]{0L, 600L, 900L};
+                    vibrator.vibrate(VibrationEffect.createWaveform(pattern, 0));
+                }
+            } catch (RuntimeException ignored) {
             }
-        } catch (RuntimeException ignored) {
         }
     }
 

@@ -189,6 +189,20 @@ public class ChatWebSocketManager {
         disconnectLocked();
     }
 
+    /**
+     * Ngắt kết nối bất đồng bộ cho phiên vừa rời đi mà không ngắt nhầm phiên mới vừa đăng nhập sau đó (tránh deadlock AB-BA với SessionManager).
+     */
+    public synchronized void disconnectIfSession(@Nullable String departingSessionKey) {
+        if (departingSessionKey != null && activeSessionKey != null
+                && !departingSessionKey.equals(activeSessionKey)) {
+            return;
+        }
+        if (activeSessionKey == null && session.hasToken()) {
+            return;
+        }
+        disconnectLocked();
+    }
+
     /** Gửi khung typing.start nếu socket đang mở và vượt qua giới hạn 1 lần / 3 giây. */
     public synchronized void sendTypingStart(@NonNull String conversationId) {
         if (!socketOpen || activeSocket == null) return;
@@ -327,9 +341,9 @@ public class ChatWebSocketManager {
         });
     }
 
-    private void handleRevokedLocked(WebSocket socket, String capturedToken, String capturedVersion) {
+    private boolean prepareRevokeLocked(WebSocket socket) {
         if (socket != activeSocket && activeSocket != null) {
-            return;
+            return false;
         }
         manualDisconnect = true;
         socketOpen = false;
@@ -341,7 +355,11 @@ public class ChatWebSocketManager {
         syncEngine.cancelPendingRetry();
         typingTracker.clearAll();
         connectionState.postValue(WsConnectionState.DISCONNECTED);
+        return true;
+    }
 
+    /** Xóa phiên bị thu hồi BÊN NGOÀI khóa ChatWebSocketManager để không tạo vòng khóa AB-BA với SessionManager. */
+    private void finalizeRevokeOutsideLock(String capturedToken, String capturedVersion) {
         synchronized (session) {
             if (session.clearIfCurrent(capturedToken, capturedVersion)) {
                 SessionEvents.notifyExpired(session.versionKey());
@@ -398,6 +416,7 @@ public class ChatWebSocketManager {
             }
 
             boolean shouldRequestSync = false;
+            boolean shouldFinalizeRevoke = false;
             CallSignalListener callListener = null;
             String callFrameType = null;
             JsonObject callPayload = null;
@@ -418,7 +437,7 @@ public class ChatWebSocketManager {
                         }
                         break;
                     case "auth.revoked":
-                        handleRevokedLocked(webSocket, token, version);
+                        shouldFinalizeRevoke = prepareRevokeLocked(webSocket);
                         break;
                     case "message.new":
                     case "conversation.updated":
@@ -455,6 +474,10 @@ public class ChatWebSocketManager {
                         break;
                 }
             }
+            if (shouldFinalizeRevoke) {
+                finalizeRevokeOutsideLock(token, version);
+                return;
+            }
             // Kiểm tra lại phiên hiện hành ngoài monitor lock trước khi giao khung cuộc gọi (T-06-18).
             if (callListener != null
                     && callFrameType != null
@@ -469,49 +492,61 @@ public class ChatWebSocketManager {
 
         @Override
         public void onClosing(@NonNull WebSocket webSocket, int code, @NonNull String reason) {
+            boolean shouldFinalizeRevoke = false;
             synchronized (ChatWebSocketManager.this) {
                 if (webSocket != activeSocket) return;
                 if (code == CLOSE_CODE_SESSION_REVOKED) {
-                    handleRevokedLocked(webSocket, token, version);
-                    return;
+                    shouldFinalizeRevoke = prepareRevokeLocked(webSocket);
+                } else {
+                    webSocket.close(1000, null);
                 }
-                webSocket.close(1000, null);
+            }
+            if (shouldFinalizeRevoke) {
+                finalizeRevokeOutsideLock(token, version);
             }
         }
 
         @Override
         public void onClosed(@NonNull WebSocket webSocket, int code, @NonNull String reason) {
+            boolean shouldFinalizeRevoke = false;
             synchronized (ChatWebSocketManager.this) {
                 if (webSocket != activeSocket) return;
                 if (code == CLOSE_CODE_SESSION_REVOKED) {
-                    handleRevokedLocked(webSocket, token, version);
-                    return;
+                    shouldFinalizeRevoke = prepareRevokeLocked(webSocket);
+                } else {
+                    socketOpen = false;
+                    activeSocket = null;
+                    cancelHeartbeatLocked();
+                    syncEngine.cancelPendingRetry();
+                    if (!manualDisconnect) {
+                        scheduleReconnectLocked(sessionKey);
+                    }
                 }
-                socketOpen = false;
-                activeSocket = null;
-                cancelHeartbeatLocked();
-                syncEngine.cancelPendingRetry();
-                if (!manualDisconnect) {
-                    scheduleReconnectLocked(sessionKey);
-                }
+            }
+            if (shouldFinalizeRevoke) {
+                finalizeRevokeOutsideLock(token, version);
             }
         }
 
         @Override
         public void onFailure(@NonNull WebSocket webSocket, @NonNull Throwable t, @Nullable Response response) {
+            boolean shouldFinalizeRevoke = false;
             synchronized (ChatWebSocketManager.this) {
                 if (webSocket != activeSocket) return;
                 if (response != null && response.code() == 401) {
-                    handleRevokedLocked(webSocket, token, version);
-                    return;
+                    shouldFinalizeRevoke = prepareRevokeLocked(webSocket);
+                } else {
+                    socketOpen = false;
+                    activeSocket = null;
+                    cancelHeartbeatLocked();
+                    syncEngine.cancelPendingRetry();
+                    if (!manualDisconnect) {
+                        scheduleReconnectLocked(sessionKey);
+                    }
                 }
-                socketOpen = false;
-                activeSocket = null;
-                cancelHeartbeatLocked();
-                syncEngine.cancelPendingRetry();
-                if (!manualDisconnect) {
-                    scheduleReconnectLocked(sessionKey);
-                }
+            }
+            if (shouldFinalizeRevoke) {
+                finalizeRevokeOutsideLock(token, version);
             }
         }
     }

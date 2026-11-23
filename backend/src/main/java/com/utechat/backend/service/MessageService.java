@@ -18,8 +18,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Nghiệp vụ gửi và tải lịch sử tin nhắn (Phase 5: chỉ nhận type = TEXT từ client,
- * chống trùng clientId, rate limit 30/10s, kiểm quyền 1-1/nhóm và bảo toàn metadata Phase 6).
+ * Nghiệp vụ gửi và tải lịch sử tin nhắn (Phase 5 & Phase 6: nhận TEXT/IMAGE/AUDIO/VIDEO/FILE/LOCATION từ client,
+ * chống trùng clientId, rate limit 30/10s, kiểm quyền 1-1/nhóm, gắn attachment và bảo toàn metadata CALL/SYSTEM).
  */
 @Service
 public class MessageService {
@@ -38,8 +38,8 @@ public class MessageService {
     private static final Set<String> ALLOWED_CLIENT_TYPES =
             Set.of("TEXT", "IMAGE", "AUDIO", "VIDEO", "FILE", "LOCATION");
 
-    private static final Pattern ATTACHMENT_URL_PATTERN =
-            Pattern.compile("^/api/media/([0-9a-fA-F-]{36})$");
+    private static final Pattern ATTACHMENT_URL_PATTERN = Pattern.compile(
+            "^/api/media/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$");
 
     /** Kết quả gửi tin kèm cờ created để Controller trả HTTP 201 (mới tạo) hoặc 200 (trùng clientId). */
     public record SendResult(MessageDto message, boolean created) {
@@ -161,7 +161,7 @@ public class MessageService {
             if (!matcher.matches()) {
                 throw new ApiException(HttpStatus.BAD_REQUEST, "VALIDATION", "Invalid mediaUrl format");
             }
-            attachmentId = UUID.fromString(matcher.group(1));
+            attachmentId = ConversationService.parseRequiredUuid(matcher.group(1), "Invalid mediaUrl format");
 
             if (req.latitude() != null || req.longitude() != null) {
                 throw new ApiException(HttpStatus.BAD_REQUEST, "VALIDATION", "Media message must not include coordinates");

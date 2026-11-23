@@ -16,6 +16,10 @@ import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
 import androidx.core.app.Person;
 import androidx.core.content.ContextCompat;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.utechat.MainActivity;
 import com.utechat.R;
 import com.utechat.data.local.AppDatabase;
@@ -658,16 +662,36 @@ public class NotificationHelper {
         sink.cancel(incomingCallNotificationId(callId));
     }
 
-    /** Xóa bộ đệm và thông báo của một hội thoại khi người dùng mở phòng chat đó. */
+    /** Xóa bộ đệm và thông báo của một hội thoại khi người dùng mở phòng chat đó; cập nhật lại summary nếu còn >= 2 phòng. */
     public void cancelConversation(@NonNull String conversationId) {
         boolean cancelSummary;
+        SummaryNotificationModel updatedSummary = null;
+        String currentKey = session != null ? session.sessionKey() : null;
         synchronized (conversationHistory) {
-            conversationHistory.remove(conversationId);
-            cancelSummary = conversationHistory.size() < 2;
+            boolean removed = conversationHistory.remove(conversationId) != null;
+            int remainingConvs = conversationHistory.size();
+            cancelSummary = remainingConvs < 2;
+            if (removed && !cancelSummary) {
+                int totalMessages = 0;
+                for (List<MessageLineModel> lines : conversationHistory.values()) {
+                    totalMessages += lines.size();
+                }
+                updatedSummary = new SummaryNotificationModel(
+                        SUMMARY_NOTIFICATION_ID,
+                        CHANNEL_MESSAGES,
+                        GROUP_KEY_MESSAGES,
+                        strings.get(R.string.notif_group_summary, totalMessages),
+                        remainingConvs,
+                        totalMessages,
+                        currentKey);
+            }
         }
         sink.cancel(conversationId.hashCode());
         if (cancelSummary) {
             sink.cancel(SUMMARY_NOTIFICATION_ID);
+        } else if (updatedSummary != null) {
+            final SummaryNotificationModel summaryToPost = updatedSummary;
+            publishGuarded(currentKey, () -> true, () -> sink.postSummary(summaryToPost));
         }
     }
 
@@ -698,7 +722,11 @@ public class NotificationHelper {
         if (!Boolean.TRUE.equals(sessionStillValid.get())) {
             return;
         }
-        if (session != null && sessionKey != null) {
+        if (session != null) {
+            // Khi có SessionManager thật mà sessionKey null (đã đăng xuất), tuyệt đối không lọt xuống post thông báo.
+            if (sessionKey == null) {
+                return;
+            }
             // Khóa trong session.runIfCurrent để mọi thao tác đăng thông báo luôn có thứ tự rõ ràng với cancelAll().
             session.runIfCurrent(sessionKey, () -> {
                 if (Boolean.TRUE.equals(sessionStillValid.get())) {
@@ -752,9 +780,56 @@ public class NotificationHelper {
             return strings.get(R.string.notif_new_message_fallback);
         }
         if ("SYSTEM".equals(type)) {
+            preloadSystemMessageUsers(msg.getAttachmentJson(), userCache);
             return SystemMessageFormatter.format(strings, msg.getAttachmentJson(), userCache, myUserId);
         }
         return strings.get(SystemMessageFormatter.summaryLabel(type));
+    }
+
+    /** Nạp trước tên actorId / targetUserId / targetUserIds từ Room cho tin SYSTEM để không rơi về "Someone". */
+    private void preloadSystemMessageUsers(@Nullable String attachmentJson, Map<String, UserEntity> userCache) {
+        if (attachmentJson == null || attachmentJson.trim().isEmpty()) {
+            return;
+        }
+        try {
+            JsonElement rootEl = JsonParser.parseString(attachmentJson);
+            if (!rootEl.isJsonObject()) {
+                return;
+            }
+            JsonObject meta = rootEl.getAsJsonObject();
+            JsonElement paramsEl = meta.get("systemParams");
+            JsonObject params = null;
+            if (paramsEl != null && paramsEl.isJsonPrimitive()) {
+                JsonElement parsedParams = JsonParser.parseString(paramsEl.getAsString());
+                if (parsedParams.isJsonObject()) {
+                    params = parsedParams.getAsJsonObject();
+                }
+            } else if (paramsEl != null && paramsEl.isJsonObject()) {
+                params = paramsEl.getAsJsonObject();
+            }
+            if (params == null) {
+                return;
+            }
+            preloadSingleUser(params.get("actorId"), userCache);
+            preloadSingleUser(params.get("targetUserId"), userCache);
+            JsonElement ids = params.get("targetUserIds");
+            if (ids != null && ids.isJsonArray()) {
+                for (JsonElement id : (JsonArray) ids) {
+                    preloadSingleUser(id, userCache);
+                }
+            }
+        } catch (RuntimeException ignored) {
+            // JSON hỏng sẽ do SystemMessageFormatter fallback an toàn.
+        }
+    }
+
+    private void preloadSingleUser(@Nullable JsonElement el, Map<String, UserEntity> userCache) {
+        if (el != null && el.isJsonPrimitive()) {
+            String uid = el.getAsString();
+            if (uid != null && !uid.trim().isEmpty()) {
+                resolveUserDisplayName(uid.trim(), userCache);
+            }
+        }
     }
 
     @NonNull

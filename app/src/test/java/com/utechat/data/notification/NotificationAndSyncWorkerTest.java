@@ -527,6 +527,87 @@ public class NotificationAndSyncWorkerTest {
         assertEquals("call-legacy-order", fakeSink.missedCalls.get(0).callId);
         assertEquals(NotificationHelper.CHANNEL_CALLS, fakeSink.missedCalls.get(0).channelId);
         assertEquals("Missed call from Bob", fakeSink.missedCalls.get(0).body);
+        assertEquals(1, outcome.terminalCalls.size());
+        assertEquals("call-legacy-order", outcome.terminalCalls.get(0).callId);
+    }
+
+    @Test
+    public void blocksLoggedOutNotificationsPreloadsSystemNamesAndUpdatesSummaryOnCancel() {
+        NotificationHelper helper = new NotificationHelper(db, fakeSink, fakeStrings, session);
+
+        // 1) Đã đăng xuất (sessionKey = null) -> tuyệt đối không lọt vào publishGuarded (H-06).
+        activeSessionKey.set(null);
+        helper.showIncomingCallNotification("call-logged-out", "conv-1", "Bob", null);
+        assertTrue("Không được đăng thông báo cuộc gọi khi sessionKey null", fakeSink.incomingCalls.isEmpty());
+
+        // 2) Tin SYSTEM phải nạp sẵn tên actorId & targetUserId từ UserDao thay vì rơi về "Someone" (M-05).
+        activeSessionKey.set(SESSION_1);
+        when(userDao.findById(BOB)).thenReturn(user(BOB, "Bob"));
+        when(userDao.findById(CHARLIE)).thenReturn(user(CHARLIE, "Charlie"));
+        when(conversationDao.getConversationSync("conv-1")).thenReturn(conv("conv-1", "GROUP", "Nhóm 1", false));
+        when(conversationDao.getConversationSync("conv-2")).thenReturn(conv("conv-2", "DIRECT", null, false));
+        when(conversationDao.getConversationSync("conv-3")).thenReturn(conv("conv-3", "DIRECT", null, false));
+
+        NotificationHelper.StringResolver sysStrings = (resId, args) -> {
+            if (resId == R.string.chat_sys_member_added) return args[0] + " added " + args[1];
+            return fakeStrings.get(resId, args);
+        };
+        NotificationHelper sysHelper = new NotificationHelper(db, fakeSink, sysStrings, session);
+        MessageEntity sysMsg = msg("m-sys", "conv-1", BOB, "SYSTEM", null, 5000L);
+        sysMsg.setAttachmentJson("{\"systemEvent\":\"MEMBER_ADDED\",\"systemParams\":\"{\\\"actorId\\\":\\\"u-bob\\\",\\\"targetUserIds\\\":[\\\"u-charlie\\\"]}\"}");
+        sysHelper.notifyBatch(ME, SESSION_1,
+                Arrays.asList(
+                        sysMsg,
+                        msg("m-2", "conv-2", BOB, "TEXT", "Hi 2", 5001L),
+                        msg("m-3", "conv-3", CHARLIE, "TEXT", "Hi 3", 5002L)),
+                Collections.emptyList(), activeRoomTracker, () -> true);
+        assertEquals("Bob added Charlie", fakeSink.conversations.get(0).lines.get(0).text);
+        assertEquals(1, fakeSink.summaries.size());
+        assertEquals(3, fakeSink.summaries.get(0).conversationCount);
+
+        // 3) Hủy 1 trong 3 hội thoại -> vẫn còn 2 hội thoại nên phải cập nhật summary xuống còn 2 (L-13).
+        sysHelper.cancelConversation("conv-3");
+        assertEquals(2, fakeSink.summaries.size());
+        assertEquals(2, fakeSink.summaries.get(1).conversationCount);
+        assertEquals("2 new messages", fakeSink.summaries.get(1).summaryText);
+    }
+
+    @Test
+    public void syncEngineSurvivesNotificationCallbackCrashWithoutAbortingPagination() {
+        AtomicReference<SyncStateEntity> stateHolder = new AtomicReference<>(syncState(ME, 1L));
+        when(syncStateDao.get(ME)).thenAnswer(i -> stateHolder.get());
+        doAnswer(inv -> {
+            stateHolder.set(syncState(inv.getArgument(0), inv.getArgument(1)));
+            return null;
+        }).when(syncStateDao).advance(eq(ME), anyLong(), anyLong());
+        when(messageDao.insertRespectingVisibleFrom(any(MessageEntity.class), eq(ME))).thenReturn(true);
+        when(api.markDelivered(anyString(), any())).thenReturn(syncCall(() -> Response.success(null)));
+
+        ChatDtos.SyncResponse page1 = new ChatDtos.SyncResponse();
+        page1.events = Collections.singletonList(syncEvent(2L, "MESSAGE_CREATED",
+                "{\"id\":201,\"clientId\":\"cli-201\",\"conversationId\":\"conv-1\",\"senderId\":\"u-bob\",\"type\":\"TEXT\",\"text\":\"P1\"}"));
+        page1.nextCursor = 2L;
+        page1.hasMore = true;
+
+        ChatDtos.SyncResponse page2 = new ChatDtos.SyncResponse();
+        page2.events = Collections.singletonList(syncEvent(3L, "MESSAGE_CREATED",
+                "{\"id\":202,\"clientId\":\"cli-202\",\"conversationId\":\"conv-1\",\"senderId\":\"u-bob\",\"type\":\"TEXT\",\"text\":\"P2\"}"));
+        page2.nextCursor = 3L;
+        page2.hasMore = false;
+
+        when(api.sync(1L, 100)).thenReturn(syncCall(() -> Response.success(page1)));
+        when(api.sync(2L, 100)).thenReturn(syncCall(() -> Response.success(page2)));
+
+        SyncEngine engine = new SyncEngine(
+                db, api, new SyncEventApplier(db), session, Runnable::run, Runnable::run,
+                (delayMs, task) -> () -> { }, fakeClockMs::get);
+        engine.setNotificationCallback((sKey, userId, outcome) -> {
+            throw new RuntimeException("Simulated notification crash");
+        });
+
+        assertTrue("Sync phải hoàn thành hết trang 2 dù callback thông báo ném ngoại lệ",
+                engine.syncBlocking(SESSION_1));
+        assertEquals(3L, stateHolder.get().getLastSyncEventId());
     }
 
     // ======================== HELPERS ========================

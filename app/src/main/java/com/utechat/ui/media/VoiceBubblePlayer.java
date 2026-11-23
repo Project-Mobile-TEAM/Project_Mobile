@@ -57,13 +57,14 @@ public final class VoiceBubblePlayer {
     @Nullable private MediaPlayer mediaPlayer;
     @Nullable private String currentClientId;
     private boolean loading = false;
+    private boolean prepared = false;
     private int currentDurationMs = 0;
 
     private final Runnable tickRunnable = new Runnable() {
         @Override
         public void run() {
             MediaPlayer mp = mediaPlayer;
-            if (mp != null && currentClientId != null && mp.isPlaying()) {
+            if (mp != null && prepared && currentClientId != null && mp.isPlaying()) {
                 publish(new PlaybackState(currentClientId, true, false,
                         Math.max(0, mp.getCurrentPosition()),
                         Math.max(currentDurationMs, mp.getDuration())));
@@ -86,7 +87,11 @@ public final class VoiceBubblePlayer {
             @Nullable String fileName,
             @Nullable String mime,
             @NonNull Consumer<String> onError) {
-        if (clientId.equals(currentClientId) && mediaPlayer != null) {
+        // Bỏ qua chạm liên tiếp khi chính tin nhắn thoại này đang tải hoặc chuẩn bị phát.
+        if (clientId.equals(currentClientId) && loading) {
+            return;
+        }
+        if (clientId.equals(currentClientId) && mediaPlayer != null && prepared) {
             if (mediaPlayer.isPlaying()) {
                 mediaPlayer.pause();
                 handler.removeCallbacks(tickRunnable);
@@ -149,7 +154,7 @@ public final class VoiceBubblePlayer {
 
     /** Tua vị trí phát trên bong bóng thoại đang hoạt động. */
     public void seekTo(@NonNull String clientId, int positionMs) {
-        if (!clientId.equals(currentClientId) || mediaPlayer == null || loading) {
+        if (!clientId.equals(currentClientId) || mediaPlayer == null || !prepared || loading) {
             return;
         }
         int clamped = Math.max(0, Math.min(positionMs, Math.max(0, currentDurationMs)));
@@ -171,26 +176,46 @@ public final class VoiceBubblePlayer {
                     .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                     .build());
             mp.setDataSource(file.getAbsolutePath());
-            mp.prepare();
-            currentDurationMs = Math.max(0, mp.getDuration());
+            mp.setOnPreparedListener(ready -> {
+                if (mediaPlayer != ready || !clientId.equals(currentClientId)) {
+                    return;
+                }
+                loading = false;
+                prepared = true;
+                currentDurationMs = Math.max(0, ready.getDuration());
+                ready.start();
+                startTicker();
+                publish(new PlaybackState(clientId, true, false, 0, currentDurationMs));
+            });
             mp.setOnCompletionListener(completed -> {
+                if (mediaPlayer != completed) {
+                    return;
+                }
                 handler.removeCallbacks(tickRunnable);
                 int doneDur = currentDurationMs;
                 stopInternal();
                 publish(new PlaybackState(null, false, false, 0, doneDur));
             });
             mp.setOnErrorListener((m, what, extra) -> {
+                if (mediaPlayer != m) {
+                    return true;
+                }
                 stopInternal();
                 publish(PlaybackState.idle());
                 onError.accept("ERROR");
                 return true;
             });
+            // Dùng prepareAsync để không khóa main thread khi đọc tiêu đề tệp âm thanh.
             mediaPlayer = mp;
-            mp.start();
-            startTicker();
-            publish(new PlaybackState(clientId, true, false, 0, currentDurationMs));
+            loading = true;
+            prepared = false;
+            publish(new PlaybackState(clientId, false, true, 0, 0));
+            mp.prepareAsync();
         } catch (IOException | RuntimeException e) {
             mp.release();
+            loading = false;
+            prepared = false;
+            mediaPlayer = null;
             currentClientId = null;
             publish(PlaybackState.idle());
             onError.accept("ERROR");
@@ -200,11 +225,16 @@ public final class VoiceBubblePlayer {
     private void stopInternal() {
         handler.removeCallbacks(tickRunnable);
         loading = false;
+        boolean wasPrepared = prepared;
+        prepared = false;
         currentClientId = null;
         currentDurationMs = 0;
         if (mediaPlayer != null) {
             try {
-                if (mediaPlayer.isPlaying()) {
+                mediaPlayer.setOnPreparedListener(null);
+                mediaPlayer.setOnCompletionListener(null);
+                mediaPlayer.setOnErrorListener(null);
+                if (wasPrepared && mediaPlayer.isPlaying()) {
                     mediaPlayer.stop();
                 }
             } catch (RuntimeException ignored) {

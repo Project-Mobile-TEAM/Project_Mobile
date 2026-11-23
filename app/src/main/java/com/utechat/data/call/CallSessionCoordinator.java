@@ -26,9 +26,9 @@ import retrofit2.Response;
  * Máy trạng thái điều phối cuộc gọi thoại WebRTC 1-1 thuần Java (D-10, D-11, D-12):
  * - Tách hoàn toàn khỏi SyncEngine, NotificationHelper và org.webrtc.* để kiểm thử 100% trên JVM.
  * - Quản lý chuyển trạng thái IDLE -> OUTGOING_RINGING/INCOMING_RINGING -> CONNECTING -> ACTIVE -> ENDED.
- * - Bảo vệ chặt chẽ theo (sessionKey, callId), đệm offer/ICE đến sớm trong lúc chờ POST /accept,
- *   gia hạn call.keepalive mỗi 15s khi ICE đang kết nối và ngừng gia hạn khi mất ICE hoặc kết thúc.
- * - Hạn 45s cục bộ chỉ tắt chuông/vô hiệu hóa thao tác cũ, tuyệt đối không tự gửi /end để chờ server chốt.
+ * - Bảo vệ chặt chẽ theo (sessionKey, callId), giữ nguyên ký tự kết dòng \r\n của SDP, khởi tạo xong engine mới công bố
+ *   activeEngine (đệm offer/answer/ICE đến sớm), không bao giờ gọi engine.close() khi đang giữ stateLock,
+ *   tự gửi POST /end nếu người dùng hủy trong lúc POST /calls hoặc /accept đang bay, và chống lệch đồng hồ expiresAt.
  */
 public class CallSessionCoordinator {
     public static final long DEFAULT_RINGING_TIMEOUT_MS = 45_000L;
@@ -101,7 +101,7 @@ public class CallSessionCoordinator {
         ENDED
     }
 
-    /** Ảnh chụp trạng thái bất biến cho UI, giữ answeredAtElapsedRealtime giúp đồng hồ mm:ss sống sót khi xoay màn hình. */
+    /** Ảnh chụp trạng thái bất biến cho UI, giữ answeredAtElapsedRealtime và sessionKey nguồn của cuộc gọi. */
     public static final class CallUiState {
         @NonNull public final State state;
         @Nullable public final String callId;
@@ -119,6 +119,7 @@ public class CallSessionCoordinator {
         public final boolean connectionLost;
         @Nullable public final String errorCode;
         @Nullable public final String endReason;
+        @Nullable public final String sessionKey;
 
         public CallUiState(
                 @NonNull State state,
@@ -137,6 +138,29 @@ public class CallSessionCoordinator {
                 boolean connectionLost,
                 @Nullable String errorCode,
                 @Nullable String endReason) {
+            this(state, callId, conversationId, peerUserId, peerName, peerAvatarUrl, peerPhone,
+                    incoming, micMuted, speakerOn, answeredAtElapsedRealtime, ringingExpiresAtEpochMs,
+                    ringingDeadlinePassed, connectionLost, errorCode, endReason, null);
+        }
+
+        public CallUiState(
+                @NonNull State state,
+                @Nullable String callId,
+                @Nullable String conversationId,
+                @Nullable String peerUserId,
+                @Nullable String peerName,
+                @Nullable String peerAvatarUrl,
+                @Nullable String peerPhone,
+                boolean incoming,
+                boolean micMuted,
+                boolean speakerOn,
+                long answeredAtElapsedRealtime,
+                long ringingExpiresAtEpochMs,
+                boolean ringingDeadlinePassed,
+                boolean connectionLost,
+                @Nullable String errorCode,
+                @Nullable String endReason,
+                @Nullable String sessionKey) {
             this.state = state;
             this.callId = callId;
             this.conversationId = conversationId;
@@ -153,12 +177,13 @@ public class CallSessionCoordinator {
             this.connectionLost = connectionLost;
             this.errorCode = errorCode;
             this.endReason = endReason;
+            this.sessionKey = sessionKey;
         }
 
         @NonNull
         public static CallUiState idle() {
             return new CallUiState(State.IDLE, null, null, null, null, null, null,
-                    false, false, false, 0L, 0L, false, false, null, null);
+                    false, false, false, 0L, 0L, false, false, null, null, null);
         }
     }
 
@@ -197,9 +222,12 @@ public class CallSessionCoordinator {
     @Nullable private DelayScheduler.Cancellable ringingTimer;
     @Nullable private DelayScheduler.Cancellable keepaliveTimer;
 
+    private boolean outgoingStartPending = false;
     private boolean acceptPending = false;
+    private boolean pendingStartOfferAfterInit = false;
     private boolean iceConnected = false;
     @Nullable private String pendingRemoteOfferSdp;
+    @Nullable private String pendingRemoteAnswerSdp;
     private final List<PendingIce> pendingEarlyIce = new ArrayList<>();
 
     public CallSessionCoordinator(
@@ -261,8 +289,8 @@ public class CallSessionCoordinator {
     /**
      * Khởi tạo cuộc gọi thoại 1-1 đi ra (POST /api/calls):
      * - Kiểm tra ForegroundServiceStarter trước khi khởi động thu âm WebRTC.
-     * - Khi 201: khởi tạo WebRtcCallEngine với iceServers, chuyển OUTGOING_RINGING và đặt đếm ngược hiển thị expiresAt.
-     * - Khi lỗi chính sách (409 CALL_BUSY, 403 BLOCKED/CONTACT_REQUIRED, 400 CALL_UNSUPPORTED, 429): chuyển ENDED kèm errorCode.
+     * - Nếu người dùng hủy trước khi POST /api/calls trả 201 thì tự động gửi POST /end để giải phóng server.
+     * - Khởi tạo xong WebRtcCallEngine + áp dụng mute/speaker trước khi công bố activeEngine (chống rơi offer/answer).
      */
     public void startOutgoingCall(
             @NonNull String conversationId,
@@ -275,28 +303,31 @@ public class CallSessionCoordinator {
             return;
         }
 
+        WebRtcCallEngine oldEngine;
         synchronized (stateLock) {
             if (current.state != State.IDLE && current.state != State.ENDED) {
                 return;
             }
-            resetInternalResourcesLocked();
+            oldEngine = resetInternalResourcesLocked();
             activeSessionKey = sessionKey;
             activeCallId = null;
 
-            // Kiểm tra cổng Foreground Service microphone trước khi thu âm hoặc gọi API.
             ForegroundServiceStarter starter = foregroundServiceStarter;
             if (starter != null && !starter.startForCall(null, peerName, sessionKey)) {
                 publishLocked(new CallUiState(
                         State.ENDED, null, conversationId, peerUserId, peerName, peerAvatarUrl, peerPhone,
                         false, false, false, 0L, 0L, false, false,
-                        "FOREGROUND_SERVICE_FAILED", "ERROR"));
+                        "FOREGROUND_SERVICE_FAILED", "ERROR", sessionKey));
+                closeEngineQuietly(oldEngine);
                 return;
             }
 
+            outgoingStartPending = true;
             publishLocked(new CallUiState(
                     State.OUTGOING_RINGING, null, conversationId, peerUserId, peerName, peerAvatarUrl, peerPhone,
-                    false, false, false, 0L, 0L, false, false, null, null));
+                    false, false, false, 0L, 0L, false, false, null, null, sessionKey));
         }
+        closeEngineQuietly(oldEngine);
 
         networkExecutor.execute(() -> {
             try {
@@ -311,30 +342,93 @@ public class CallSessionCoordinator {
                 CallDtos.StartCallResponse body = resp.body();
                 long expiresAtMs = parseExpiresAtEpochMs(body.expiresAt);
                 long delayMs = computeRingingDelayMs(expiresAtMs);
-
-                WebRtcCallEngine createdEngine = null;
                 List<CallDtos.IceServerDto> servers = body.iceServers != null
                         ? body.iceServers : Collections.emptyList();
                 final String callId = body.callId;
 
+                boolean canceledInFlight = false;
+                boolean initialMuted = false;
+                boolean initialSpeaker = false;
                 synchronized (stateLock) {
                     if (!sessionKey.equals(session.sessionKey())
                             || !sessionKey.equals(activeSessionKey)
+                            || !outgoingStartPending
                             || current.state != State.OUTGOING_RINGING) {
-                        return;
+                        canceledInFlight = true;
+                    } else {
+                        activeCallId = callId;
+                        initialMuted = current.micMuted;
+                        initialSpeaker = current.speakerOn;
+                        publishLocked(new CallUiState(
+                                State.OUTGOING_RINGING, callId, conversationId, peerUserId, peerName,
+                                peerAvatarUrl, peerPhone, false, initialMuted, initialSpeaker,
+                                0L, expiresAtMs, false, false, null, null, sessionKey));
+                        scheduleRingingDeadlineLocked(sessionKey, callId, delayMs);
                     }
-                    activeCallId = callId;
-                    createdEngine = engineFactory.get();
-                    activeEngine = createdEngine;
-                    publishLocked(new CallUiState(
-                            State.OUTGOING_RINGING, callId, conversationId, peerUserId, peerName,
-                            peerAvatarUrl, peerPhone, false, current.micMuted, current.speakerOn,
-                            0L, expiresAtMs, false, false, null, null));
-                    scheduleRingingDeadlineLocked(sessionKey, callId, delayMs);
                 }
 
-                if (createdEngine != null) {
-                    createdEngine.initialize(servers, new EngineCallback(sessionKey, callId));
+                if (canceledInFlight) {
+                    // Người dùng đã bấm Hủy trong lúc POST /api/calls đang bay: lập tức gửi POST /end giải phóng CALL_BUSY.
+                    if (sessionKey.equals(session.sessionKey())) {
+                        sendEndCallQuietly(callId);
+                    }
+                    return;
+                }
+
+                // Khởi tạo hoàn chỉnh WebRtcCallEngine ngoài stateLock trước khi gán activeEngine (tránh race rơi startOffer).
+                WebRtcCallEngine createdEngine = engineFactory.get();
+                if (createdEngine == null) {
+                    return;
+                }
+                createdEngine.initialize(servers, new EngineCallback(sessionKey, callId));
+                createdEngine.setMicMuted(initialMuted);
+                createdEngine.setSpeakerEnabled(initialSpeaker);
+
+                boolean stillValid = false;
+                boolean latestMuted = initialMuted;
+                boolean latestSpeaker = initialSpeaker;
+                boolean shouldStartOffer = false;
+                String bufferedAnswer = null;
+                List<PendingIce> bufferedIce = Collections.emptyList();
+                synchronized (stateLock) {
+                    if (sessionKey.equals(session.sessionKey())
+                            && sessionKey.equals(activeSessionKey)
+                            && callId.equals(activeCallId)
+                            && (current.state == State.OUTGOING_RINGING || current.state == State.CONNECTING)) {
+                        stillValid = true;
+                        activeEngine = createdEngine;
+                        outgoingStartPending = false;
+                        latestMuted = current.micMuted;
+                        latestSpeaker = current.speakerOn;
+                        shouldStartOffer = pendingStartOfferAfterInit;
+                        pendingStartOfferAfterInit = false;
+                        bufferedAnswer = pendingRemoteAnswerSdp;
+                        pendingRemoteAnswerSdp = null;
+                        if (!pendingEarlyIce.isEmpty()) {
+                            bufferedIce = new ArrayList<>(pendingEarlyIce);
+                            pendingEarlyIce.clear();
+                        }
+                    }
+                }
+
+                if (!stillValid) {
+                    closeEngineQuietly(createdEngine);
+                    return;
+                }
+                if (latestMuted != initialMuted) {
+                    createdEngine.setMicMuted(latestMuted);
+                }
+                if (latestSpeaker != initialSpeaker) {
+                    createdEngine.setSpeakerEnabled(latestSpeaker);
+                }
+                if (shouldStartOffer) {
+                    createdEngine.startOffer();
+                }
+                if (bufferedAnswer != null) {
+                    createdEngine.applyAnswer(bufferedAnswer);
+                }
+                for (PendingIce ice : bufferedIce) {
+                    createdEngine.addRemoteIceCandidate(ice.candidate, ice.sdpMid, ice.sdpMLineIndex);
                 }
             } catch (IOException e) {
                 finishWithErrorIfSessionMatches(sessionKey, null, "NETWORK", "ERROR");
@@ -345,13 +439,14 @@ public class CallSessionCoordinator {
     /**
      * Người nhận bấm Nghe máy (POST /api/calls/{id}/accept):
      * - Kiểm tra ForegroundServiceStarter trước khi nhận máy và khởi tạo thu âm.
-     * - Chuyển INCOMING_RINGING -> CONNECTING, đệm offer/ICE đến sớm trong lúc chờ HTTP 200.
-     * - Sau 200 OK: khởi tạo WebRtcCallEngine(iceServers) và xả ngay offer/ICE đã đệm.
+     * - Đệm offer/ICE đến sớm trong suốt lúc chờ HTTP 200 VÀ suốt lúc engine.initialize().
+     * - Nếu người nhận bấm Hủy trong lúc POST /accept đang bay thì tự gửi POST /end khi 200 trả về.
      */
     public void acceptIncomingCall() {
         final String sessionKey;
         final String callId;
         final String peerName;
+        WebRtcCallEngine toCloseOnFgsFail = null;
         synchronized (stateLock) {
             if (current.state != State.INCOMING_RINGING
                     || current.ringingDeadlinePassed
@@ -366,21 +461,26 @@ public class CallSessionCoordinator {
 
             ForegroundServiceStarter starter = foregroundServiceStarter;
             if (starter != null && !starter.startForCall(callId, peerName, sessionKey)) {
-                cancelIncomingAlert(callId);
                 cancelTimersLocked();
-                closeEngineLocked();
+                toCloseOnFgsFail = detachEngineLocked();
                 publishLocked(withEnded(current, "FOREGROUND_SERVICE_FAILED", "ERROR"));
-                return;
+            } else {
+                cancelRingingTimerLocked();
+                acceptPending = true;
+                publishLocked(new CallUiState(
+                        State.CONNECTING, callId, current.conversationId, current.peerUserId,
+                        current.peerName, current.peerAvatarUrl, current.peerPhone,
+                        true, current.micMuted, current.speakerOn,
+                        0L, current.ringingExpiresAtEpochMs, false, false, null, null, sessionKey));
             }
-
-            cancelRingingTimerLocked();
-            cancelIncomingAlert(callId);
-            acceptPending = true;
-            publishLocked(new CallUiState(
-                    State.CONNECTING, callId, current.conversationId, current.peerUserId,
-                    current.peerName, current.peerAvatarUrl, current.peerPhone,
-                    true, current.micMuted, current.speakerOn,
-                    0L, current.ringingExpiresAtEpochMs, false, false, null, null));
+        }
+        cancelIncomingAlert(callId);
+        if (toCloseOnFgsFail != null) {
+            closeEngineQuietly(toCloseOnFgsFail);
+            return;
+        }
+        if (getCurrentState().state != State.CONNECTING) {
+            return;
         }
 
         networkExecutor.execute(() -> {
@@ -394,40 +494,72 @@ public class CallSessionCoordinator {
                 List<CallDtos.IceServerDto> servers = resp.body().iceServers != null
                         ? resp.body().iceServers : Collections.emptyList();
 
-                WebRtcCallEngine engine;
-                String bufferedOffer;
-                List<PendingIce> bufferedIce;
-                boolean muted;
-                boolean speaker;
+                boolean canceledBeforeInit;
                 synchronized (stateLock) {
-                    if (!sessionKey.equals(session.sessionKey())
+                    canceledBeforeInit = !sessionKey.equals(session.sessionKey())
                             || !sessionKey.equals(activeSessionKey)
                             || !callId.equals(activeCallId)
-                            || current.state != State.CONNECTING) {
+                            || current.state != State.CONNECTING;
+                    if (canceledBeforeInit) {
                         acceptPending = false;
-                        return;
                     }
-                    acceptPending = false;
-                    engine = engineFactory.get();
-                    activeEngine = engine;
-                    muted = current.micMuted;
-                    speaker = current.speakerOn;
-                    bufferedOffer = pendingRemoteOfferSdp;
-                    pendingRemoteOfferSdp = null;
-                    bufferedIce = new ArrayList<>(pendingEarlyIce);
-                    pendingEarlyIce.clear();
+                }
+                if (canceledBeforeInit) {
+                    // Đã chấp nhận trên server nhưng người nhận vừa bấm Hủy/FGS lỗi -> lập tức gửi /end giải phóng ACTIVE.
+                    if (sessionKey.equals(session.sessionKey())) {
+                        sendEndCallQuietly(callId);
+                    }
+                    return;
                 }
 
-                if (engine != null) {
-                    engine.initialize(servers, new EngineCallback(sessionKey, callId));
-                    engine.setMicMuted(muted);
-                    engine.setSpeakerEnabled(speaker);
-                    if (bufferedOffer != null) {
-                        engine.acceptOffer(bufferedOffer);
+                // Khởi tạo xong engine TRƯỚC khi công bố activeEngine để call.offer đến đúng lúc này vẫn được đệm an toàn.
+                WebRtcCallEngine engine = engineFactory.get();
+                if (engine == null) {
+                    return;
+                }
+                engine.initialize(servers, new EngineCallback(sessionKey, callId));
+
+                boolean stillValid = false;
+                String bufferedOffer = null;
+                List<PendingIce> bufferedIce = Collections.emptyList();
+                boolean muted = false;
+                boolean speaker = false;
+                synchronized (stateLock) {
+                    if (sessionKey.equals(session.sessionKey())
+                            && sessionKey.equals(activeSessionKey)
+                            && callId.equals(activeCallId)
+                            && current.state == State.CONNECTING) {
+                        stillValid = true;
+                        acceptPending = false;
+                        activeEngine = engine;
+                        muted = current.micMuted;
+                        speaker = current.speakerOn;
+                        bufferedOffer = pendingRemoteOfferSdp;
+                        pendingRemoteOfferSdp = null;
+                        if (!pendingEarlyIce.isEmpty()) {
+                            bufferedIce = new ArrayList<>(pendingEarlyIce);
+                            pendingEarlyIce.clear();
+                        }
+                    } else {
+                        acceptPending = false;
                     }
-                    for (PendingIce ice : bufferedIce) {
-                        engine.addRemoteIceCandidate(ice.candidate, ice.sdpMid, ice.sdpMLineIndex);
+                }
+
+                if (!stillValid) {
+                    closeEngineQuietly(engine);
+                    if (sessionKey.equals(session.sessionKey())) {
+                        sendEndCallQuietly(callId);
                     }
+                    return;
+                }
+
+                engine.setMicMuted(muted);
+                engine.setSpeakerEnabled(speaker);
+                if (bufferedOffer != null) {
+                    engine.acceptOffer(bufferedOffer);
+                }
+                for (PendingIce ice : bufferedIce) {
+                    engine.addRemoteIceCandidate(ice.candidate, ice.sdpMid, ice.sdpMLineIndex);
                 }
             } catch (IOException e) {
                 finishWithErrorIfSessionMatches(sessionKey, callId, "NETWORK", "ERROR");
@@ -438,6 +570,7 @@ public class CallSessionCoordinator {
     /** Từ chối cuộc gọi đến (POST /api/calls/{id}/reject). */
     public void rejectIncomingCall() {
         final String callId;
+        final WebRtcCallEngine toClose;
         synchronized (stateLock) {
             if (current.state != State.INCOMING_RINGING
                     || current.ringingDeadlinePassed
@@ -445,12 +578,13 @@ public class CallSessionCoordinator {
                 return;
             }
             callId = activeCallId;
-            cancelIncomingAlert(callId);
             cancelTimersLocked();
-            closeEngineLocked();
+            toClose = detachEngineLocked();
             clearSignalingBuffersLocked();
             publishLocked(withEnded(current, null, "REJECT"));
         }
+        cancelIncomingAlert(callId);
+        closeEngineQuietly(toClose);
         networkExecutor.execute(() -> {
             try {
                 callApi.rejectCall(callId).execute();
@@ -462,6 +596,8 @@ public class CallSessionCoordinator {
     /** Kết thúc hoặc hủy cuộc gọi hiện tại (POST /api/calls/{id}/end). */
     public void endCall() {
         final String callIdToEnd;
+        final String alertCallId;
+        final WebRtcCallEngine toClose;
         synchronized (stateLock) {
             if (current.state == State.IDLE || current.state == State.ENDED) {
                 return;
@@ -473,38 +609,69 @@ public class CallSessionCoordinator {
             boolean allowRestEnd = activeCallId != null
                     && !(current.state == State.OUTGOING_RINGING && current.ringingDeadlinePassed);
             callIdToEnd = allowRestEnd ? activeCallId : null;
-            if (activeCallId != null) {
-                cancelIncomingAlert(activeCallId);
-            }
+            alertCallId = activeCallId;
             cancelTimersLocked();
-            closeEngineLocked();
+            toClose = detachEngineLocked();
             clearSignalingBuffersLocked();
             publishLocked(withEnded(current, null, "HANGUP"));
         }
+        if (alertCallId != null) {
+            cancelIncomingAlert(alertCallId);
+        }
+        closeEngineQuietly(toClose);
         if (callIdToEnd != null) {
-            networkExecutor.execute(() -> {
-                try {
-                    callApi.endCall(callIdToEnd).execute();
-                } catch (IOException ignored) {
-                }
-            });
+            networkExecutor.execute(() -> sendEndCallQuietly(callIdToEnd));
         }
     }
 
     /** Báo lỗi khởi chạy Foreground Service từ CallService/CallFragment để dọn trạng thái mà không thu âm. */
     public void onForegroundServiceStartFailed() {
+        final String alertCallId;
+        final String callIdToEnd;
+        final WebRtcCallEngine toClose;
         synchronized (stateLock) {
             if (current.state == State.IDLE || current.state == State.ENDED) {
                 return;
             }
-            if (activeCallId != null) {
-                cancelIncomingAlert(activeCallId);
-            }
+            alertCallId = activeCallId;
+            callIdToEnd = (current.state == State.OUTGOING_RINGING || current.state == State.CONNECTING
+                    || current.state == State.ACTIVE) ? activeCallId : null;
             cancelTimersLocked();
-            closeEngineLocked();
+            toClose = detachEngineLocked();
             clearSignalingBuffersLocked();
             publishLocked(withEnded(current, "FOREGROUND_SERVICE_FAILED", "ERROR"));
         }
+        if (alertCallId != null) {
+            cancelIncomingAlert(alertCallId);
+        }
+        closeEngineQuietly(toClose);
+        if (callIdToEnd != null) {
+            networkExecutor.execute(() -> sendEndCallQuietly(callIdToEnd));
+        }
+    }
+
+    /**
+     * Báo lỗi người dùng từ chối quyền RECORD_AUDIO khi khởi tạo cuộc gọi đi
+     * để màn hình hiện thông báo rõ ràng kèm nút dự phòng gọi nhà mạng (ACTION_DIAL).
+     */
+    public void reportPermissionDenied(
+            @Nullable String conversationId,
+            @Nullable String peerUserId,
+            @Nullable String peerName,
+            @Nullable String peerAvatarUrl,
+            @Nullable String peerPhone) {
+        WebRtcCallEngine toClose;
+        synchronized (stateLock) {
+            if (current.state != State.IDLE && current.state != State.ENDED) {
+                return;
+            }
+            toClose = resetInternalResourcesLocked();
+            publishLocked(new CallUiState(
+                    State.ENDED, null, conversationId, peerUserId, peerName, peerAvatarUrl, peerPhone,
+                    false, false, false, 0L, 0L, false, false,
+                    "RECORD_AUDIO_DENIED", "ERROR", session.sessionKey()));
+        }
+        closeEngineQuietly(toClose);
     }
 
     public void toggleMute() {
@@ -524,7 +691,7 @@ public class CallSessionCoordinator {
                     current.incoming, muted, current.speakerOn,
                     current.answeredAtElapsedRealtime, current.ringingExpiresAtEpochMs,
                     current.ringingDeadlinePassed, current.connectionLost,
-                    current.errorCode, current.endReason));
+                    current.errorCode, current.endReason, current.sessionKey));
         }
         if (engine != null) {
             engine.setMicMuted(muted);
@@ -548,7 +715,7 @@ public class CallSessionCoordinator {
                     current.incoming, current.micMuted, enabled,
                     current.answeredAtElapsedRealtime, current.ringingExpiresAtEpochMs,
                     current.ringingDeadlinePassed, current.connectionLost,
-                    current.errorCode, current.endReason));
+                    current.errorCode, current.endReason, current.sessionKey));
         }
         if (engine != null) {
             engine.setSpeakerEnabled(enabled);
@@ -557,24 +724,68 @@ public class CallSessionCoordinator {
 
     /** Đưa coordinator về IDLE sau khi CallFragment đóng màn hình ENDED. */
     public void resetToIdle() {
+        WebRtcCallEngine toClose = null;
         synchronized (stateLock) {
             if (current.state == State.ENDED) {
-                resetInternalResourcesLocked();
+                toClose = resetInternalResourcesLocked();
                 publishLocked(CallUiState.idle());
             }
         }
+        closeEngineQuietly(toClose);
     }
 
     /** Dọn sạch mọi tài nguyên WebRTC, chuông, timer và đưa về IDLE khi đăng xuất / 401 / 4401 (T-06-20). */
     public void onSessionCleared() {
+        onSessionClearedForSession(null);
+    }
+
+    /**
+     * Phiên bản theo sessionKey rời đi để dọn bất đồng bộ ngoài khóa SessionManager mà không chạm nhầm cuộc gọi của phiên mới.
+     */
+    public void onSessionClearedForSession(@Nullable String departingSessionKey) {
         String oldCallId;
+        WebRtcCallEngine toClose;
         synchronized (stateLock) {
+            if (departingSessionKey != null
+                    && activeSessionKey != null
+                    && !departingSessionKey.equals(activeSessionKey)) {
+                return;
+            }
             oldCallId = activeCallId;
-            resetInternalResourcesLocked();
+            toClose = resetInternalResourcesLocked();
             publishLocked(CallUiState.idle());
         }
         if (oldCallId != null) {
             cancelIncomingAlert(oldCallId);
+        }
+        closeEngineQuietly(toClose);
+    }
+
+    /**
+     * Đồng bộ trạng thái kết thúc cuộc gọi từ /api/sync (CALL_UPDATED) khi mất kết nối WebSocket tạm thời,
+     * đảm bảo UI không bao giờ bị kẹt ở RINGING/ACTIVE sau khi đối phương đã kết thúc hoặc từ chối.
+     */
+    public void onSyncedTerminalCallUpdate(
+            @NonNull String callId, @Nullable String rawState, @Nullable String endReason) {
+        if ("HANDLED_ELSEWHERE".equalsIgnoreCase(endReason)) {
+            JsonObject p = new JsonObject();
+            p.addProperty("callId", callId);
+            onHandledElsewhereFrame(p);
+            return;
+        }
+        if (rawState == null) {
+            return;
+        }
+        String upper = rawState.trim().toUpperCase(java.util.Locale.ROOT);
+        if ("ENDED".equals(upper) || "MISSED".equals(upper)
+                || "REJECTED".equals(upper) || "BUSY".equals(upper) || "FAILED".equals(upper)) {
+            JsonObject p = new JsonObject();
+            p.addProperty("callId", callId);
+            p.addProperty("state", upper);
+            if (endReason != null) {
+                p.addProperty("endReason", endReason);
+            }
+            onCallEndedFrame(p, null);
         }
     }
 
@@ -605,7 +816,6 @@ public class CallSessionCoordinator {
                 onIceFrame(payload);
                 break;
             default:
-                // Bỏ qua an toàn các loại sự kiện không thuộc cuộc gọi.
                 break;
         }
     }
@@ -654,20 +864,22 @@ public class CallSessionCoordinator {
         long delayMs = computeRingingDelayMs(expiresAtMs);
 
         CallUiState incomingState;
+        WebRtcCallEngine oldEngine;
         synchronized (stateLock) {
             // Đang trong cuộc gọi khác -> bỏ qua lặng lẽ, không làm hỏng phiên đang chạy (T-06-18).
             if (current.state != State.IDLE && current.state != State.ENDED) {
                 return;
             }
-            resetInternalResourcesLocked();
+            oldEngine = resetInternalResourcesLocked();
             activeSessionKey = sessionKey;
             activeCallId = callId;
             incomingState = new CallUiState(
                     State.INCOMING_RINGING, callId, conversationId, callerId, callerName, callerAvatar, null,
-                    true, false, false, 0L, expiresAtMs, false, false, null, null);
+                    true, false, false, 0L, expiresAtMs, false, false, null, null, sessionKey);
             publishLocked(incomingState);
             scheduleRingingDeadlineLocked(sessionKey, callId, delayMs);
         }
+        closeEngineQuietly(oldEngine);
 
         IncomingCallAlertListener alertListener = incomingCallAlertListener;
         if (alertListener != null) {
@@ -687,11 +899,15 @@ public class CallSessionCoordinator {
             }
             cancelRingingTimerLocked();
             engine = activeEngine;
+            if (engine == null && outgoingStartPending) {
+                // Nếu call.accepted đến ngay khi WebRtcCallEngine đang initialize(), đánh dấu để tạo offer ngay sau đó.
+                pendingStartOfferAfterInit = true;
+            }
             publishLocked(new CallUiState(
                     State.CONNECTING, callId, current.conversationId, current.peerUserId,
                     current.peerName, current.peerAvatarUrl, current.peerPhone,
                     false, current.micMuted, current.speakerOn,
-                    0L, current.ringingExpiresAtEpochMs, false, false, null, null));
+                    0L, current.ringingExpiresAtEpochMs, false, false, null, null, current.sessionKey));
         }
         if (engine != null) {
             engine.startOffer();
@@ -710,6 +926,7 @@ public class CallSessionCoordinator {
         }
         String errorCode = "FAILED".equalsIgnoreCase(rawState) ? "OFFLINE" : null;
 
+        WebRtcCallEngine toClose;
         synchronized (stateLock) {
             if (!matchesActiveCallLocked(callId)) {
                 return;
@@ -718,11 +935,12 @@ public class CallSessionCoordinator {
                 return;
             }
             cancelTimersLocked();
-            closeEngineLocked();
+            toClose = detachEngineLocked();
             clearSignalingBuffersLocked();
             publishLocked(withEnded(current, errorCode, endReason));
         }
         cancelIncomingAlert(callId);
+        closeEngineQuietly(toClose);
     }
 
     public void onHandledElsewhereFrame(@NonNull JsonObject payload) {
@@ -730,6 +948,7 @@ public class CallSessionCoordinator {
         if (callId == null) {
             return;
         }
+        WebRtcCallEngine toClose;
         synchronized (stateLock) {
             if (!matchesActiveCallLocked(callId)) {
                 return;
@@ -738,16 +957,18 @@ public class CallSessionCoordinator {
                 return;
             }
             cancelTimersLocked();
-            closeEngineLocked();
+            toClose = detachEngineLocked();
             clearSignalingBuffersLocked();
             publishLocked(withEnded(current, null, "HANDLED_ELSEWHERE"));
         }
         cancelIncomingAlert(callId);
+        closeEngineQuietly(toClose);
     }
 
     public void onOfferFrame(@NonNull JsonObject payload) {
         String callId = optString(payload, "callId");
-        String sdp = optString(payload, "sdp");
+        // Tuyệt đối không gọi .trim() lên SDP để giữ nguyên ký tự kết dòng \r\n chuẩn RFC 4566 cho libwebrtc.
+        String sdp = optRawNonBlankString(payload, "sdp");
         if (callId == null || sdp == null) {
             return;
         }
@@ -760,7 +981,7 @@ public class CallSessionCoordinator {
                 if (activeEngine != null) {
                     engine = activeEngine;
                 } else if (acceptPending) {
-                    // Đệm offer đến sớm trong lúc POST /accept đang chờ phản hồi 200 OK.
+                    // Đệm offer đến sớm trong lúc chờ POST /accept hoặc engine.initialize().
                     pendingRemoteOfferSdp = sdp;
                 }
             }
@@ -772,7 +993,8 @@ public class CallSessionCoordinator {
 
     public void onAnswerFrame(@NonNull JsonObject payload) {
         String callId = optString(payload, "callId");
-        String sdp = optString(payload, "sdp");
+        // Giữ nguyên \r\n cuối chuỗi SDP để setRemoteDescription không báo lỗi định dạng.
+        String sdp = optRawNonBlankString(payload, "sdp");
         if (callId == null || sdp == null) {
             return;
         }
@@ -782,7 +1004,11 @@ public class CallSessionCoordinator {
                 return;
             }
             if (current.state == State.CONNECTING || current.state == State.ACTIVE) {
-                engine = activeEngine;
+                if (activeEngine != null) {
+                    engine = activeEngine;
+                } else if (outgoingStartPending) {
+                    pendingRemoteAnswerSdp = sdp;
+                }
             }
         }
         if (engine != null) {
@@ -806,7 +1032,7 @@ public class CallSessionCoordinator {
             if (current.state == State.CONNECTING || current.state == State.ACTIVE) {
                 if (activeEngine != null) {
                     engine = activeEngine;
-                } else if (acceptPending) {
+                } else if (acceptPending || outgoingStartPending) {
                     pendingEarlyIce.add(new PendingIce(candidate, sdpMid, sdpMLineIndex));
                 }
             }
@@ -866,6 +1092,7 @@ public class CallSessionCoordinator {
 
         @Override
         public void onIceConnected() {
+            boolean sendImmediateKeepalive = false;
             synchronized (stateLock) {
                 if (!sessionKey.equals(session.sessionKey())
                         || !sessionKey.equals(activeSessionKey)
@@ -875,6 +1102,7 @@ public class CallSessionCoordinator {
                 if (current.state != State.CONNECTING && current.state != State.ACTIVE) {
                     return;
                 }
+                sendImmediateKeepalive = current.connectionLost;
                 iceConnected = true;
                 long answeredAt = current.answeredAtElapsedRealtime > 0L
                         ? current.answeredAtElapsedRealtime
@@ -883,13 +1111,18 @@ public class CallSessionCoordinator {
                         State.ACTIVE, callId, current.conversationId, current.peerUserId,
                         current.peerName, current.peerAvatarUrl, current.peerPhone,
                         current.incoming, current.micMuted, current.speakerOn,
-                        answeredAt, current.ringingExpiresAtEpochMs, false, false, null, null));
+                        answeredAt, current.ringingExpiresAtEpochMs, false, false, null, null, current.sessionKey));
                 scheduleKeepaliveLocked(sessionKey, callId);
+            }
+            // Nếu vừa phục hồi từ DISCONNECTED, gia hạn keepalive ngay lập tức để kịp cửa sổ 60s của server.
+            if (sendImmediateKeepalive) {
+                sendKeepaliveFrame(callId);
             }
         }
 
         @Override
         public void onIceDisconnectedOrFailed(@NonNull String reason) {
+            WebRtcCallEngine toClose = null;
             synchronized (stateLock) {
                 if (!sessionKey.equals(session.sessionKey())
                         || !sessionKey.equals(activeSessionKey)
@@ -906,17 +1139,20 @@ public class CallSessionCoordinator {
                             current.peerName, current.peerAvatarUrl, current.peerPhone,
                             current.incoming, current.micMuted, current.speakerOn,
                             current.answeredAtElapsedRealtime, current.ringingExpiresAtEpochMs,
-                            false, true, null, null));
+                            false, true, null, null, current.sessionKey));
                     return;
                 }
 
-                if (current.state == State.CONNECTING || current.state == State.ACTIVE) {
+                if (current.state == State.OUTGOING_RINGING
+                        || current.state == State.CONNECTING
+                        || current.state == State.ACTIVE) {
                     cancelTimersLocked();
-                    closeEngineLocked();
+                    toClose = detachEngineLocked();
                     clearSignalingBuffersLocked();
                     publishLocked(withEnded(current, reason, "ERROR"));
                 }
             }
+            closeEngineQuietly(toClose);
         }
     }
 
@@ -933,6 +1169,7 @@ public class CallSessionCoordinator {
      * - Tắt chuông/thông báo đến, vô hiệu hóa thao tác cũ, đóng engine và chuyển ENDED (TIMEOUT).
      */
     private void onLocalRingingDeadlineReached(@NonNull String sessionKey, @NonNull String callId) {
+        WebRtcCallEngine toClose;
         synchronized (stateLock) {
             if (!sessionKey.equals(activeSessionKey) || !callId.equals(activeCallId)) {
                 return;
@@ -941,15 +1178,16 @@ public class CallSessionCoordinator {
                 return;
             }
             ringingTimer = null;
-            closeEngineLocked();
+            toClose = detachEngineLocked();
             clearSignalingBuffersLocked();
             publishLocked(new CallUiState(
                     State.ENDED, callId, current.conversationId, current.peerUserId,
                     current.peerName, current.peerAvatarUrl, current.peerPhone,
                     current.incoming, current.micMuted, current.speakerOn,
-                    0L, current.ringingExpiresAtEpochMs, true, false, null, "TIMEOUT"));
+                    0L, current.ringingExpiresAtEpochMs, true, false, null, "TIMEOUT", current.sessionKey));
         }
         cancelIncomingAlert(callId);
+        closeEngineQuietly(toClose);
     }
 
     private void scheduleKeepaliveLocked(@NonNull String sessionKey, @NonNull String callId) {
@@ -978,11 +1216,19 @@ public class CallSessionCoordinator {
         signalingSender.sendFrame("call.keepalive", payload);
     }
 
+    private void sendEndCallQuietly(@NonNull String callId) {
+        try {
+            callApi.endCall(callId).execute();
+        } catch (IOException | RuntimeException ignored) {
+        }
+    }
+
     private void finishWithErrorIfSessionMatches(
             @NonNull String sessionKey,
             @Nullable String expectedCallId,
             @NonNull String errorCode,
             @NonNull String endReason) {
+        WebRtcCallEngine toClose;
         synchronized (stateLock) {
             if (!sessionKey.equals(session.sessionKey()) || !sessionKey.equals(activeSessionKey)) {
                 return;
@@ -991,10 +1237,11 @@ public class CallSessionCoordinator {
                 return;
             }
             cancelTimersLocked();
-            closeEngineLocked();
+            toClose = detachEngineLocked();
             clearSignalingBuffersLocked();
             publishLocked(withEnded(current, errorCode, endReason));
         }
+        closeEngineQuietly(toClose);
     }
 
     private boolean isStillMatchingSessionAndCall(@NonNull String sessionKey, @NonNull String callId) {
@@ -1013,12 +1260,14 @@ public class CallSessionCoordinator {
                 && callId.equals(activeCallId);
     }
 
-    private void resetInternalResourcesLocked() {
+    @Nullable
+    private WebRtcCallEngine resetInternalResourcesLocked() {
         cancelTimersLocked();
-        closeEngineLocked();
+        WebRtcCallEngine toClose = detachEngineLocked();
         clearSignalingBuffersLocked();
         activeSessionKey = null;
         activeCallId = null;
+        return toClose;
     }
 
     private void cancelTimersLocked() {
@@ -1040,18 +1289,26 @@ public class CallSessionCoordinator {
         }
     }
 
-    private void closeEngineLocked() {
+    @Nullable
+    private WebRtcCallEngine detachEngineLocked() {
         iceConnected = false;
-        if (activeEngine != null) {
-            WebRtcCallEngine toClose = activeEngine;
-            activeEngine = null;
-            toClose.close();
+        WebRtcCallEngine toClose = activeEngine;
+        activeEngine = null;
+        return toClose;
+    }
+
+    private static void closeEngineQuietly(@Nullable WebRtcCallEngine engine) {
+        if (engine != null) {
+            engine.close();
         }
     }
 
     private void clearSignalingBuffersLocked() {
+        outgoingStartPending = false;
         acceptPending = false;
+        pendingStartOfferAfterInit = false;
         pendingRemoteOfferSdp = null;
+        pendingRemoteAnswerSdp = null;
         pendingEarlyIce.clear();
     }
 
@@ -1075,7 +1332,7 @@ public class CallSessionCoordinator {
                 base.peerName, base.peerAvatarUrl, base.peerPhone,
                 base.incoming, base.micMuted, base.speakerOn,
                 base.answeredAtElapsedRealtime, base.ringingExpiresAtEpochMs,
-                base.ringingDeadlinePassed, false, errorCode, endReason);
+                base.ringingDeadlinePassed, false, errorCode, endReason, base.sessionKey);
     }
 
     private long parseExpiresAtEpochMs(@Nullable String iso) {
@@ -1089,10 +1346,14 @@ public class CallSessionCoordinator {
         }
     }
 
+    /**
+     * Tính thời gian chờ cục bộ an toàn trước lệch đồng hồ thiết bị/server:
+     * nếu đồng hồ máy chạy nhanh hơn server (remaining <= 0 ngay lúc vừa đổ chuông), fallback về 45s thay vì cắt cuộc gọi sau 1s.
+     */
     private long computeRingingDelayMs(long expiresAtEpochMs) {
         long remaining = expiresAtEpochMs - wallClockMs.getAsLong();
         if (remaining <= 0L) {
-            return 1_000L;
+            return DEFAULT_RINGING_TIMEOUT_MS;
         }
         return Math.min(remaining, DEFAULT_RINGING_TIMEOUT_MS);
     }
@@ -1153,6 +1414,17 @@ public class CallSessionCoordinator {
         }
         String val = el.getAsString();
         return val != null && !val.trim().isEmpty() ? val.trim() : null;
+    }
+
+    /** Đọc chuỗi nguyên vẹn (không .trim()) dành riêng cho SDP WebRTC để bảo toàn ký tự \r\n cuối cùng. */
+    @Nullable
+    private static String optRawNonBlankString(@NonNull JsonObject obj, @NonNull String key) {
+        JsonElement el = obj.get(key);
+        if (el == null || el.isJsonNull() || !el.isJsonPrimitive()) {
+            return null;
+        }
+        String val = el.getAsString();
+        return val != null && !val.trim().isEmpty() ? val : null;
     }
 
     private static int optInt(@NonNull JsonObject obj, @NonNull String key, int fallback) {

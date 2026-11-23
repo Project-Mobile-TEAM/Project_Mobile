@@ -14,6 +14,8 @@ import com.utechat.data.remote.model.CallDtos;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.webrtc.AudioSource;
 import org.webrtc.AudioTrack;
@@ -33,6 +35,8 @@ import org.webrtc.audio.JavaAudioDeviceModule;
  * Triển khai thật WebRtcCallEngine bằng io.getstream:stream-webrtc-android:1.3.10 (100% Java 17):
  * - Audio-only (VOICE_COMMUNICATION, khử vọng AEC & lọc ồn NS phần cứng khi thiết bị hỗ trợ).
  * - Đệm an toàn ứng viên ICE đến sớm (pendingRemoteIce) cho tới khi setRemoteDescription gọi onSetSuccess().
+ * - Giải phóng native PeerConnection / Factory / AudioDeviceModule trên một luồng riêng biệt (TEARDOWN_EXECUTOR),
+ *   TUYỆT ĐỐI không gọi dispose() đồng bộ bên trong callback luồng signaling native của libwebrtc hay trên Main thread.
  * - Định tuyến âm thanh tương thích API 26–36 (setCommunicationDevice trên API 31+, fallback setSpeakerphoneOn API 26–30)
  *   và khôi phục trọn vẹn AudioFocus/mode khi đóng cuộc gọi.
  */
@@ -42,6 +46,12 @@ public final class StreamWebRtcCallEngine implements WebRtcCallEngine {
     private static final String STREAM_ID = "UTEChat_STREAM";
 
     private static final AtomicBoolean WEBRTC_GLOBAL_INITIALIZED = new AtomicBoolean(false);
+    // Luồng đơn chuyên giải phóng tài nguyên native WebRTC ngoài luồng observer của libwebrtc và ngoài Main thread.
+    private static final ExecutorService TEARDOWN_EXECUTOR = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "utechat-webrtc-teardown");
+        t.setDaemon(true);
+        return t;
+    });
 
     private final Context appContext;
     private final AudioManager audioManager;
@@ -49,7 +59,7 @@ public final class StreamWebRtcCallEngine implements WebRtcCallEngine {
     private final List<IceCandidate> pendingRemoteIce = new ArrayList<>();
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
-    @Nullable private Listener listener;
+    @Nullable private volatile Listener listener;
     @Nullable private JavaAudioDeviceModule audioDeviceModule;
     @Nullable private PeerConnectionFactory factory;
     @Nullable private PeerConnection peerConnection;
@@ -73,6 +83,9 @@ public final class StreamWebRtcCallEngine implements WebRtcCallEngine {
         if (closed.get()) {
             return;
         }
+        boolean initFailed = false;
+        PeerConnectionFactory failedFactory = null;
+        JavaAudioDeviceModule failedAdm = null;
         synchronized (stateLock) {
             if (closed.get()) {
                 return;
@@ -97,16 +110,26 @@ public final class StreamWebRtcCallEngine implements WebRtcCallEngine {
 
             this.peerConnection = this.factory.createPeerConnection(rtcConfig, new PeerConnectionObserver());
             if (this.peerConnection == null) {
-                notifyDisconnected("PEER_CONNECTION_INIT_FAILED");
-                return;
+                // Dọn sạch ngay AudioFocus, Factory và AudioDeviceModule tránh rò rỉ tài nguyên khi tạo PeerConnection thất bại.
+                failedFactory = this.factory;
+                this.factory = null;
+                failedAdm = this.audioDeviceModule;
+                this.audioDeviceModule = null;
+                restoreAudioAfterCallLocked();
+                initFailed = true;
+            } else {
+                MediaConstraints audioConstraints = new MediaConstraints();
+                this.audioSource = this.factory.createAudioSource(audioConstraints);
+                this.localAudioTrack = this.factory.createAudioTrack(AUDIO_TRACK_ID, this.audioSource);
+                this.localAudioTrack.setEnabled(!micMuted);
+                this.peerConnection.addTrack(this.localAudioTrack, Collections.singletonList(STREAM_ID));
+                applySpeakerRoutingLocked(speakerEnabled);
             }
-
-            MediaConstraints audioConstraints = new MediaConstraints();
-            this.audioSource = this.factory.createAudioSource(audioConstraints);
-            this.localAudioTrack = this.factory.createAudioTrack(AUDIO_TRACK_ID, this.audioSource);
-            this.localAudioTrack.setEnabled(!micMuted);
-            this.peerConnection.addTrack(this.localAudioTrack, Collections.singletonList(STREAM_ID));
-            applySpeakerRoutingLocked(speakerEnabled);
+        }
+        // Không bao giờ gọi callback hoặc dispose() khi đang giữ stateLock (chống deadlock AB-BA).
+        if (initFailed) {
+            disposeNativeAsync(null, null, null, failedFactory, failedAdm);
+            notifyDisconnected("PEER_CONNECTION_INIT_FAILED");
         }
     }
 
@@ -292,32 +315,48 @@ public final class StreamWebRtcCallEngine implements WebRtcCallEngine {
             audioDeviceModule = null;
             restoreAudioAfterCallLocked();
         }
-        closeQuietly(() -> {
-            if (pcToClose != null) {
-                pcToClose.close();
-                pcToClose.dispose();
-            }
-        });
-        closeQuietly(() -> {
-            if (trackToDispose != null) {
-                trackToDispose.setEnabled(false);
-                trackToDispose.dispose();
-            }
-        });
-        closeQuietly(() -> {
-            if (sourceToDispose != null) {
-                sourceToDispose.dispose();
-            }
-        });
-        closeQuietly(() -> {
-            if (factoryToDispose != null) {
-                factoryToDispose.dispose();
-            }
-        });
-        closeQuietly(() -> {
-            if (admToRelease != null) {
-                admToRelease.release();
-            }
+        disposeNativeAsync(pcToClose, trackToDispose, sourceToDispose, factoryToDispose, admToRelease);
+    }
+
+    private static void disposeNativeAsync(
+            @Nullable PeerConnection pcToClose,
+            @Nullable AudioTrack trackToDispose,
+            @Nullable AudioSource sourceToDispose,
+            @Nullable PeerConnectionFactory factoryToDispose,
+            @Nullable JavaAudioDeviceModule admToRelease) {
+        if (pcToClose == null && trackToDispose == null && sourceToDispose == null
+                && factoryToDispose == null && admToRelease == null) {
+            return;
+        }
+        // Giải phóng bất đồng bộ ngoài luồng native signaling của WebRTC và ngoài UI thread để tránh SIGABRT/deadlock.
+        TEARDOWN_EXECUTOR.execute(() -> {
+            closeQuietly(() -> {
+                if (pcToClose != null) {
+                    pcToClose.close();
+                    pcToClose.dispose();
+                }
+            });
+            closeQuietly(() -> {
+                if (trackToDispose != null) {
+                    trackToDispose.setEnabled(false);
+                    trackToDispose.dispose();
+                }
+            });
+            closeQuietly(() -> {
+                if (sourceToDispose != null) {
+                    sourceToDispose.dispose();
+                }
+            });
+            closeQuietly(() -> {
+                if (factoryToDispose != null) {
+                    factoryToDispose.dispose();
+                }
+            });
+            closeQuietly(() -> {
+                if (admToRelease != null) {
+                    admToRelease.release();
+                }
+            });
         });
     }
 

@@ -403,6 +403,104 @@ public class CallSessionCoordinatorTest {
         coordinator.onWebSocketReconnected();
         assertEquals("Không được gửi thêm call.keepalive khi ICE đang mất kết nối",
                 2, signaling.countType("call.keepalive"));
+
+        // Phục hồi ICE từ DISCONNECTED -> CONNECTED lập tức phát keepalive ngay không đợi đủ 15s.
+        engine.emitIceConnected();
+        assertEquals(3, signaling.countType("call.keepalive"));
+    }
+
+    @Test
+    public void sdpPreservesTrailingCrLfClockSkewResilienceInFlightCancelAndPre201MuteSpeaker() throws Exception {
+        // 1. Bảo toàn tuyệt đối ký tự kết dòng \r\n trong SDP (offer & answer) theo RFC 4566.
+        String rawAnswerSdp = "v=0\r\no=- 1 2 IN IP4 127.0.0.1\r\ns=-\r\nt=0 0\r\n";
+        String rawOfferSdp = "v=0\r\no=- 3 4 IN IP4 127.0.0.1\r\ns=-\r\nt=0 0\r\n";
+        // Đồng hồ thiết bị chạy nhanh hơn server 2 phút -> expiresAt ở quá khứ, vẫn KHÔNG được cắt sau 1s.
+        String pastExpiresIso = "2020-01-01T00:00:00Z";
+        when(callApi.startCall(any())).thenReturn(syncCall(() -> Response.success(201,
+                new CallDtos.StartCallResponse("call-sdp", "RINGING", pastExpiresIso, Collections.emptyList()))));
+        when(callApi.endCall("call-sdp")).thenReturn(syncCall(() -> Response.success(204, null)));
+
+        coordinator.startOutgoingCall(CONV_1, "u-bob", "Bob", null, null);
+        scheduler.advanceBy(2_000L);
+        assertEquals("Lệch đồng hồ không được hủy cuộc gọi sau 1 giây",
+                CallSessionCoordinator.State.OUTGOING_RINGING, coordinator.getCurrentState().state);
+
+        JsonObject acc = new JsonObject();
+        acc.addProperty("callId", "call-sdp");
+        coordinator.onWsFrame("call.accepted", acc);
+        JsonObject ans = new JsonObject();
+        ans.addProperty("callId", "call-sdp");
+        ans.addProperty("sdp", rawAnswerSdp);
+        coordinator.onWsFrame("call.answer", ans);
+        assertEquals(rawAnswerSdp, createdEngines.get(0).appliedAnswerSdp);
+
+        coordinator.endCall();
+        coordinator.resetToIdle();
+
+        // Kiểm tra bảo toàn \r\n ở nhánh offer đến.
+        when(callApi.acceptCall("call-sdp-in")).thenReturn(syncCall(() -> Response.success(200,
+                new CallDtos.AcceptCallResponse("call-sdp-in", "ACTIVE", Collections.emptyList()))));
+        coordinator.onWsFrame("call.incoming", incomingPayload("call-sdp-in", "Bob"));
+        coordinator.acceptIncomingCall();
+        JsonObject off = new JsonObject();
+        off.addProperty("callId", "call-sdp-in");
+        off.addProperty("sdp", rawOfferSdp);
+        coordinator.onWsFrame("call.offer", off);
+        assertEquals(rawOfferSdp, createdEngines.get(1).acceptedOfferSdp);
+
+        // 2. Bấm Hủy (endCall) khi POST /api/calls đang bay + bật Mute/Speaker trước khi 201 về.
+        ExecutorService netPool = Executors.newSingleThreadExecutor();
+        CountDownLatch startEntered = new CountDownLatch(1);
+        CountDownLatch releaseStart = new CountDownLatch(1);
+        CountDownLatch startDone = new CountDownLatch(1);
+        try {
+            CallSessionCoordinator asyncCoord = new CallSessionCoordinator(
+                    callApi, session,
+                    () -> {
+                        FakeWebRtcCallEngine eng = new FakeWebRtcCallEngine();
+                        createdEngines.add(eng);
+                        return eng;
+                    },
+                    signaling, scheduler, fakeElapsedMs::get, fakeWallMs::get,
+                    task -> netPool.execute(() -> {
+                        try { task.run(); } finally { startDone.countDown(); }
+                    }),
+                    Runnable::run);
+
+            when(callApi.startCall(any())).thenReturn(syncCall(() -> {
+                startEntered.countDown();
+                assertTrue(releaseStart.await(5, TimeUnit.SECONDS));
+                return Response.success(201,
+                        new CallDtos.StartCallResponse("call-cancel-inflight", "RINGING", null, Collections.emptyList()));
+            }));
+            when(callApi.endCall("call-cancel-inflight")).thenReturn(syncCall(() -> Response.success(204, null)));
+
+            asyncCoord.startOutgoingCall(CONV_1, "u-bob", "Bob", null, null);
+            assertTrue(startEntered.await(3, TimeUnit.SECONDS));
+            // Người dùng hủy cuộc gọi ngay khi POST /calls chưa kịp trả 201
+            asyncCoord.endCall();
+            releaseStart.countDown();
+            assertTrue(startDone.await(5, TimeUnit.SECONDS));
+
+            verify(callApi, times(1)).endCall("call-cancel-inflight");
+        } finally {
+            netPool.shutdownNow();
+        }
+
+        // 3. Từ chối cuộc gọi đến gọi POST /reject và đồng bộ CALL_UPDATED từ /api/sync chốt cuộc gọi kẹt.
+        when(callApi.rejectCall("call-rej")).thenReturn(syncCall(() -> Response.success(204, null)));
+        coordinator.onSessionCleared();
+        coordinator.onWsFrame("call.incoming", incomingPayload("call-rej", "Bob"));
+        coordinator.rejectIncomingCall();
+        assertEquals(CallSessionCoordinator.State.ENDED, coordinator.getCurrentState().state);
+        assertEquals("REJECT", coordinator.getCurrentState().endReason);
+        verify(callApi, times(1)).rejectCall("call-rej");
+
+        coordinator.resetToIdle();
+        coordinator.onWsFrame("call.incoming", incomingPayload("call-sync-end", "Bob"));
+        coordinator.onSyncedTerminalCallUpdate("call-sync-end", "MISSED", "TIMEOUT");
+        assertEquals(CallSessionCoordinator.State.ENDED, coordinator.getCurrentState().state);
+        assertEquals("TIMEOUT", coordinator.getCurrentState().endReason);
     }
 
     // ======================== HELPERS & FAKES ========================

@@ -23,6 +23,7 @@ import com.utechat.data.notifications.NotificationHelper;
 import com.utechat.data.remote.model.ChatDtos;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -218,19 +219,42 @@ public class SyncEventApplier {
         syncStateDao.reset(myUserId, snap.syncCursor, nowMs);
     }
 
-    /** Kết quả đầy đủ của 1 lô /api/sync dùng cho cả biên nhận DELIVERED lẫn phát thông báo sau commit. */
+    /** Trạng thái kết thúc cuộc gọi đồng bộ về từ CALL_UPDATED để đóng UI nếu WS rớt đúng lúc kết thúc. */
+    public static final class TerminalCallUpdate {
+        @NonNull public final String callId;
+        @NonNull public final String state;
+        @Nullable public final String endReason;
+
+        public TerminalCallUpdate(@NonNull String callId, @NonNull String state, @Nullable String endReason) {
+            this.callId = callId;
+            this.state = state;
+            this.endReason = endReason;
+        }
+    }
+
+    /** Kết quả đầy đủ của 1 lô /api/sync dùng cho biên nhận DELIVERED, phát thông báo và chốt cuộc gọi sau commit. */
     public static final class SyncBatchOutcome {
         @NonNull public final Map<String, Long> highestIncomingByConversation;
         @NonNull public final List<MessageEntity> newlyInsertedMessages;
         @NonNull public final List<NotificationHelper.MissedCallNotice> missedCalls;
+        @NonNull public final List<TerminalCallUpdate> terminalCalls;
 
         public SyncBatchOutcome(
                 @NonNull Map<String, Long> highestIncomingByConversation,
                 @NonNull List<MessageEntity> newlyInsertedMessages,
                 @NonNull List<NotificationHelper.MissedCallNotice> missedCalls) {
+            this(highestIncomingByConversation, newlyInsertedMessages, missedCalls, Collections.emptyList());
+        }
+
+        public SyncBatchOutcome(
+                @NonNull Map<String, Long> highestIncomingByConversation,
+                @NonNull List<MessageEntity> newlyInsertedMessages,
+                @NonNull List<NotificationHelper.MissedCallNotice> missedCalls,
+                @NonNull List<TerminalCallUpdate> terminalCalls) {
             this.highestIncomingByConversation = highestIncomingByConversation;
             this.newlyInsertedMessages = newlyInsertedMessages;
             this.missedCalls = missedCalls;
+            this.terminalCalls = terminalCalls;
         }
     }
 
@@ -255,12 +279,13 @@ public class SyncEventApplier {
         Map<String, Long> highestIncomingByConversation = new HashMap<>();
         List<MessageEntity> newlyInsertedMessages = new ArrayList<>();
         List<NotificationHelper.MissedCallNotice> missedCalls = new ArrayList<>();
+        List<TerminalCallUpdate> terminalCalls = new ArrayList<>();
         Map<String, CallOrigin> callOrigins = new HashMap<>();
         List<PendingMissedCall> pendingMissedCalls = new ArrayList<>();
         Map<String, Long> selfReadUpToInBatch = new HashMap<>();
 
         if (events == null || events.isEmpty()) {
-            return new SyncBatchOutcome(highestIncomingByConversation, newlyInsertedMessages, missedCalls);
+            return new SyncBatchOutcome(highestIncomingByConversation, newlyInsertedMessages, missedCalls, terminalCalls);
         }
         for (ChatDtos.SyncEventDto event : events) {
             if (event == null || event.eventType == null) {
@@ -281,7 +306,7 @@ public class SyncEventApplier {
                     applyDeviceRevoked(event);
                     break;
                 case "CALL_UPDATED":
-                    applyCallUpdated(myUserId, event, missedCalls, callOrigins, pendingMissedCalls);
+                    applyCallUpdated(myUserId, event, missedCalls, terminalCalls, callOrigins, pendingMissedCalls);
                     break;
                 case "CONTACT_REQUEST_CREATED":
                 case "CONTACT_REQUEST_UPDATED":
@@ -314,7 +339,7 @@ public class SyncEventApplier {
             }
         }
 
-        return new SyncBatchOutcome(highestIncomingByConversation, newlyInsertedMessages, missedCalls);
+        return new SyncBatchOutcome(highestIncomingByConversation, newlyInsertedMessages, missedCalls, terminalCalls);
     }
 
     private void applyMessageCreated(
@@ -536,6 +561,7 @@ public class SyncEventApplier {
             String myUserId,
             ChatDtos.SyncEventDto event,
             List<NotificationHelper.MissedCallNotice> missedCalls,
+            List<TerminalCallUpdate> terminalCalls,
             Map<String, CallOrigin> callOrigins,
             List<PendingMissedCall> pendingMissedCalls) {
         ChatDtos.CallUpdatePayload p = parseRequired(event.payload, ChatDtos.CallUpdatePayload.class, event.eventType);
@@ -584,6 +610,15 @@ public class SyncEventApplier {
                 if (p.endReason != null) callObj.addProperty("endReason", p.endReason);
                 messageDao.updateAttachmentJson(msg.getLocalId(), GSON.toJson(root));
             }
+        }
+
+        if (p.state != null && ("ENDED".equals(p.state)
+                || "MISSED".equals(p.state)
+                || "REJECTED".equals(p.state)
+                || "FAILED".equals(p.state)
+                || "BUSY".equals(p.state)
+                || "HANDLED_ELSEWHERE".equals(p.state))) {
+            terminalCalls.add(new TerminalCallUpdate(p.callId, p.state, p.endReason));
         }
 
         if ("MISSED".equals(p.state)) {

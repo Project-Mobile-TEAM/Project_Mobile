@@ -29,6 +29,11 @@ public final class ChatErrors {
             case "CALL_UNSUPPORTED": return R.string.chat_error_call_unsupported;
             case "CALL_NOT_FOUND": return R.string.chat_error_call_not_found;
             case "INVALID_STATE": return R.string.chat_error_invalid_state;
+            case "UNAUTHORIZED":
+            case "UNAUTHENTICATED": return R.string.auth_session_expired;
+            case "FORBIDDEN":
+            case "INVALID_URL":
+            case "IO_ERROR": return R.string.media_load_failed;
             default: return R.string.chat_error_generic;
         }
     }

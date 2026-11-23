@@ -3,6 +3,7 @@ package com.utechat.data.remote.api;
 import androidx.annotation.NonNull;
 import com.utechat.BuildConfig;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 import okhttp3.HttpUrl;
 import okhttp3.OkHttpClient;
 import okhttp3.logging.HttpLoggingInterceptor;
@@ -11,7 +12,9 @@ import retrofit2.converter.gson.GsonConverterFactory;
 
 /** Một Retrofit dùng chung để tái sử dụng connection pool và không tạo client ở từng Fragment. */
 public final class ApiClient {
-    private static final String MEDIA_PATH_PREFIX = "/api/media/";
+    // Khớp tuyệt đối /api/media/{uuid} (chặn ?, #, %, .. và đường dẫn ngoài để không bao giờ rò Bearer token).
+    private static final Pattern STRICT_MEDIA_PATH = Pattern.compile(
+            "^/api/media/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
 
     private ApiClient() { }
 
@@ -74,10 +77,7 @@ public final class ApiClient {
         if (baseUrl == null || baseUrl.isBlank()) {
             throw new IllegalArgumentException("baseUrl must not be blank");
         }
-        if (relativeMediaUrl == null || !relativeMediaUrl.startsWith(MEDIA_PATH_PREFIX)
-                || relativeMediaUrl.length() <= MEDIA_PATH_PREFIX.length()
-                || relativeMediaUrl.contains("://")
-                || relativeMediaUrl.contains("..")) {
+        if (relativeMediaUrl == null || !STRICT_MEDIA_PATH.matcher(relativeMediaUrl).matches()) {
             throw new IllegalArgumentException("Invalid relative media URL: " + relativeMediaUrl);
         }
         String normalizedBase = baseUrl.endsWith("/")

@@ -143,7 +143,7 @@ Sự kiện và dữ liệu nghiệp vụ phải cùng commit/rollback; SyncEven
 > - Các loại tin nhắn được client gửi (`type`): `TEXT`, `IMAGE`, `AUDIO`, `VIDEO`, `FILE`, `LOCATION`. Riêng `SYSTEM` và `CALL` do server tự sinh, client gửi lên sẽ nhận lỗi `400 VALIDATION`.
 > - **Tin nhắn văn bản (`TEXT`):** Yêu cầu `text` có từ 1..4000 ký tự (sau khi trim, không rỗng).
 > - **Tin nhắn đa phương tiện (`IMAGE`, `AUDIO`, `VIDEO`, `FILE`):**
->   - Bắt buộc có trường `mediaUrl` dạng `/api/media/{attachmentId}` (với `attachmentId` là UUID trích xuất từ regex `/api/media/([0-9a-fA-F-]{36})`). `text` là tùy chọn (chú thích kèm theo, tối đa 4000 ký tự).
+>   - Bắt buộc có trường `mediaUrl` dạng `/api/media/{attachmentId}` (với `attachmentId` là UUID chuẩn 8-4-4-4-12 khớp regex `^/api/media/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$`). `text` là tùy chọn (chú thích kèm theo, tối đa 4000 ký tự).
 >   - Server khóa dòng bản ghi attachment (`FOR UPDATE`): kiểm tra `uploader_id == actorId` (nếu sai trả `403 FORBIDDEN`), kiểm tra `kind == type` (nếu không khớp trả `400 VALIDATION`), và kiểm tra ràng buộc duy nhất `uq_messages_attachment` (nếu attachment đã gắn vào message khác thì trả `409 CONFLICT`).
 >   - Server tự trích xuất metadata (`durationMs`, `sizeBytes`, `width`, `height`, `mime`, `fileName`) từ bản ghi `attachments` để gắn vào `MessageDto`.
 >   - Gửi lại cùng `(sender_id, clientId)` cho cùng một message trả về `200 OK` (idempotent replay) với dữ liệu gốc mà không gây lỗi `409 CONFLICT`.
@@ -228,12 +228,12 @@ Sự kiện và dữ liệu nghiệp vụ phải cùng commit/rollback; SyncEven
 | Method và đường dẫn | Body chính | Trả về | Điều kiện kiểm tra |
 |---|---|---|---|
 | `POST /calls` | `conversationId`, `media` (`VOICE`) | `201 Created`: `{ callId, state: "RINGING", expiresAt, iceServers[] }` | Ưu tiên kiểm tra: (1) `400 CALL_UNSUPPORTED` nếu là GROUP; (2) `403 BLOCKED` nếu một trong hai bên bị chặn; (3) `403 CONTACT_REQUIRED` nếu chưa là bạn bè `ACCEPTED`; (4) `429 RATE_LIMITED` nếu vượt 5 cuộc gọi/phút; (5) `409 CALL_BUSY` nếu người gọi hoặc người nhận đang có cuộc gọi khác ở trạng thái `RINGING` hoặc `ACTIVE` (không tạo row `calls`, không đổ chuông). Nếu hợp lệ, tạo cuộc gọi với hạn chót chuông `expiresAt = now() + 45s`, phát `call.incoming` qua WebSocket |
-| `POST /calls/{id}/accept` | — | `200 OK`: `{ iceServers[] }` | Nguyên tử chuyển `RINGING -> ACTIVE`, khóa cố định `callee_device_id_hash` từ token của thiết bị nhận máy. Phát sự kiện `call.accepted` cho người gọi và `call.handled_elsewhere` cho các thiết bị khác của người nhận. Gọi lại từ chính thiết bị đó trả `200 OK` (idempotent); gọi từ thiết bị khác hoặc cuộc gọi không ở `RINGING` trả `409 INVALID_STATE` |
-| `POST /calls/{id}/reject` | — | `204 No Content` | Nguyên tử chuyển `RINGING -> REJECTED`, đặt `end_reason = 'REJECT'`, phát `call.ended` (kèm syncEventId `CALL_UPDATED`) cho người gọi, `call.handled_elsewhere` cho các thiết bị khác của người nhận, và tự động tạo 1 tin nhắn loại `CALL` hiển thị trong đoạn chat. Gọi lại khi đã kết thúc trả `204` (idempotent) |
-| `POST /calls/{id}/end` | — | `204 No Content` | Nguyên tử chuyển `RINGING` hoặc `ACTIVE` sang `ENDED`, đặt `end_reason = 'HANGUP'`, phát `call.ended` cho bên kia và tạo 1 tin nhắn `CALL` (nếu chưa có). Gọi lại khi đã kết thúc trả `204` (idempotent) |
+| `POST /calls/{id}/accept` | — | `200 OK`: `{ callId, state: "ACTIVE", iceServers[] }` | Nguyên tử chuyển `RINGING -> ACTIVE`, khóa cố định `callee_device_id_hash` từ token của thiết bị nhận máy. Phát sự kiện `call.accepted` cho người gọi và `call.handled_elsewhere` cho các thiết bị khác của người nhận. Gọi lại từ chính thiết bị đó trả `200 OK` (idempotent); nếu `now() >= expiresAt`, cuộc gọi không ở `RINGING`, hoặc gọi từ thiết bị khác trả `409 INVALID_STATE` |
+| `POST /calls/{id}/reject` | — | `204 No Content` | Nguyên tử chuyển `RINGING -> REJECTED`, đặt `end_reason = 'REJECT'`, phát `call.ended` (kèm syncEventId `CALL_UPDATED`) cho người gọi, `call.handled_elsewhere` cho các thiết bị khác của người nhận, và tự động tạo 1 tin nhắn loại `CALL` hiển thị trong đoạn chat. Gọi lại khi cuộc gọi đã ở `REJECTED` trả `204` (idempotent); nếu đang `ACTIVE` hoặc đã kết thúc ở trạng thái khác (`MISSED`/`ENDED`/`FAILED`) trả `409 INVALID_STATE` |
+| `POST /calls/{id}/end` | — | `204 No Content` | Nguyên tử chuyển `RINGING` hoặc `ACTIVE` sang `ENDED`, đặt `end_reason = 'HANGUP'`, phát `call.ended` cho bên kia và tạo 1 tin nhắn `CALL` (nếu chưa có). Khi cuộc gọi đang `ACTIVE`, chỉ 2 thiết bị khớp `caller_device_id_hash` hoặc `callee_device_id_hash` mới được kết thúc (thiết bị thứ 3 nhận `403 FORBIDDEN`). Gọi lại khi đã kết thúc trả `204` (idempotent) |
 
 > **Quy tắc thời hạn chuông và liveness heartbeat:**
-> - **Hạn chót chuông 45 giây:** Server background sweeper tự động hủy các cuộc gọi ở trạng thái `RINGING` có `now() > expires_at`, chuyển sang `MISSED` với `end_reason = 'TIMEOUT'`, phát `call.ended` và chèn 1 tin nhắn `CALL`.
+> - **Hạn chót chuông 45 giây:** Server background sweeper tự động hủy các cuộc gọi ở trạng thái `RINGING` có `now() >= expires_at`, chuyển sang `MISSED` với `end_reason = 'TIMEOUT'`, phát `call.ended` và chèn 1 tin nhắn `CALL`.
 > - **Khóa báo hiệu 2 thiết bị:** Sau khi cuộc gọi chuyển sang `ACTIVE`, server chỉ cho phép chuyển tiếp các gói tin báo hiệu WebRTC (`call.offer`, `call.answer`, `call.ice`) giữa đúng 2 thiết bị mang `caller_device_id_hash` và `callee_device_id_hash`. Mọi gói tin từ thiết bị khác sẽ bị bỏ qua.
 > - **Duy trì cuộc gọi:** Trong khi đàm thoại (`ACTIVE`), 2 thiết bị định kỳ gửi `call.keepalive` mỗi 15 giây. Server gia hạn liveness deadline 60 giây (`caller_alive_until`, `callee_alive_until`). Nếu một bên rớt mạng quá 60s, cuộc gọi tự động kết thúc với trạng thái `FAILED` và lý do `OFFLINE`.
 > - **Tính duy nhất của tin nhắn CALL:** Sử dụng partial unique index `uq_messages_call_id` trên `messages(call_id)` để đảm bảo mỗi cuộc gọi kết thúc chỉ sinh ra đúng 1 tin nhắn lịch sử duy nhất.
@@ -274,9 +274,9 @@ Trường `syncEventId` trỏ trực tiếp tới `sync_events.id`. Client cập
 | `contact_request.updated` | Có | thông tin lời mời và trạng thái mới | Lời mời kết bạn được chấp nhận/từ chối/hủy |
 | `contact.updated` | Có | `{contactUserId, isFriend, blocked, removed, user?}` | Thay đổi quan hệ bạn bè, hủy kết bạn, chặn/bỏ chặn |
 | `call.incoming` | Có | `callId`, `conversationId`, `caller`, `media` (`VOICE`), `expiresAt` | Có người gọi đến (sau 45s thì tắt) |
-| `call.accepted`, `call.ended` | Có | `callId`, `state`, `endReason` | Thay đổi trạng thái cuộc gọi; được ghi vào `sync_events` với `eventType = CALL_UPDATED` |
+| `call.accepted`, `call.ended` | Có | `callId`, `conversationId`, `state`, `endReason`, `media`, `wsType`, `caller` *(kèm theo khi `MISSED`)* | Thay đổi trạng thái cuộc gọi; được ghi vào `sync_events` với `eventType = CALL_UPDATED` |
 | `call.offer`, `call.answer`, `call.ice` | Không | `callId`, `sdp` hoặc `candidate` | Báo hiệu WebRTC từ phía bên kia (chỉ chuyển tiếp giữa 2 thiết bị khớp `caller_device_id_hash` và `callee_device_id_hash`) |
-| `call.handled_elsewhere` | Có | `callId` | Thiết bị khác của người nhận đã nhận/từ chối cuộc gọi; được ghi vào `sync_events` với `eventType = CALL_UPDATED` |
+| `call.handled_elsewhere` | Có | `callId`, `conversationId`, `state`, `endReason`, `media`, `wsType`, `handledByDeviceIdHash` | Thiết bị khác của người nhận đã nhận/từ chối cuộc gọi; được ghi vào `sync_events` với `eventType = CALL_UPDATED` |
 | `auth.revoked` | Có | — | Thiết bị bị thu hồi, sau đó server đóng kết nối |
 
 ### App gửi lên server
@@ -309,12 +309,12 @@ Bảng `auth_throttles` kiểm soát theo `(scope_type, scope_key_hash, purpose)
 
 ## 5. Danh mục mã lỗi chính
 
-`VALIDATION`, `PHONE_TAKEN`, `PHONE_INVALID`, `BAD_CREDENTIALS`, `LOCKED`, `WEAK_PASSWORD`, `OTP_INVALID`, `OTP_EXPIRED`, `OTP_ATTEMPTS`, `OTP_RATE_LIMIT`, `SESSION_EXPIRED`, `NOT_FOUND`, `FORBIDDEN`, `NOT_A_MEMBER`, `NOT_ADMIN`, `GROUP_FULL`, `ADMIN_HANDOVER_REQUIRED`, `MEMBERSHIP_CHANGED`, `SYNC_CURSOR_EXPIRED`, `BLOCKED`, `CONTACT_REQUIRED`, `REQUEST_ALREADY_PENDING`, `ALREADY_FRIENDS`, `INVALID_STATE`, `FILE_TOO_LARGE`, `UNSUPPORTED_TYPE`, `CALL_BUSY`, `CALL_NOT_FOUND`, `CALL_UNSUPPORTED`, `SELF`, `RATE_LIMITED`, `INTERNAL`.
+`VALIDATION`, `PHONE_TAKEN`, `PHONE_INVALID`, `BAD_CREDENTIALS`, `LOCKED`, `WEAK_PASSWORD`, `OTP_INVALID`, `OTP_EXPIRED`, `OTP_ATTEMPTS`, `OTP_RATE_LIMIT`, `SESSION_EXPIRED`, `NOT_FOUND`, `FORBIDDEN`, `NOT_A_MEMBER`, `NOT_ADMIN`, `GROUP_FULL`, `ADMIN_HANDOVER_REQUIRED`, `MEMBERSHIP_CHANGED`, `SYNC_CURSOR_EXPIRED`, `BLOCKED`, `CONTACT_REQUIRED`, `REQUEST_ALREADY_PENDING`, `ALREADY_FRIENDS`, `CONFLICT`, `INVALID_STATE`, `FILE_TOO_LARGE`, `UNSUPPORTED_TYPE`, `CALL_BUSY`, `CALL_NOT_FOUND`, `CALL_UNSUPPORTED`, `SELF`, `RATE_LIMITED`, `INTERNAL`.
 
 ## 6. Chính sách thông báo (Notification)
 
 - V1 **không dùng Firebase Cloud Messaging (FCM)**. FCM chỉ ghi nhận như hướng mở rộng tương lai cho V2.
-- `NotificationChannel` (`messages`) được sử dụng để phát thông báo khi ứng dụng đang hoạt động (foregound/background) hoặc kết nối WebSocket còn duy trì.
+- Ứng dụng đăng ký đúng **2 `NotificationChannel`**: `messages` (tin nhắn mới) và `calls` (cuộc gọi đến và cuộc gọi nhỡ), được sử dụng khi ứng dụng đang hoạt động (foreground/background) hoặc kết nối WebSocket còn duy trì.
 - Khi ứng dụng ở nền và WebSocket bị ngắt, `WorkManager` định kỳ (15 phút) gọi `GET /api/sync?after=<syncEventId>` để kiểm tra tin mới theo cơ chế **best-effort** (không cam kết nhận tức thời).
 - Khi ứng dụng bị người dùng hoặc hệ thống **force-stop hoàn toàn**, hệ điều hành Android đình chỉ toàn bộ tiến trình nền, do đó không cam kết nhận được thông báo ngay lập tức cho đến khi ứng dụng được mở lại.
 

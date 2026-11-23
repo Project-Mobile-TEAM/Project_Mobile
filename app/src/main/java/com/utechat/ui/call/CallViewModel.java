@@ -23,6 +23,8 @@ import java.util.Locale;
 public class CallViewModel extends AndroidViewModel {
     private static final String KEY_OUTGOING_DISPATCHED = "call_outgoing_dispatched";
     private static final String KEY_ANSWERED_ELAPSED = "call_answered_elapsed";
+    private static final String KEY_PENDING_AUDIO_ACTION = "call_pending_audio_action";
+    private static final String KEY_PENDING_GRANTED_ACTION = "call_pending_granted_action";
     private static final long TICK_INTERVAL_MS = 1_000L;
 
     private final SavedStateHandle savedStateHandle;
@@ -85,6 +87,39 @@ public class CallViewModel extends AndroidViewModel {
 
     public void markOutgoingDispatched() {
         savedStateHandle.set(KEY_OUTGOING_DISPATCHED, true);
+    }
+
+    /** Lưu hành động đang chờ cấp quyền RECORD_AUDIO qua xoay màn hình / ActivityResult (STARTED -> RESUMED). */
+    @NonNull
+    public String getPendingAudioAction() {
+        String val = savedStateHandle.get(KEY_PENDING_AUDIO_ACTION);
+        return val != null ? val : "NONE";
+    }
+
+    public void setPendingAudioAction(@NonNull String action) {
+        savedStateHandle.set(KEY_PENDING_AUDIO_ACTION, action);
+    }
+
+    @NonNull
+    public String getPendingGrantedAction() {
+        String val = savedStateHandle.get(KEY_PENDING_GRANTED_ACTION);
+        return val != null ? val : "NONE";
+    }
+
+    public void setPendingGrantedAction(@NonNull String action) {
+        savedStateHandle.set(KEY_PENDING_GRANTED_ACTION, action);
+    }
+
+    public void reportPermissionDenied(
+            @Nullable String conversationId,
+            @Nullable String peerUserId,
+            @Nullable String peerName,
+            @Nullable String peerAvatarUrl,
+            @Nullable String peerPhone) {
+        markOutgoingDispatched();
+        if (coordinator != null) {
+            coordinator.reportPermissionDenied(conversationId, peerUserId, peerName, peerAvatarUrl, peerPhone);
+        }
     }
 
     public void startOutgoingCall(

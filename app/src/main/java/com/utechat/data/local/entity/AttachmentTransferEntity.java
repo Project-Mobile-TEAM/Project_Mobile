@@ -5,6 +5,7 @@ import androidx.annotation.Nullable;
 import androidx.room.ColumnInfo;
 import androidx.room.Entity;
 import androidx.room.PrimaryKey;
+import java.util.Objects;
 
 /** Tiến độ upload/download và metadata tệp cục bộ giữ nguyên qua các lần khởi động lại app (Room v3, D-03/D-04). */
 @Entity(tableName = "attachment_transfer")
@@ -139,4 +140,24 @@ public class AttachmentTransferEntity {
     // Đọc và cập nhật mốc thời gian thay đổi trạng thái gần nhất (epoch ms).
     public long getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(long value) { this.updatedAt = value; }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof AttachmentTransferEntity)) return false;
+        AttachmentTransferEntity that = (AttachmentTransferEntity) o;
+        return progress == that.progress
+                && updatedAt == that.updatedAt
+                && Objects.equals(clientId, that.clientId)
+                && Objects.equals(state, that.state)
+                && Objects.equals(mediaUrl, that.mediaUrl)
+                && Objects.equals(direction, that.direction)
+                && Objects.equals(localPath, that.localPath)
+                && Objects.equals(errorCode, that.errorCode);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(clientId, state, progress, mediaUrl, direction, localPath, errorCode, updatedAt);
+    }
 }

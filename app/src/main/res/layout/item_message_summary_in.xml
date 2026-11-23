@@ -99,7 +99,9 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:max="100" />
+                    android:contentDescription="@string/media_voice_play_cd"
+                    android:max="100"
+                    android:minHeight="48dp" />
 
                 <TextView
                     android:id="@+id/voice_duration"

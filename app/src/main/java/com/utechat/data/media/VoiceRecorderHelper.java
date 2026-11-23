@@ -24,6 +24,7 @@ public final class VoiceRecorderHelper {
     private File outputFile;
     private String activeClientId;
     private long startElapsedMs;
+    private volatile boolean autoStoppedAtLimit = false;
 
     public VoiceRecorderHelper(@NonNull Context context) {
         this.appContext = context.getApplicationContext();
@@ -46,6 +47,13 @@ public final class VoiceRecorderHelper {
             created.setAudioSamplingRate(44_100);
             created.setMaxDuration(MAX_DURATION_MS);
             created.setMaxFileSize(MAX_FILE_BYTES);
+            created.setOnInfoListener((mr, what, extra) -> {
+                if (what == MediaRecorder.MEDIA_RECORDER_INFO_MAX_DURATION_REACHED
+                        || what == MediaRecorder.MEDIA_RECORDER_INFO_MAX_FILESIZE_REACHED) {
+                    // Đánh dấu MediaRecorder đã tự dừng khi chạm trần 5 phút / 10MB để stopAndFinalize giữ lại bản ghi.
+                    autoStoppedAtLimit = true;
+                }
+            });
             created.setOutputFile(target.getAbsolutePath());
             created.prepare();
             created.start();
@@ -57,6 +65,7 @@ public final class VoiceRecorderHelper {
         recorder = created;
         outputFile = target;
         activeClientId = clientId;
+        autoStoppedAtLimit = false;
         startElapsedMs = SystemClock.elapsedRealtime();
     }
 
@@ -67,15 +76,18 @@ public final class VoiceRecorderHelper {
         MediaRecorder current = recorder;
         File file = outputFile;
         String clientId = activeClientId;
+        boolean hitLimit = autoStoppedAtLimit;
         long elapsed = SystemClock.elapsedRealtime() - startElapsedMs;
         resetState();
         try {
             current.stop();
         } catch (RuntimeException e) {
-            // stop() ném lỗi khi chưa kịp ghi dữ liệu hợp lệ.
-            releaseQuietly(current);
-            deleteQuietly(file);
-            throw new PrepareException("VALIDATION", e);
+            // Nếu MediaRecorder đã tự dừng đúng trần 5:00/10MB và tệp hợp lệ thì giữ lại, không xóa nhầm.
+            if (!(hitLimit && file.isFile() && file.length() > 0L)) {
+                releaseQuietly(current);
+                deleteQuietly(file);
+                throw new PrepareException("VALIDATION", e);
+            }
         }
         releaseQuietly(current);
 
@@ -122,6 +134,7 @@ public final class VoiceRecorderHelper {
         recorder = null;
         outputFile = null;
         activeClientId = null;
+        autoStoppedAtLimit = false;
     }
 
     @SuppressWarnings("deprecation")

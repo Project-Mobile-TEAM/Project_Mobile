@@ -162,9 +162,13 @@ public class ChatViewModelTest {
         assertTrue(vm.hasActiveTranslation("cid-trans-1"));
         assertEquals("Xin chào", current.get("cid-trans-1").translatedText);
 
-        // Xoay màn hình: tạo lại ViewModel với cùng SavedStateHandle thì bản dịch vẫn giữ nguyên (ADR-021).
+        // SavedStateHandle chỉ giữ ánh xạ nhẹ clientId -> targetLang, không nhồi văn bản dịch vào Binder parcel.
+        assertNull(state.get("activeTranslationTexts"));
+
+        // Xoay màn hình: tạo lại ViewModel với cùng SavedStateHandle rồi nạp lại từ Room cache (ADR-021).
         ChatRoomViewModel rotated = new ChatRoomViewModel(
                 state, r, mock(ContactsRepository.class), translator, null, null, null);
+        rotated.rehydrateSavedTranslations(List.of(m));
         assertTrue(rotated.hasActiveTranslation("cid-trans-1"));
         assertEquals("Xin chào", rotated.getTranslations().getValue().get("cid-trans-1").translatedText);
 
@@ -175,7 +179,36 @@ public class ChatViewModelTest {
 
         ChatRoomViewModel afterHide = new ChatRoomViewModel(
                 state, r, mock(ContactsRepository.class), translator, null, null, null);
+        afterHide.rehydrateSavedTranslations(List.of(m));
         assertFalse(afterHide.hasActiveTranslation("cid-trans-1"));
+    }
+
+    @Test public void hideTranslationInvalidatesInFlightTranslationCallback() {
+        ChatRepository r = repo();
+        MessageTranslationManager translator = mock(MessageTranslationManager.class);
+        MessageTranslationManager.Callback[] captured = new MessageTranslationManager.Callback[1];
+        doAnswer(inv -> {
+            captured[0] = inv.getArgument(3);
+            captured[0].onUpdate(MessageTranslationManager.TranslationUpdate.downloadingModel("vi"));
+            return null;
+        }).when(translator).translateMessage(any(MessageEntity.class), eq("vi"), anyBoolean(), any());
+
+        SavedStateHandle state = new SavedStateHandle(Map.of("conversationId", "c1"));
+        ChatRoomViewModel vm = new ChatRoomViewModel(
+                state, r, mock(ContactsRepository.class), translator, null, null, null);
+
+        MessageEntity m = msg("an", "TEXT", "SENT");
+        m.setClientId("cid-race-1");
+        m.setText("Good evening");
+
+        vm.requestTranslate(m, "vi", false);
+        assertTrue(vm.getTranslations().getValue().get("cid-race-1").downloading);
+
+        // Người dùng bấm Ẩn trong khi model đang tải -> callback cũ về trễ phải bị bỏ qua hoàn toàn.
+        vm.hideTranslation("cid-race-1");
+        captured[0].onUpdate(MessageTranslationManager.TranslationUpdate.translated("Chào buổi tối", "vi"));
+        assertFalse(vm.hasActiveTranslation("cid-race-1"));
+        assertTrue(vm.getTranslations().getValue().isEmpty());
     }
 
     @Test public void enqueueMediaAndLocationDelegateToRepository() {

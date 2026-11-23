@@ -305,7 +305,7 @@ sequenceDiagram
     participant R as Người nhận
     A->>App: Chọn tệp (ảnh / voice / video / file)
     App->>App: Nén ảnh, ghi âm voice, kiểm tra dung lượng
-    App->>S: POST /media (multipart: kind, file)
+    App->>S: POST /media (multipart: clientId, kind, file, durationMs?)
     S->>S: Kiểm tra MIME, lưu ổ đĩa EC2, tạo attachments
     S-->>App: 201 (mediaUrl = /api/media/{id}, metadata)
     App->>S: POST /conversations/{id}/messages (clientId, type, mediaUrl hoặc toạ độ)
@@ -329,7 +329,7 @@ sequenceDiagram
 ### F-19 Chính sách thông báo tin mới (ADR-012)
 
 - V1 **không dùng Firebase Cloud Messaging (FCM)**. FCM được quy hoạch cho Future/V2.
-- **Khi ứng dụng đang mở hoặc WebSocket đang kết nối:** Thông báo hiển thị tức thời qua `NotificationChannel` (`messages`) với quyền `POST_NOTIFICATIONS` trên Android 13+.
+- **Khi ứng dụng đang mở hoặc WebSocket đang kết nối:** Thông báo hiển thị tức thời qua đúng 2 `NotificationChannel` (`messages` cho tin nhắn mới và `calls` cho cuộc gọi đến/cuộc gọi nhỡ) với quyền `POST_NOTIFICATIONS` trên Android 13+.
 - **Khi ứng dụng ở nền và WebSocket bị ngắt:** `PeriodicWorkRequest` (chu kỳ tối thiểu 15 phút của WorkManager) định kỳ gọi `GET /api/sync?after=<lastSyncEventId>` và phát thông báo theo cơ chế **best-effort** (không cam kết tức thời).
 - **Khi ứng dụng bị người dùng hoặc hệ điều hành force-stop hoàn toàn:** Hệ thống Android đình chỉ mọi tác vụ nền của ứng dụng, do đó **không cam kết nhận được thông báo ngay lập tức** cho đến khi người dùng khởi động lại ứng dụng.
 
@@ -404,7 +404,7 @@ sequenceDiagram
             E->>EA: Bấm "Nhận"
             EA->>S: POST /calls/{id}/accept
             S->>S: Chuyển state = ACTIVE, khóa cố định callee_device_id_hash của Thiết bị 1
-            S-->>EA: 200 (iceServers)
+            S-->>EA: 200 (callId, state=ACTIVE, iceServers)
             S-->>CA: WebSocket call.accepted (mang syncEventId CALL_UPDATED)
             S-->>EA2: WebSocket call.handled_elsewhere (Thiết bị 2 lập tức tắt chuông)
             Note over CA,EA: Khóa báo hiệu 2 thiết bị: call.offer, call.answer, call.ice chỉ chuyển giữa CA và EA
@@ -431,7 +431,7 @@ sequenceDiagram
 
 Khi cuộc gọi kết thúc ở bất kỳ trạng thái nào (`MISSED`, `REJECTED`, `ENDED`, hoặc `FAILED`), server đảm bảo:
 1. Ghi nhận `end_reason` rõ ràng (`HANGUP`, `TIMEOUT`, `REJECT`, `BUSY`, `OFFLINE`, `ERROR`).
-2. Tự động chèn **duy nhất 1 tin nhắn loại `CALL`** vào bảng `messages` (được bảo vệ chống trùng lặp bằng partial unique index `uq_messages_call_id`). Cả hai bên đều thấy tin nhắn này hiển thị trực quan trong lịch sử chat kèm icon trạng thái (đã gọi, cuộc gọi nhỡ, thời lượng cuộc gọi).
+2. Tự động chèn **duy nhất 1 tin nhắn loại `CALL`** vào bảng `messages` (được bảo vệ chống trùng lặp bằng partial unique index `uq_messages_call_id`). Cả hai bên đều thấy tin nhắn này hiển thị trực quan trong lịch sử chat kèm icon và trạng thái cuộc gọi (`ENDED`, `MISSED`, `REJECTED`, `BUSY`, `FAILED`).
 3. Phát sinh sự kiện đồng bộ `CALL_UPDATED` tới các thiết bị liên quan để đồng bộ trạng thái cuộc gọi.
 
 ---

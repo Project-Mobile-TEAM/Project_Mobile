@@ -47,6 +47,9 @@ import java.lang.ref.WeakReference;
 public class MainActivity extends AppCompatActivity {
     private static final String PREFS_NAME = "utechat_prefs";
     private static final String KEY_NOTIF_PROMPTED_ONCE = "notif_prompted_once";
+    private static final String STATE_PENDING_CONV_ID = "state_pending_notif_conv_id";
+    private static final String STATE_PENDING_CALL_ID = "state_pending_notif_call_id";
+    private static final String STATE_PENDING_SESSION_KEY = "state_pending_notif_session_key";
 
     @Nullable private static volatile WeakReference<MainActivity> sResumedActivity;
 
@@ -74,6 +77,12 @@ public class MainActivity extends AppCompatActivity {
                 return;
             }
             if (!sessionKey.equals(SessionManager.get().sessionKey())) {
+                return;
+            }
+            // Kiểm tra lại cuộc gọi vẫn đang đổ chuông khớp callId (không tự mở CallFragment nếu vừa kết thúc/đã nghe ở máy khác).
+            CallSessionCoordinator coord = Injection.provideCallSessionCoordinator(activity);
+            CallSessionCoordinator.CallUiState live = coord.getCurrentState();
+            if (live.state != CallSessionCoordinator.State.INCOMING_RINGING || !callId.equals(live.callId)) {
                 return;
             }
             NavDestination current = activity.navController.getCurrentDestination();
@@ -114,6 +123,14 @@ public class MainActivity extends AppCompatActivity {
         this.navController = controller;
         NavigationUI.setupWithNavController(binding.bottomNav, controller);
 
+        if (savedInstanceState != null) {
+            String savedConv = savedInstanceState.getString(STATE_PENDING_CONV_ID);
+            String savedCall = savedInstanceState.getString(STATE_PENDING_CALL_ID);
+            String savedKey = savedInstanceState.getString(STATE_PENDING_SESSION_KEY);
+            if (savedConv != null || savedCall != null) {
+                pendingNotification = new PendingNotificationRequest(savedConv, savedCall, savedKey);
+            }
+        }
         captureNotificationIntent(getIntent());
 
         // F-07: server từ chối token (hết hạn/thu hồi) thì dọn phiên cục bộ và về màn Đăng nhập kèm thông báo.
@@ -147,16 +164,14 @@ public class MainActivity extends AppCompatActivity {
             boolean loggedInDest = isLoggedInDestination(destination);
             boolean hasToken = SessionManager.get().hasToken();
 
-            // Vào vùng đã đăng nhập thì mở WebSocket, đồng bộ bù và lập lịch SyncWorker 15 phút theo phiên hiện hành.
-            if (topLevel) {
+            // Vào bất kỳ màn sau đăng nhập nào khi có token (kể cả phục hồi tiến trình thẳng vào ChatRoom) thì mở WS và đồng bộ bù.
+            if (loggedInDest && hasToken) {
                 var chat = Injection.provideChatRepository(this);
                 chat.connectRealtime();
                 chat.triggerSync();
-                if (hasToken) {
+                if (topLevel) {
                     maybePromptNotificationPermissionOnce();
                 }
-            }
-            if (loggedInDest && hasToken) {
                 String sessionKey = SessionManager.get().sessionKey();
                 if (sessionKey != null) {
                     try {
@@ -164,6 +179,10 @@ public class MainActivity extends AppCompatActivity {
                     } catch (IllegalStateException ignored) {
                     }
                 }
+            } else if (topLevel) {
+                var chat = Injection.provideChatRepository(this);
+                chat.connectRealtime();
+                chat.triggerSync();
             }
 
             // Tiêu thụ deep link thông báo ở BẤT KỲ màn nào sau đăng nhập (ChatRoom, GroupInfo, Devices...).
@@ -177,6 +196,17 @@ public class MainActivity extends AppCompatActivity {
             binding.main.setBackgroundResource(splash ? R.drawable.bg_splash : R.color.ute_background);
             WindowCompat.getInsetsController(getWindow(), binding.main).setAppearanceLightStatusBars(false);
         });
+    }
+
+    @Override
+    protected void onSaveInstanceState(@NonNull Bundle outState) {
+        super.onSaveInstanceState(outState);
+        PendingNotificationRequest req = pendingNotification;
+        if (req != null) {
+            outState.putString(STATE_PENDING_CONV_ID, req.conversationId);
+            outState.putString(STATE_PENDING_CALL_ID, req.callId);
+            outState.putString(STATE_PENDING_SESSION_KEY, req.sessionKey);
+        }
     }
 
     @Override

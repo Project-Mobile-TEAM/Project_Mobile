@@ -48,7 +48,12 @@ public final class LocationFetchHelper {
         CancellationTokenSource cancellation = new CancellationTokenSource();
         AtomicBoolean finished = new AtomicBoolean(false);
         Handler timeoutHandler = new Handler(Looper.getMainLooper());
-        Runnable timeout = cancellation::cancel;
+        Runnable timeout = () -> {
+            cancellation.cancel();
+            if (finished.compareAndSet(false, true)) {
+                callback.onError("LOCATION_UNAVAILABLE");
+            }
+        };
         timeoutHandler.postDelayed(timeout, TIMEOUT_MS);
 
         int priority = fine ? Priority.PRIORITY_HIGH_ACCURACY : Priority.PRIORITY_BALANCED_POWER_ACCURACY;

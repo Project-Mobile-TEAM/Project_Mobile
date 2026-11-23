@@ -45,7 +45,7 @@ public class ChatRoomViewModel extends ViewModel {
     static final int PAGE = 50;
     private static final String K_CONV = "conversationId", K_PEER = "peerUserId", K_TARGET = "targetMessageLocalId",
             K_WINDOW = "windowLimit", K_QUERY = "roomQuery", K_MATCH = "matchIndex", K_TARGET_DONE = "targetHandled",
-            K_TRANS_LANGS = "activeTranslationLangs", K_TRANS_TEXTS = "activeTranslationTexts";
+            K_TRANS_LANGS = "activeTranslationLangs";
 
     /** Sự kiện một lần yêu cầu xác nhận tải gói ngôn ngữ ~30MB qua mạng di động (D-15). */
     public static final class CellularConfirmRequest {
@@ -93,6 +93,9 @@ public class ChatRoomViewModel extends ViewModel {
     private final MutableLiveData<Map<String, MessageAdapter.TranslationUiEntry>> translations =
             new MutableLiveData<>(Collections.emptyMap());
     private final Map<String, MessageAdapter.TranslationUiEntry> translationEntries = new LinkedHashMap<>();
+    // Mã thế hệ theo từng tin nhắn giúp loại bỏ callback cũ khi người dùng bấm Ẩn hoặc đổi chiều dịch giữa chừng.
+    private final Map<String, Long> translationGenerations = new HashMap<>();
+    private long translationSeq = 0L;
 
     /** Lỗi chính sách khi mở chat 1-1 bằng peerUserId (BLOCKED / CONTACT_REQUIRED). */
     public final MutableLiveData<String> openError = new MutableLiveData<>();
@@ -140,8 +143,7 @@ public class ChatRoomViewModel extends ViewModel {
         LiveData<Map<String, AttachmentTransferEntity>> observedTransfers = repo.observeTransfersMap();
         transfers = observedTransfers != null ? observedTransfers : new MutableLiveData<>(Collections.emptyMap());
 
-        // Khôi phục bản dịch đang mở từ SavedStateHandle sau khi xoay màn hình (ADR-021).
-        restoreTranslationsFromSavedState();
+        // Bản dịch sẽ được nạp nhẹ từ Room cache qua rehydrateSavedTranslations khi danh sách tin về (tránh nhồi text vào Binder).
 
         // Vào từ deep link utechat://chat/direct/{peerUserId} (D-02): hỏi server hội thoại 1-1, có rồi thì dùng lại.
         String peer = state.get(K_PEER);
@@ -279,22 +281,11 @@ public class ChatRoomViewModel extends ViewModel {
         repo.sendTypingStop(id);
     }
 
-    /** Ủy quyền khởi tạo cuộc gọi thoại 1-1 tới CallSessionCoordinator khi cần gọi trực tiếp từ ViewModel. */
-    public void startVoiceCall(
-            @Nullable String peerUserId,
-            @Nullable String peerName,
-            @Nullable String peerAvatarUrl,
-            @Nullable String peerPhone) {
-        String id = state.get(K_CONV);
-        if (id == null || callCoordinator == null) return;
-        callCoordinator.startOutgoingCall(id, peerUserId, peerName, peerAvatarUrl, peerPhone);
-    }
-
     // ======================== DỊCH TIN NHẮN ML KIT (D-13..D-15) ========================
 
     /**
      * Yêu cầu dịch tin TEXT sang "vi" hoặc "en":
-     * lưu (clientId -> targetLang) và bản dịch trong SavedStateHandle để sống sót sau khi xoay màn hình.
+     * chỉ lưu ánh xạ nhẹ (clientId -> targetLang) trong SavedStateHandle để xoay màn hình tự khôi phục từ Room cache.
      */
     public void requestTranslate(
             @NonNull MessageEntity message, @NonNull String targetLang, boolean cellularConfirmed) {
@@ -302,7 +293,12 @@ public class ChatRoomViewModel extends ViewModel {
             return;
         }
         final String clientId = message.getClientId();
+        final long gen = ++translationSeq;
+        translationGenerations.put(clientId, gen);
         translationManager.translateMessage(message, targetLang, cellularConfirmed, update -> {
+            if (!Long.valueOf(gen).equals(translationGenerations.get(clientId))) {
+                return;
+            }
             switch (update.status) {
                 case NEEDS_CELLULAR_CONFIRMATION:
                     cellularConfirmPending.setValue(new CellularConfirmRequest(message, targetLang));
@@ -315,7 +311,7 @@ public class ChatRoomViewModel extends ViewModel {
                     String translated = update.translatedText != null ? update.translatedText : "";
                     String lang = update.targetLang != null ? update.targetLang : targetLang;
                     translationEntries.put(clientId, MessageAdapter.TranslationUiEntry.translated(translated, lang));
-                    saveTranslationToSavedState(clientId, lang, translated);
+                    saveTranslationLangToSavedState(clientId, lang);
                     publishTranslations();
                     break;
                 case ERROR:
@@ -326,8 +322,6 @@ public class ChatRoomViewModel extends ViewModel {
                     }
                     if (MessageTranslationManager.ERR_OFFLINE.equals(update.errorCode)) {
                         notice.setValue(R.string.chat_translate_offline_error);
-                    } else if (MessageTranslationManager.ERR_UNSUPPORTED_TYPE.equals(update.errorCode)) {
-                        notice.setValue(R.string.chat_error_unsupported_type);
                     } else {
                         notice.setValue(R.string.chat_translate_failed);
                     }
@@ -338,15 +332,13 @@ public class ChatRoomViewModel extends ViewModel {
         });
     }
 
-    /** Ẩn bản dịch của một tin nhắn và xóa khỏi SavedStateHandle (D-14). */
+    /** Ẩn bản dịch của một tin nhắn, hủy hiệu lực callback đang bay và xóa khỏi SavedStateHandle (D-14). */
     public void hideTranslation(@NonNull String clientId) {
+        translationGenerations.put(clientId, ++translationSeq);
         translationEntries.remove(clientId);
         HashMap<String, String> langs = getSavedMap(K_TRANS_LANGS);
-        HashMap<String, String> texts = getSavedMap(K_TRANS_TEXTS);
         langs.remove(clientId);
-        texts.remove(clientId);
         state.set(K_TRANS_LANGS, langs);
-        state.set(K_TRANS_TEXTS, texts);
         publishTranslations();
     }
 
@@ -360,7 +352,7 @@ public class ChatRoomViewModel extends ViewModel {
         cellularConfirmPending.setValue(null);
     }
 
-    /** Khôi phục bản dịch đã chọn từ SavedStateHandle (nếu thiếu text thì đọc lại từ cache Room qua manager). */
+    /** Khôi phục bản dịch đã chọn từ SavedStateHandle bằng cách đọc lại từ cache Room qua manager (ADR-021). */
     public void rehydrateSavedTranslations(@Nullable List<MessageEntity> loadedMessages) {
         HashMap<String, String> savedLangs = getSavedMap(K_TRANS_LANGS);
         if (savedLangs.isEmpty() || loadedMessages == null || translationManager == null) {
@@ -375,28 +367,10 @@ public class ChatRoomViewModel extends ViewModel {
         }
     }
 
-    private void restoreTranslationsFromSavedState() {
+    private void saveTranslationLangToSavedState(@NonNull String clientId, @NonNull String targetLang) {
         HashMap<String, String> langs = getSavedMap(K_TRANS_LANGS);
-        HashMap<String, String> texts = getSavedMap(K_TRANS_TEXTS);
-        for (Map.Entry<String, String> e : langs.entrySet()) {
-            String cid = e.getKey();
-            String lang = e.getValue();
-            String text = texts.get(cid);
-            if (cid != null && lang != null && text != null) {
-                translationEntries.put(cid, MessageAdapter.TranslationUiEntry.translated(text, lang));
-            }
-        }
-        publishTranslations();
-    }
-
-    private void saveTranslationToSavedState(
-            @NonNull String clientId, @NonNull String targetLang, @NonNull String translatedText) {
-        HashMap<String, String> langs = getSavedMap(K_TRANS_LANGS);
-        HashMap<String, String> texts = getSavedMap(K_TRANS_TEXTS);
         langs.put(clientId, targetLang);
-        texts.put(clientId, translatedText);
         state.set(K_TRANS_LANGS, langs);
-        state.set(K_TRANS_TEXTS, texts);
     }
 
     @SuppressWarnings("unchecked")

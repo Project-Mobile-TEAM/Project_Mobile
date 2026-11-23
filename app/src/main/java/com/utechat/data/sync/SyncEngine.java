@@ -407,12 +407,18 @@ public class SyncEngine {
                 }
 
                 SyncEventApplier.SyncBatchOutcome committedOutcome = outcomeRef.get();
-                // Chỉ bắn thông báo incremental SAU KHI transaction Room đã commit và phiên vẫn còn hiện hành (D-05, D-08).
+                // Chỉ bắn thông báo / chốt cuộc gọi incremental SAU KHI transaction Room đã commit và phiên vẫn còn hiện hành (D-05, D-08).
                 BatchNotificationCallback cb = notificationCallback;
                 if (cb != null && committedOutcome != null
-                        && (!committedOutcome.newlyInsertedMessages.isEmpty() || !committedOutcome.missedCalls.isEmpty())
+                        && (!committedOutcome.newlyInsertedMessages.isEmpty()
+                        || !committedOutcome.missedCalls.isEmpty()
+                        || !committedOutcome.terminalCalls.isEmpty())
                         && sessionKey.equals(session.sessionKey())) {
-                    cb.onBatchCommitted(sessionKey, myUserId, committedOutcome);
+                    try {
+                        cb.onBatchCommitted(sessionKey, myUserId, committedOutcome);
+                    } catch (RuntimeException ignored) {
+                        // Lỗi hiển thị thông báo tuyệt đối không được làm đứt vòng phân trang /api/sync.
+                    }
                 }
 
                 // Gửi biên nhận DELIVERED sau khi transaction đã commit chắc chắn xuống đĩa (D-11).

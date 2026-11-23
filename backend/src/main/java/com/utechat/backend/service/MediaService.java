@@ -5,15 +5,15 @@ import com.utechat.backend.dto.MediaDtos.MediaUploadResponse;
 import com.utechat.backend.dto.MediaDtos.MediaUploadResult;
 import com.utechat.backend.exception.ApiException;
 import java.awt.image.BufferedImage;
-import java.io.BufferedInputStream;
-import java.io.ByteArrayInputStream;
-import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
-import java.nio.charset.CharacterCodingException;
+import java.nio.CharBuffer;
+import java.nio.charset.CharsetDecoder;
+import java.nio.charset.CoderResult;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
@@ -25,12 +25,13 @@ import java.time.Clock;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoField;
 import java.util.Arrays;
+import java.util.Enumeration;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
+import java.util.zip.ZipFile;
 import javax.imageio.ImageIO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,11 +42,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
  * Nghiệp vụ lưu trữ tệp tin đa phương tiện trên ổ đĩa server (MEDIA_STORAGE_DIR),
- * kiểm định tính hợp lệ của tệp qua magic bytes, chống path traversal, rate limiting
+ * kiểm định tính hợp lệ của tệp qua magic bytes, chống path traversal, chống Zip-Bomb,
+ * tách I/O stream 50MB ra khỏi DB transaction để không chiếm giữ connection HikariCP,
  * và kiểm soát quyền truy cập tải tệp theo thành viên hội thoại (D-01, D-04).
  */
 @Service
@@ -53,9 +56,16 @@ public class MediaService {
     private static final Logger log = LoggerFactory.getLogger(MediaService.class);
 
     private static final Set<String> ALLOWED_KINDS = Set.of("IMAGE", "AUDIO", "VIDEO", "FILE");
+    private static final Set<String> ALLOWED_AUDIO_FTYP_BRANDS = Set.of(
+            "M4A ", "M4B ", "mp42", "isom", "mp41", "dash", "3gp4", "3gp5");
+    private static final int MAX_ZIP_ENTRIES = 10_000;
+    private static final int MAX_HTML_SCAN_CHARS = 4096;
+    private static final BigInteger MAX_INT_BIG = BigInteger.valueOf(Integer.MAX_VALUE);
+    private static final BigInteger THOUSAND = BigInteger.valueOf(1000L);
 
     private final JdbcTemplate jdbc;
     private final Clock clock;
+    private final TransactionTemplate transactionTemplate;
     private final MediaUploadRateLimiter rateLimiter;
     private final Path rootDir;
     private final long maxImageBytes;
@@ -66,6 +76,7 @@ public class MediaService {
     public MediaService(
             JdbcTemplate jdbc,
             Clock clock,
+            TransactionTemplate transactionTemplate,
             MediaUploadRateLimiter rateLimiter,
             @Value("${app.media.storage-dir:./data/media}") String storageDirStr,
             @Value("${app.media.max-image-bytes:10485760}") long maxImageBytes,
@@ -74,6 +85,7 @@ public class MediaService {
             @Value("${app.media.max-file-bytes:26214400}") long maxFileBytes) {
         this.jdbc = jdbc;
         this.clock = clock;
+        this.transactionTemplate = transactionTemplate;
         this.rateLimiter = rateLimiter;
         this.rootDir = Paths.get(storageDirStr).toAbsolutePath().normalize();
         this.maxImageBytes = maxImageBytes;
@@ -89,10 +101,10 @@ public class MediaService {
     }
 
     /**
-     * Tải tệp lên server: kiểm tra rate limit, ghi nhận tạm thời, kiểm tra magic bytes,
-     * chống path traversal, lưu vào MEDIA_STORAGE_DIR và lưu thông tin vào attachments.
+     * Tải tệp lên server:
+     * - Stream tới tệp tạm và kiểm tra magic bytes NGOÀI transaction DB để không chiếm connection HikariCP suốt 50MB.
+     * - Mở transaction ngắn cho thao tác idempotent INSERT + công bố file nguyên tử + tự xóa file nếu rollback.
      */
-    @Transactional
     public MediaUploadResult storeUpload(
             UUID actorId,
             UUID clientId,
@@ -130,12 +142,11 @@ public class MediaService {
 
         Path tempDir = rootDir.resolve(".tmp");
         Path tempFile = null;
-        Path publishedPath = null;
         try {
             Files.createDirectories(tempDir);
             tempFile = Files.createTempFile(tempDir, "upload_", ".bin");
 
-            // 3. Stream tệp vào file tạm và đếm byte; ngắt ngay nếu vượt ngưỡng cho loại tệp này.
+            // 3. Stream tệp vào file tạm NGOÀI DB transaction; ngắt ngay nếu vượt ngưỡng cho loại tệp này.
             long totalBytes = 0;
             byte[] buffer = new byte[8192];
             try (InputStream in = file.getInputStream();
@@ -173,9 +184,33 @@ public class MediaService {
             }
 
             String sanitizedOriginalName = sanitizeFileName(file.getOriginalFilename());
+            final Path stagedTemp = tempFile;
+            final long finalSize = totalBytes;
 
-            // 6. Tranh quyền sở hữu hàng DB trước với khóa idempotent uq_attachments_upload_client;
-            // chỉ luồng thắng cuộc mới công bố file sang vị trí chính thức (tránh sinh file trùng trên đĩa).
+            // 6. Mở transaction ngắn chỉ cho tranh quyền DB idempotent + công bố file nguyên tử.
+            return transactionTemplate.execute(status -> publishAttachmentInTransaction(
+                    actorId, clientId, kind, inspected, finalSize, relativePath,
+                    sanitizedOriginalName, stagedTemp, targetPath));
+        } catch (IOException e) {
+            log.error("Lỗi I/O khi lưu tệp tải lên", e);
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL", "Failed to store media file");
+        } finally {
+            deleteQuietly(tempFile);
+        }
+    }
+
+    private MediaUploadResult publishAttachmentInTransaction(
+            UUID actorId,
+            UUID clientId,
+            String kind,
+            InspectedMedia inspected,
+            long totalBytes,
+            String relativePath,
+            String sanitizedOriginalName,
+            Path stagedTemp,
+            Path targetPath) {
+        Path publishedPath = null;
+        try {
             List<UUID> insertedIds = jdbc.query(
                     "INSERT INTO public.attachments ("
                             + "    uploader_id, upload_client_id, kind, mime, size_bytes, "
@@ -188,7 +223,7 @@ public class MediaService {
                     relativePath, sanitizedOriginalName, inspected.durationMs(), inspected.width(), inspected.height());
 
             if (insertedIds.isEmpty()) {
-                // Luồng thua trong cuộc đua đồng thời cùng (actorId, clientId); finally sẽ tự xóa tempFile.
+                // Luồng thua trong cuộc đua đồng thời cùng (actorId, clientId); finally bên ngoài sẽ xóa stagedTemp.
                 MediaUploadResponse concurrentWinner = findExistingUpload(actorId, clientId, kind);
                 if (concurrentWinner != null) {
                     return new MediaUploadResult(concurrentWinner, false);
@@ -196,14 +231,13 @@ public class MediaService {
                 throw new ApiException(HttpStatus.CONFLICT, "CONFLICT", "Concurrent upload conflict");
             }
 
-            // 7. Chỉ luồng thắng cuộc công bố file từ .tmp sang vị trí lưu trữ chính thức và đăng ký dọn nếu rollback.
+            // Chỉ luồng thắng cuộc công bố file từ .tmp sang vị trí lưu trữ chính thức và đăng ký dọn nếu rollback.
             Files.createDirectories(targetPath.getParent());
             try {
-                Files.move(tempFile, targetPath, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+                Files.move(stagedTemp, targetPath, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
             } catch (AtomicMoveNotSupportedException ex) {
-                Files.move(tempFile, targetPath, StandardCopyOption.REPLACE_EXISTING);
+                Files.move(stagedTemp, targetPath, StandardCopyOption.REPLACE_EXISTING);
             }
-            tempFile = null;
             publishedPath = targetPath;
             registerRollbackFileCleanup(targetPath);
 
@@ -219,15 +253,13 @@ public class MediaService {
             return new MediaUploadResult(response, true);
         } catch (IOException e) {
             deleteQuietly(publishedPath);
-            log.error("Lỗi I/O khi lưu tệp tải lên", e);
+            log.error("Lỗi I/O khi công bố tệp tải lên", e);
             throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL", "Failed to store media file");
         } catch (RuntimeException e) {
             if (!TransactionSynchronizationManager.isSynchronizationActive()) {
                 deleteQuietly(publishedPath);
             }
             throw e;
-        } finally {
-            deleteQuietly(tempFile);
         }
     }
 
@@ -259,7 +291,6 @@ public class MediaService {
         }
         AttachmentRecord att = records.get(0);
 
-        // Kiểm tra xem attachment này đã được gắn vào message nào chưa
         List<LinkedMessage> linkedMsgs = jdbc.query(
                 "SELECT m.conversation_id, m.id AS message_id FROM public.messages m WHERE m.attachment_id = ?",
                 (rs, i) -> new LinkedMessage(rs.getObject("conversation_id", UUID.class), rs.getLong("message_id")),
@@ -342,37 +373,35 @@ public class MediaService {
                 row.originalName());
     }
 
-    /**
-     * Đọc header magic bytes của file trên đĩa để phân loại, trích xuất metadata và loại trừ mã độc.
-     */
+    /** Đọc header magic bytes của file trên đĩa để phân loại, trích xuất metadata và loại trừ mã độc. */
     private InspectedMedia inspectMagicBytes(Path tempFile, long totalBytes, String kind, Integer durationHintMs)
             throws IOException {
         byte[] header = new byte[Math.min(4096, (int) totalBytes)];
         try (InputStream in = Files.newInputStream(tempFile)) {
-            int read = in.read(header);
+            int read = readUpTo(in, header, header.length);
             if (read < header.length) {
                 header = Arrays.copyOf(header, Math.max(0, read));
             }
         }
 
-        // Chặn các loại file nguy hiểm bất kể kind khai báo là gì
         if (isExecutableOrScript(header)) {
-            throw new ApiException(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "UNSUPPORTED_TYPE", "Executable or script files are strictly prohibited");
+            throw new ApiException(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "UNSUPPORTED_TYPE",
+                    "Executable or script files are strictly prohibited");
         }
 
         return switch (kind) {
-            case "IMAGE" -> inspectImage(tempFile, header, totalBytes);
-            case "AUDIO" -> inspectAudio(tempFile, header, totalBytes, durationHintMs);
-            case "VIDEO" -> inspectVideo(header);
-            case "FILE" -> inspectFile(tempFile, header, totalBytes);
+            case "IMAGE" -> inspectImage(tempFile, header);
+            case "AUDIO" -> inspectAudio(tempFile, header, durationHintMs);
+            case "VIDEO" -> inspectVideo(tempFile, header, durationHintMs);
+            case "FILE" -> inspectFile(tempFile, header);
             default -> throw new ApiException(HttpStatus.BAD_REQUEST, "VALIDATION", "Unsupported media kind: " + kind);
         };
     }
 
-    private InspectedMedia inspectImage(Path tempFile, byte[] header, long totalBytes) throws IOException {
-        // Chặn SVG / HTML giả danh ảnh
+    private InspectedMedia inspectImage(Path tempFile, byte[] header) {
         if (isHtmlOrSvg(header)) {
-            throw new ApiException(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "UNSUPPORTED_TYPE", "SVG or HTML images are not allowed");
+            throw new ApiException(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "UNSUPPORTED_TYPE",
+                    "SVG or HTML images are not allowed");
         }
 
         // 1. JPEG: FF D8 FF
@@ -397,13 +426,14 @@ public class MediaService {
             return new InspectedMedia("image/webp", ".webp", dims.width(), dims.height(), null);
         }
 
-        throw new ApiException(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "UNSUPPORTED_TYPE", "Only JPEG, PNG and WebP images are supported");
+        throw new ApiException(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "UNSUPPORTED_TYPE",
+                "Only JPEG, PNG and WebP images are supported");
     }
 
     private Dimensions readImageDimensions(Path tempFile) {
         try {
             BufferedImage image = ImageIO.read(tempFile.toFile());
-            if (image != null) {
+            if (image != null && image.getWidth() > 0 && image.getHeight() > 0) {
                 return new Dimensions(image.getWidth(), image.getHeight());
             }
         } catch (Exception e) {
@@ -418,14 +448,20 @@ public class MediaService {
         }
         // VP8 (lossy)
         if (header[12] == 'V' && header[13] == 'P' && header[14] == '8' && header[15] == ' ') {
-            if (header.length >= 30 && (header[23] & 0xFF) == 0x9D && (header[24] & 0xFF) == 0x01 && (header[25] & 0xFF) == 0x2A) {
+            if ((header[23] & 0xFF) == 0x9D && (header[24] & 0xFF) == 0x01 && (header[25] & 0xFF) == 0x2A) {
                 int width = (header[26] & 0xFF) | ((header[27] & 0x3F) << 8);
                 int height = (header[28] & 0xFF) | ((header[29] & 0x3F) << 8);
+                // Ràng buộc DB yêu cầu width > 0 và height > 0; từ chối 415 thay vì để rơi vào lỗi DB 500.
+                if (width <= 0 || height <= 0) {
+                    throw new ApiException(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "UNSUPPORTED_TYPE",
+                            "Invalid WebP dimensions");
+                }
                 return new Dimensions(width, height);
             }
         }
-        // VP8L (lossless)
-        if (header[12] == 'V' && header[13] == 'P' && header[14] == '8' && header[15] == 'L' && header.length >= 25) {
+        // VP8L (lossless): byte 20 bắt buộc là chữ ký 0x2F.
+        if (header[12] == 'V' && header[13] == 'P' && header[14] == '8' && header[15] == 'L'
+                && header.length >= 25 && (header[20] & 0xFF) == 0x2F) {
             int b0 = header[21] & 0xFF;
             int b1 = header[22] & 0xFF;
             int b2 = header[23] & 0xFF;
@@ -434,8 +470,8 @@ public class MediaService {
             int height = 1 + (((b1 & 0xC0) >> 6) | (b2 << 2) | ((b3 & 0xF) << 10));
             return new Dimensions(width, height);
         }
-        // VP8X (extended): bọc toàn bộ phép OR 24-bit trong ngoặc trước khi cộng 1 để tránh sai ưu tiên toán tử.
-        if (header[12] == 'V' && header[13] == 'P' && header[14] == '8' && header[15] == 'X' && header.length >= 30) {
+        // VP8X (extended): bọc toàn bộ phép OR 24-bit trong ngoặc trước khi cộng 1.
+        if (header[12] == 'V' && header[13] == 'P' && header[14] == '8' && header[15] == 'X') {
             int width = 1 + ((header[24] & 0xFF) | ((header[25] & 0xFF) << 8) | ((header[26] & 0xFF) << 16));
             int height = 1 + ((header[27] & 0xFF) | ((header[28] & 0xFF) << 8) | ((header[29] & 0xFF) << 16));
             return new Dimensions(width, height);
@@ -443,9 +479,10 @@ public class MediaService {
         return new Dimensions(null, null);
     }
 
-    private InspectedMedia inspectAudio(Path tempFile, byte[] header, long totalBytes, Integer durationHintMs) {
+    private InspectedMedia inspectAudio(Path tempFile, byte[] header, Integer durationHintMs) {
         if (durationHintMs != null && (durationHintMs < 0 || durationHintMs > 300_000)) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "VALIDATION", "Audio duration must not exceed 300,000 ms (5 minutes)");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "VALIDATION",
+                    "Audio duration must not exceed 300,000 ms (5 minutes)");
         }
 
         // ADTS AAC: FF F1 hoặc FF F9
@@ -453,39 +490,53 @@ public class MediaService {
             return new InspectedMedia("audio/aac", ".aac", null, null, durationHintMs);
         }
 
-        // MP4 / M4A: box ftyp chứa M4A , mp42, isom
-        if (isFtyp(header)) {
+        // MP4 / M4A: kiểm tra box ftyp + thương hiệu major brand hợp lệ (chặn HEIC/AVIF/MOV giả danh audio).
+        if (isAudioFtyp(header)) {
             Integer parsedDurationMs = parseIsoBmffDuration(tempFile);
-            if (parsedDurationMs != null && parsedDurationMs > 300_000) {
+            if (parsedDurationMs != null && (parsedDurationMs < 0 || parsedDurationMs > 300_000)) {
                 throw new ApiException(HttpStatus.BAD_REQUEST, "VALIDATION", "Audio duration exceeds 300,000 ms");
             }
-            Integer effectiveDuration = durationHintMs != null ? durationHintMs : parsedDurationMs;
+            // Ưu tiên thời lượng thực tế trích từ box mvhd thay vì chỉ tin giá trị client gửi lên.
+            Integer effectiveDuration = parsedDurationMs != null ? parsedDurationMs : durationHintMs;
             return new InspectedMedia("audio/mp4", ".m4a", null, null, effectiveDuration);
         }
 
-        throw new ApiException(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "UNSUPPORTED_TYPE", "Only AAC or MP4/M4A audio files are supported");
+        throw new ApiException(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "UNSUPPORTED_TYPE",
+                "Only AAC or MP4/M4A audio files are supported");
     }
 
-    private InspectedMedia inspectVideo(byte[] header) {
+    private InspectedMedia inspectVideo(Path tempFile, byte[] header, Integer durationHintMs) {
+        if (durationHintMs != null && durationHintMs < 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "VALIDATION", "Video duration must be non-negative");
+        }
+
         // MP4 / MOV: box ftyp
         if (isFtyp(header)) {
-            return new InspectedMedia("video/mp4", ".mp4", null, null, null);
+            Integer parsedDurationMs = parseIsoBmffDuration(tempFile);
+            Integer effectiveDuration = parsedDurationMs != null ? parsedDurationMs : durationHintMs;
+            String majorBrand = majorBrandOf(header);
+            if ("qt  ".equals(majorBrand)) {
+                return new InspectedMedia("video/quicktime", ".mov", null, null, effectiveDuration);
+            }
+            return new InspectedMedia("video/mp4", ".mp4", null, null, effectiveDuration);
         }
 
         // WebM: 1A 45 DF A3 (EBML ID)
         if (header.length >= 4
                 && (header[0] & 0xFF) == 0x1A && (header[1] & 0xFF) == 0x45
                 && (header[2] & 0xFF) == 0xDF && (header[3] & 0xFF) == 0xA3) {
-            return new InspectedMedia("video/webm", ".webm", null, null, null);
+            return new InspectedMedia("video/webm", ".webm", null, null, durationHintMs);
         }
 
-        throw new ApiException(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "UNSUPPORTED_TYPE", "Only MP4 and WebM videos are supported");
+        throw new ApiException(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "UNSUPPORTED_TYPE",
+                "Only MP4, QuickTime MOV, and WebM videos are supported");
     }
 
-    private InspectedMedia inspectFile(Path tempFile, byte[] header, long totalBytes) {
+    private InspectedMedia inspectFile(Path tempFile, byte[] header) {
         // 0. Nghiêm cấm HTML và SVG dưới mọi hình thức (kể cả gửi qua kind=FILE) để tránh rủi ro XSS.
         if (isHtmlOrSvg(header)) {
-            throw new ApiException(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "UNSUPPORTED_TYPE", "HTML and SVG files are strictly prohibited");
+            throw new ApiException(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "UNSUPPORTED_TYPE",
+                    "HTML and SVG files are strictly prohibited");
         }
 
         // 1. PDF: %PDF- (25 50 44 46 2D)
@@ -500,41 +551,56 @@ public class MediaService {
             return inspectZipEntries(tempFile);
         }
 
-        // 3. Plain text UTF-8 (không chứa byte NUL, decode nghiêm ngặt)
-        if (isValidUtf8Text(tempFile, totalBytes)) {
+        // 3. Plain text UTF-8 streaming toàn tệp (không chứa NUL, không chứa HTML/SVG sau khoảng trắng, không cắt giữa ký tự UTF-8).
+        if (isValidUtf8PlainText(tempFile)) {
             return new InspectedMedia("text/plain", ".txt", null, null, null);
         }
 
-        throw new ApiException(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "UNSUPPORTED_TYPE", "Unsupported file type. Only PDF, Office/ZIP documents, and UTF-8 text are allowed");
+        throw new ApiException(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "UNSUPPORTED_TYPE",
+                "Unsupported file type. Only PDF, Office/ZIP documents, and UTF-8 text are allowed");
     }
 
+    /**
+     * Đọc danh mục Central Directory của tệp ZIP qua ZipFile mà KHÔNG giải nén luồng dữ liệu
+     * để miễn nhiễm Zip-Bomb DoS, chặn APK ở mọi cấp thư mục không phân biệt hoa thường.
+     */
     private InspectedMedia inspectZipEntries(Path tempFile) {
         boolean hasContentTypes = false;
         boolean hasWord = false;
         boolean hasXl = false;
         boolean hasPpt = false;
-        try (ZipInputStream zis = new ZipInputStream(new BufferedInputStream(Files.newInputStream(tempFile)))) {
-            ZipEntry entry;
-            while ((entry = zis.getNextEntry()) != null) {
-                String name = entry.getName();
-                // Nghiêm cấm tuyệt đối file APK chứa AndroidManifest.xml
-                if ("AndroidManifest.xml".equalsIgnoreCase(name) || name.endsWith("/AndroidManifest.xml")) {
-                    throw new ApiException(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "UNSUPPORTED_TYPE", "APK packages are strictly prohibited");
+        try (ZipFile zipFile = new ZipFile(tempFile.toFile(), StandardCharsets.UTF_8)) {
+            Enumeration<? extends ZipEntry> entries = zipFile.entries();
+            int count = 0;
+            while (entries.hasMoreElements()) {
+                if (++count > MAX_ZIP_ENTRIES) {
+                    throw new ApiException(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "UNSUPPORTED_TYPE",
+                            "ZIP archive contains too many entries");
                 }
-                if ("[Content_Types].xml".equals(name)) {
+                ZipEntry entry = entries.nextElement();
+                String rawName = entry.getName();
+                String normalizedLower = rawName.replace('\\', '/').toLowerCase(Locale.ROOT);
+                // Nghiêm cấm tuyệt đối gói APK chứa AndroidManifest.xml (bất kể chữ hoa/thường hay thư mục con).
+                if ("androidmanifest.xml".equals(normalizedLower)
+                        || normalizedLower.endsWith("/androidmanifest.xml")) {
+                    throw new ApiException(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "UNSUPPORTED_TYPE",
+                            "APK packages are strictly prohibited");
+                }
+                if ("[Content_Types].xml".equals(rawName)) {
                     hasContentTypes = true;
-                } else if (name.startsWith("word/")) {
+                } else if (rawName.startsWith("word/")) {
                     hasWord = true;
-                } else if (name.startsWith("xl/")) {
+                } else if (rawName.startsWith("xl/")) {
                     hasXl = true;
-                } else if (name.startsWith("ppt/")) {
+                } else if (rawName.startsWith("ppt/")) {
                     hasPpt = true;
                 }
             }
         } catch (ApiException e) {
             throw e;
         } catch (Exception e) {
-            throw new ApiException(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "UNSUPPORTED_TYPE", "Invalid ZIP or Office file");
+            throw new ApiException(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "UNSUPPORTED_TYPE",
+                    "Invalid ZIP or Office file");
         }
         if (hasContentTypes && hasWord) {
             return new InspectedMedia(
@@ -551,31 +617,102 @@ public class MediaService {
         return new InspectedMedia("application/zip", ".zip", null, null, null);
     }
 
-    private boolean isValidUtf8Text(Path tempFile, long totalBytes) {
-        int sampleSize = (int) Math.min(totalBytes, 65536);
-        byte[] sample = new byte[sampleSize];
+    /**
+     * Kiểm tra tệp văn bản UTF-8 toàn tệp theo cơ chế streaming với CharsetDecoder giữ trạng thái giữa các khối 8KB
+     * (không báo lỗi giả khi ký tự tiếng Việt 3 byte rơi đúng ranh giới 64KB, đồng thời phát hiện NUL ở cuối tệp và HTML/SVG có khoảng trắng đệm).
+     */
+    private boolean isValidUtf8PlainText(Path tempFile) {
+        CharsetDecoder decoder = StandardCharsets.UTF_8.newDecoder()
+                .onMalformedInput(CodingErrorAction.REPORT)
+                .onUnmappableCharacter(CodingErrorAction.REPORT);
+        byte[] raw = new byte[8192];
+        ByteBuffer inBuf = ByteBuffer.allocate(8192 + 8);
+        CharBuffer outBuf = CharBuffer.allocate(8192);
+        StringBuilder leadingChars = new StringBuilder();
+        boolean sawAnyByte = false;
+
         try (InputStream in = Files.newInputStream(tempFile)) {
-            int read = in.read(sample);
-            if (read > 0) {
+            int read;
+            while ((read = in.read(raw)) != -1) {
+                sawAnyByte = true;
                 for (int i = 0; i < read; i++) {
-                    if (sample[i] == 0x00) {
-                        return false; // Chứa NUL byte -> file nhị phân
+                    if (raw[i] == 0x00) {
+                        return false; // Chứa NUL byte -> tệp nhị phân
                     }
                 }
-                StandardCharsets.UTF_8.newDecoder()
-                        .onMalformedInput(CodingErrorAction.REPORT)
-                        .onUnmappableCharacter(CodingErrorAction.REPORT)
-                        .decode(ByteBuffer.wrap(sample, 0, read));
-                return true;
+                inBuf.put(raw, 0, read);
+                inBuf.flip();
+                while (true) {
+                    outBuf.clear();
+                    CoderResult res = decoder.decode(inBuf, outBuf, false);
+                    outBuf.flip();
+                    appendNonLeadingWhitespace(leadingChars, outBuf);
+                    if (res.isError()) {
+                        return false;
+                    }
+                    if (res.isUnderflow()) {
+                        break;
+                    }
+                }
+                inBuf.compact();
             }
+            if (!sawAnyByte) {
+                return false;
+            }
+            inBuf.flip();
+            while (true) {
+                outBuf.clear();
+                CoderResult res = decoder.decode(inBuf, outBuf, true);
+                outBuf.flip();
+                appendNonLeadingWhitespace(leadingChars, outBuf);
+                if (res.isError()) {
+                    return false;
+                }
+                if (res.isUnderflow()) {
+                    break;
+                }
+            }
+            outBuf.clear();
+            if (decoder.flush(outBuf).isError()) {
+                return false;
+            }
+            outBuf.flip();
+            appendNonLeadingWhitespace(leadingChars, outBuf);
+
+            // Chặn HTML/SVG dù bị đệm nhiều khoảng trắng hoặc BOM trước thẻ mở.
+            return !containsHtmlOrSvgTag(leadingChars.toString());
         } catch (Exception e) {
             return false;
         }
-        return false;
+    }
+
+    private static void appendNonLeadingWhitespace(StringBuilder dst, CharBuffer src) {
+        while (src.hasRemaining() && dst.length() < MAX_HTML_SCAN_CHARS) {
+            char c = src.get();
+            if (dst.length() == 0 && (c == '\uFEFF' || Character.isWhitespace(c))) {
+                continue;
+            }
+            dst.append(c);
+        }
     }
 
     private boolean isFtyp(byte[] header) {
         return header.length >= 8 && header[4] == 'f' && header[5] == 't' && header[6] == 'y' && header[7] == 'p';
+    }
+
+    private boolean isAudioFtyp(byte[] header) {
+        if (!isFtyp(header) || header.length < 12) {
+            return false;
+        }
+        String brand = majorBrandOf(header);
+        return brand != null && ALLOWED_AUDIO_FTYP_BRANDS.contains(brand);
+    }
+
+    private static String majorBrandOf(byte[] header) {
+        if (header.length < 12) {
+            return null;
+        }
+        return new String(header, 8, 4, StandardCharsets.ISO_8859_1);
     }
 
     private boolean isExecutableOrScript(byte[] header) {
@@ -599,96 +736,181 @@ public class MediaService {
                 && (header[2] & 0xFF) == 0xBF) {
             offset = 3; // Bỏ qua UTF-8 BOM nếu có
         }
-        int len = Math.min(header.length - offset, 512);
+        int len = Math.min(header.length - offset, 1024);
         if (len <= 0) {
             return false;
         }
-        String prefix = new String(header, offset, len, StandardCharsets.US_ASCII).toLowerCase(Locale.ROOT);
-        return prefix.contains("<html")
-                || prefix.contains("<!doctype html")
-                || prefix.contains("<svg")
-                || prefix.contains("<?xml")
-                || prefix.contains("<script");
+        String prefix = new String(header, offset, len, StandardCharsets.US_ASCII);
+        return containsHtmlOrSvgTag(prefix);
+    }
+
+    private static boolean containsHtmlOrSvgTag(String text) {
+        String lower = text.toLowerCase(Locale.ROOT);
+        return lower.contains("<html")
+                || lower.contains("<!doctype html")
+                || lower.contains("<svg")
+                || lower.contains("<?xml")
+                || lower.contains("<script");
     }
 
     /**
-     * Phân tích box mvhd trong ISOBMFF (MP4/M4A) để lấy thời lượng mili-giây.
+     * Phân tích box mvhd trong ISOBMFF (MP4/M4A/MOV) để lấy thời lượng mili-giây an toàn:
+     * xử lý đúng box 64-bit (header 16 byte), đọc/bỏ qua đủ byte và tính toán bằng BigInteger chống tràn int/long.
      */
     private Integer parseIsoBmffDuration(Path tempFile) {
         try (FileInputStream fis = new FileInputStream(tempFile.toFile())) {
-            byte[] buf = new byte[8];
             long remaining = Files.size(tempFile);
+            byte[] headerBuf = new byte[8];
             while (remaining >= 8) {
-                int read = fis.read(buf);
-                if (read < 8) break;
-                long boxSize = ((long) (buf[0] & 0xFF) << 24) | ((long) (buf[1] & 0xFF) << 16)
-                        | ((long) (buf[2] & 0xFF) << 8) | (buf[3] & 0xFF);
-                String boxType = new String(buf, 4, 4, StandardCharsets.ISO_8859_1);
+                if (!readFully(fis, headerBuf, 8)) {
+                    break;
+                }
+                long boxSize = readUnsignedInt32(headerBuf, 0);
+                String boxType = new String(headerBuf, 4, 4, StandardCharsets.ISO_8859_1);
+                long headerSize = 8L;
 
-                if (boxSize == 1) { // 64-bit size
-                    byte[] extSize = new byte[8];
-                    if (fis.read(extSize) < 8) break;
-                    boxSize = ByteBuffer.wrap(extSize).getLong();
-                    if (boxSize < 16) break;
-                } else if (boxSize < 8) {
+                if (boxSize == 1L) {
+                    byte[] extBuf = new byte[8];
+                    if (remaining < 16 || !readFully(fis, extBuf, 8)) {
+                        break;
+                    }
+                    boxSize = ByteBuffer.wrap(extBuf).getLong();
+                    headerSize = 16L;
+                    if (boxSize < 16L || boxSize > remaining) {
+                        break;
+                    }
+                } else if (boxSize == 0L) {
+                    boxSize = remaining;
+                } else if (boxSize < 8L || boxSize > remaining) {
                     break;
                 }
 
+                long payloadSize = boxSize - headerSize;
                 if ("moov".equals(boxType)) {
-                    // Tìm box mvhd bên trong moov
-                    return parseMvhdInsideMoov(fis, boxSize - 8);
-                } else {
-                    long toSkip = boxSize - 8;
-                    if (toSkip > 0) {
-                        fis.skip(toSkip);
-                    }
+                    return parseMvhdInsideMoov(fis, payloadSize);
+                }
+                if (payloadSize > 0 && !skipFully(fis, payloadSize)) {
+                    break;
                 }
                 remaining -= boxSize;
             }
         } catch (Exception e) {
-            log.debug("Không thể đọc box mvhd từ tệp MP4: {}", e.getMessage());
+            log.debug("Không thể đọc box mvhd từ tệp ISOBMFF: {}", e.getMessage());
         }
         return null;
     }
 
     private Integer parseMvhdInsideMoov(FileInputStream fis, long moovBytes) throws IOException {
         long remaining = moovBytes;
-        byte[] buf = new byte[8];
+        byte[] headerBuf = new byte[8];
         while (remaining >= 8) {
-            int read = fis.read(buf);
-            if (read < 8) break;
-            long boxSize = ((long) (buf[0] & 0xFF) << 24) | ((long) (buf[1] & 0xFF) << 16)
-                    | ((long) (buf[2] & 0xFF) << 8) | (buf[3] & 0xFF);
-            if (boxSize < 8) break;
-            String boxType = new String(buf, 4, 4, StandardCharsets.ISO_8859_1);
+            if (!readFully(fis, headerBuf, 8)) {
+                break;
+            }
+            long boxSize = readUnsignedInt32(headerBuf, 0);
+            String boxType = new String(headerBuf, 4, 4, StandardCharsets.ISO_8859_1);
+            long headerSize = 8L;
 
+            if (boxSize == 1L) {
+                byte[] extBuf = new byte[8];
+                if (remaining < 16 || !readFully(fis, extBuf, 8)) {
+                    break;
+                }
+                boxSize = ByteBuffer.wrap(extBuf).getLong();
+                headerSize = 16L;
+                if (boxSize < 16L || boxSize > remaining) {
+                    break;
+                }
+            } else if (boxSize == 0L) {
+                boxSize = remaining;
+            } else if (boxSize < 8L || boxSize > remaining) {
+                break;
+            }
+
+            long payloadSize = boxSize - headerSize;
             if ("mvhd".equals(boxType)) {
-                byte[] mvhdData = new byte[(int) Math.min(boxSize - 8, 32)];
-                fis.read(mvhdData);
+                int toRead = (int) Math.min(payloadSize, 32L);
+                if (toRead < 20) {
+                    return null;
+                }
+                byte[] mvhdData = new byte[toRead];
+                if (!readFully(fis, mvhdData, toRead)) {
+                    return null;
+                }
                 int version = mvhdData[0] & 0xFF;
                 if (version == 0 && mvhdData.length >= 20) {
-                    long timescale = ByteBuffer.wrap(mvhdData, 12, 4).getInt() & 0xFFFFFFFFL;
-                    long duration = ByteBuffer.wrap(mvhdData, 16, 4).getInt() & 0xFFFFFFFFL;
-                    if (timescale > 0) {
-                        return (int) ((duration * 1000L) / timescale);
-                    }
+                    long timescale = readUnsignedInt32(mvhdData, 12);
+                    long duration = readUnsignedInt32(mvhdData, 16);
+                    return computeDurationMsSafe(BigInteger.valueOf(duration), timescale);
                 } else if (version == 1 && mvhdData.length >= 32) {
-                    long timescale = ByteBuffer.wrap(mvhdData, 20, 4).getInt() & 0xFFFFFFFFL;
-                    long duration = ByteBuffer.wrap(mvhdData, 24, 8).getLong();
-                    if (timescale > 0) {
-                        return (int) ((duration * 1000L) / timescale);
-                    }
+                    long timescale = readUnsignedInt32(mvhdData, 20);
+                    byte[] durBytes = Arrays.copyOfRange(mvhdData, 24, 32);
+                    return computeDurationMsSafe(new BigInteger(1, durBytes), timescale);
                 }
                 return null;
-            } else {
-                long toSkip = boxSize - 8;
-                if (toSkip > 0) {
-                    fis.skip(toSkip);
-                }
+            }
+            if (payloadSize > 0 && !skipFully(fis, payloadSize)) {
+                break;
             }
             remaining -= boxSize;
         }
         return null;
+    }
+
+    /** Tính (duration * 1000) / timescale bằng BigInteger và kẹp về Integer.MAX_VALUE để tuyệt đối không tràn số. */
+    private static Integer computeDurationMsSafe(BigInteger duration, long timescale) {
+        if (timescale <= 0L || duration.signum() < 0) {
+            return null;
+        }
+        BigInteger ms = duration.multiply(THOUSAND).divide(BigInteger.valueOf(timescale));
+        if (ms.compareTo(MAX_INT_BIG) > 0) {
+            return Integer.MAX_VALUE;
+        }
+        return ms.intValue();
+    }
+
+    private static long readUnsignedInt32(byte[] buf, int offset) {
+        return ((long) (buf[offset] & 0xFF) << 24)
+                | ((long) (buf[offset + 1] & 0xFF) << 16)
+                | ((long) (buf[offset + 2] & 0xFF) << 8)
+                | (buf[offset + 3] & 0xFF);
+    }
+
+    private static int readUpTo(InputStream in, byte[] dst, int len) throws IOException {
+        int total = 0;
+        while (total < len) {
+            int n = in.read(dst, total, len - total);
+            if (n < 0) {
+                break;
+            }
+            total += n;
+        }
+        return total;
+    }
+
+    private static boolean readFully(InputStream in, byte[] dst, int len) throws IOException {
+        return readUpTo(in, dst, len) == len;
+    }
+
+    private static boolean skipFully(InputStream in, long bytesToSkip) throws IOException {
+        long remaining = bytesToSkip;
+        byte[] discard = null;
+        while (remaining > 0L) {
+            long skipped = in.skip(remaining);
+            if (skipped > 0L) {
+                remaining -= skipped;
+                continue;
+            }
+            if (discard == null) {
+                discard = new byte[4096];
+            }
+            int read = in.read(discard, 0, (int) Math.min(discard.length, remaining));
+            if (read < 0) {
+                return false;
+            }
+            remaining -= read;
+        }
+        return true;
     }
 
     private String sanitizeFileName(String originalName) {

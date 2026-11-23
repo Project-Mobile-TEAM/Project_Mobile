@@ -42,6 +42,7 @@ import com.utechat.data.media.LocationFetchHelper;
 import com.utechat.data.media.MediaDownloadManager;
 import com.utechat.data.media.MediaPreparationHelper;
 import com.utechat.data.media.VoiceRecorderHelper;
+import com.utechat.data.session.SessionManager;
 import com.utechat.data.sync.WsConnectionState;
 import com.utechat.data.translate.MessageTranslator;
 import com.utechat.databinding.DialogAttachmentPickerBinding;
@@ -322,6 +323,7 @@ public class ChatRoomFragment extends Fragment {
         vm.getConversationId().observe(getViewLifecycleOwner(), cid -> {
             if (cid != null && isResumed()) {
                 Injection.provideActiveRoomTracker().setActive(cid);
+                Injection.provideNotificationHelper(requireContext()).cancelConversation(cid);
             }
         });
         vm.getMembers().observe(getViewLifecycleOwner(), m -> {
@@ -396,6 +398,7 @@ public class ChatRoomFragment extends Fragment {
             return;
         }
         final Context appContext = ctx.getApplicationContext();
+        final String capturedSessionKey = SessionManager.get() != null ? SessionManager.get().sessionKey() : null;
         final String caption = ("IMAGE".equals(kind) || "VIDEO".equals(kind))
                 && binding != null && binding.input.getText() != null
                 && !binding.input.getText().toString().isBlank()
@@ -415,7 +418,10 @@ public class ChatRoomFragment extends Fragment {
                     prepared = MediaPreparationHelper.prepareFile(appContext, uri, clientId);
                 }
                 mainHandler.post(() -> {
-                    if (!isAdded() || vm == null) {
+                    String liveKey = SessionManager.get() != null ? SessionManager.get().sessionKey() : null;
+                    boolean sameSession = capturedSessionKey == null || capturedSessionKey.equals(liveKey);
+                    if (!isAdded() || vm == null || !sameSession) {
+                        Injection.getMediaIoExecutor().execute(() -> deleteQuietly(new File(prepared.localPath)));
                         return;
                     }
                     vm.enqueuePreparedMedia(prepared, caption);
@@ -482,6 +488,7 @@ public class ChatRoomFragment extends Fragment {
             return;
         }
         final Context appContext = ctx.getApplicationContext();
+        final String capturedSessionKey = SessionManager.get() != null ? SessionManager.get().sessionKey() : null;
         final String clientId = UUID.randomUUID().toString();
         Injection.getMediaIoExecutor().execute(() -> {
             try {
@@ -490,8 +497,12 @@ public class ChatRoomFragment extends Fragment {
                 MediaPreparationHelper.PreparedMedia prepared =
                         MediaPreparationHelper.prepareImage(appContext, contentUri, clientId);
                 mainHandler.post(() -> {
-                    if (isAdded() && vm != null) {
+                    String liveKey = SessionManager.get() != null ? SessionManager.get().sessionKey() : null;
+                    boolean sameSession = capturedSessionKey == null || capturedSessionKey.equals(liveKey);
+                    if (isAdded() && vm != null && sameSession) {
                         vm.enqueuePreparedMedia(prepared, null);
+                    } else {
+                        Injection.getMediaIoExecutor().execute(() -> deleteQuietly(new File(prepared.localPath)));
                     }
                 });
             } catch (MediaPreparationHelper.PrepareException e) {
@@ -1026,6 +1037,7 @@ public class ChatRoomFragment extends Fragment {
         String activeConvId = vm.getConversationId().getValue();
         if (activeConvId != null) {
             Injection.provideActiveRoomTracker().setActive(activeConvId);
+            Injection.provideNotificationHelper(requireContext()).cancelConversation(activeConvId);
         }
         if (binding != null) binding.messages.post(this::markVisibleRead);
     }

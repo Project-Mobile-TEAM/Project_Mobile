@@ -281,15 +281,14 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         if (prev != null && Duration.between(prev, now).compareTo(CALL_KEEPALIVE_THROTTLE) < 0) {
             return;
         }
-
-        boolean renewed = callService.renewActiveCallLease(callId, managed.userId, managed.deviceIdHash);
-        if (renewed) {
-            lastCallKeepaliveUpdated.put(throttleKey, now);
-            if (lastCallKeepaliveUpdated.size() > 1000) {
-                Instant cutoff = now.minus(CALL_KEEPALIVE_THROTTLE);
-                lastCallKeepaliveUpdated.entrySet().removeIf(e -> !e.getValue().isAfter(cutoff));
-            }
+        // Ghi mốc throttle trước/ngay cả khi gia hạn thất bại để chặn spam SELECT ... FOR UPDATE trên callId không hợp lệ.
+        lastCallKeepaliveUpdated.put(throttleKey, now);
+        if (lastCallKeepaliveUpdated.size() > 1000) {
+            Instant cutoff = now.minus(CALL_KEEPALIVE_THROTTLE);
+            lastCallKeepaliveUpdated.entrySet().removeIf(e -> !e.getValue().isAfter(cutoff));
         }
+
+        callService.renewActiveCallLease(callId, managed.userId, managed.deviceIdHash);
     }
 
     private static UUID parseOptionalUuid(String raw) {

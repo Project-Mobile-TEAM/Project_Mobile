@@ -78,6 +78,11 @@ public class MediaProviderAndUiTest {
     @Before
     public void setUp() {
         targetContext = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        // Đánh dấu đã hỏi quyền POST_NOTIFICATIONS để hộp thoại hệ thống Android 13-16 không chặn Espresso.
+        targetContext.getSharedPreferences("utechat_prefs", Context.MODE_PRIVATE)
+                .edit()
+                .putBoolean("notif_prompted_once", true)
+                .apply();
         InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
             Injection.resetForTest();
             SessionManager.get().clear();
@@ -85,7 +90,16 @@ public class MediaProviderAndUiTest {
     }
 
     @After
-    public void tearDown() {
+    public void tearDown() throws Exception {
+        CountDownLatch dbCleared = new CountDownLatch(1);
+        Injection.getDiskExecutor().execute(() -> {
+            try {
+                AppDatabase.getInstance(targetContext).clearAllTables();
+            } finally {
+                dbCleared.countDown();
+            }
+        });
+        dbCleared.await(5, TimeUnit.SECONDS);
         InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
             Injection.resetForTest();
             SessionManager.get().clear();
@@ -250,8 +264,9 @@ public class MediaProviderAndUiTest {
             onView(withText("Hello")).perform(longClick());
             onView(withText(R.string.chat_translate_to_vi)).inRoot(isDialog()).perform(click());
 
-            // Xác minh khung dịch hiện đúng nhãn @StringRes, bản dịch và nút ẩn (tương thích cả EN lẫn VI).
-            waitForViewDisplayed(R.string.chat_translated_label);
+            // Xác minh khung dịch hiện đúng nhãn @StringRes, bản dịch và nút ẩn (cuộn lại sau khi bong bóng giãn chiều cao).
+            waitForViewDisplayed(scenario, 6, R.string.chat_translated_label);
+            scrollMessagesTo(scenario, 6);
             onView(withText(R.string.chat_translated_label)).check(matches(isDisplayed()));
             onView(withText("Xin chào")).check(matches(isDisplayed()));
             onView(withText(R.string.chat_translation_hide)).check(matches(isDisplayed()));
@@ -335,10 +350,11 @@ public class MediaProviderAndUiTest {
         InstrumentationRegistry.getInstrumentation().waitForIdleSync();
     }
 
-    private static void waitForViewDisplayed(int stringResId) {
+    private static void waitForViewDisplayed(ActivityScenario<MainActivity> scenario, int position, int stringResId) {
         long deadline = SystemClock.elapsedRealtime() + 5000L;
         while (SystemClock.elapsedRealtime() < deadline) {
             try {
+                scrollMessagesTo(scenario, position);
                 onView(withText(stringResId)).check(matches(isDisplayed()));
                 return;
             } catch (Throwable ignored) {

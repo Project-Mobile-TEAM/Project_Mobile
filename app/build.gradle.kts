@@ -38,6 +38,11 @@ android {
             buildConfigField("boolean", "USE_FAKE_DATA", providers.gradleProperty("useFakeData").orElse("true").get())
         }
         getByName("release") {
+            isMinifyEnabled = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "src/main/keepRules/rules.keep"
+            )
             buildConfigField("boolean", "USE_FAKE_DATA", "false")
         }
     }

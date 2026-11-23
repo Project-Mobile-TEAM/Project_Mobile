@@ -18,7 +18,8 @@
 | **06-06** | Android WebRTC 1-1 (`CallDtos`, `CallApi`, `WebRtcCallEngine`, `StreamWebRtcCallEngine`, `CallSessionCoordinator`, `CallService` FGS microphone, `CallViewModel`, `CallFragment`, `nav_graph` global action, EN/VI `strings_call.xml`) | `2b55edd` | ✅ Hoàn thành | `CallSessionCoordinatorTest` (6/6) + `lintDebug` pass |
 | **06-07** | Android ML Kit Translate (`MessageTranslator`, `RealMlKitTranslator`, `FakeMessageTranslator`, `MessageTranslationManager` cổng mạng Wi-Fi/4G không bịa %, cache `TranslationDao` có khóa phiên) | `6848756` | ✅ Hoàn thành | `MessageTranslationManagerTest` (6/6) + `lintDebug` pass |
 | **06-08** | Nối dây DI (`Injection` tách `MEDIA_IO`/`CALL_NETWORK` & `cleanupDepartingSession`), `ChatWebSocketManager` cầu nối `call.*`, `RealChatRepository`/`FakeChatRepository`, `MainActivity` deep link thông báo có kiểm phiên + `SyncWorker` + `POST_NOTIFICATIONS` 1 lần, `ChatRoomFragment` nút gọi & `ActiveRoomTracker` | `016ee62` | ✅ Hoàn thành | `FakeRepositoriesTest` + toàn bộ 266 Android JVM tests + `lintDebug` pass |
-| **06-09** | Trình xem trong app (`ZoomableImageView`, `ImageViewerFragment`, `VideoPlayerFragment` Media3 + `OkHttpDataSource` HTTP Range, `VoiceBubblePlayer` 1 instance), tích hợp chọn media/camera/ghi âm/vị trí/dịch EN↔VI vào `ChatRoom*` & `MessageAdapter`, `ChatViewModelTest` & `MediaProviderAndUiTest`, cổng kiểm tra toàn Phase 6 | *(commit hiện tại)* | ✅ Hoàn thành | **313/313** Backend + **268/268** Android JVM + `compileDebugAndroidTestJavaWithJavac` + `lintDebug`/`lintRelease` (0 errors) + `assembleDebug`/`assembleRelease` |
+| **06-09** | Trình xem trong app (`ZoomableImageView`, `ImageViewerFragment`, `VideoPlayerFragment` Media3 + `OkHttpDataSource` HTTP Range, `VoiceBubblePlayer` 1 instance), tích hợp chọn media/camera/ghi âm/vị trí/dịch EN↔VI vào `ChatRoom*` & `MessageAdapter`, `ChatViewModelTest` & `MediaProviderAndUiTest`, cổng kiểm tra toàn Phase 6 | `5d989d3` | ✅ Hoàn thành | **313/313** Backend + **268/268** Android JVM + `compileDebugAndroidTestJavaWithJavac` + `lintDebug`/`lintRelease` (0 errors) + `assembleDebug`/`assembleRelease` |
+| **Audit & Hardening** | Kiểm toán toàn Phase 6 (`06-01` → `06-09`): vá toàn bộ 6 CRITICAL, 11 HIGH (giữ nguyên `V6` bảo toàn Flyway checksum), 16 MEDIUM, các lỗi LOW và 9 điểm lệch tài liệu `docs/`; bật R8 `isMinifyEnabled = true` cho bản Release | *(đợt vá sau `5d989d3`)* | ✅ Hoàn thành | **315/315** Backend + **274/274** Android JVM + `compileDebugAndroidTestJavaWithJavac` + `lintDebug`/`lintRelease` (0 errors) + `minifyReleaseWithR8` & `assembleDebug`/`assembleRelease` |
 
 ---
 
@@ -88,9 +89,9 @@
 
 | Bộ kiểm thử | Lệnh chạy | Kết quả |
 |---|---|---|
-| **Backend (Full Suite)** | `cd backend && ./mvnw test` | **313 tests**, 0 failures, 0 errors (`BUILD SUCCESS`) |
-| **Android JVM Unit Tests** | `./gradlew testDebugUnitTest --no-daemon` | **268 tests**, 0 failures, 0 errors (`BUILD SUCCESSFUL`) |
-| **Android Lint & APK Builds** | `./gradlew compileDebugAndroidTestJavaWithJavac lintDebug lintRelease assembleDebug assembleRelease --no-daemon` | **0 errors** (cả Debug & Release), tạo thành công `app-debug.apk` và `app-release-unsigned.apk`, thư viện native đạt 16 KB aligned (`0x4000`) |
+| **Backend (Full Suite)** | `cd backend && ./mvnw test` | **315 tests**, 0 failures, 0 errors (`BUILD SUCCESS`) |
+| **Android JVM Unit Tests** | `./gradlew testDebugUnitTest --no-daemon` | **274 tests**, 0 failures, 0 errors (`BUILD SUCCESSFUL`) |
+| **Android Lint & APK Builds (R8)** | `./gradlew compileDebugAndroidTestJavaWithJavac lintDebug lintRelease assembleDebug assembleRelease --no-daemon` | **0 errors** (cả Debug & Release), `minifyReleaseWithR8` thành công (`isMinifyEnabled = true`), tạo thành công `app-debug.apk` và `app-release-unsigned.apk`, thư viện native đạt 16 KB aligned (`0x4000`) |
 | **Android Instrumented Tests** | `connectedDebugAndroidTest` (`AppDatabaseMigrationTest`, `Phase6RoomDaoTest`, `MediaProviderAndUiTest`) | Đã biên dịch xanh (`compileDebugAndroidTestJavaWithJavac`); ⏳ chạy trên emulator/thiết bị thật khi kết nối ADB |
 
 ---

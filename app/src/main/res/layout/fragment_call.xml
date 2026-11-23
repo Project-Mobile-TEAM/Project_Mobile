@@ -1,13 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Màn hình cuộc gọi thoại WebRTC 1-1 DayNight Material 3: mọi nút bấm >= 48dp, hỗ trợ xoay màn hình. -->
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!-- Màn hình cuộc gọi thoại WebRTC 1-1 DayNight Material 3: mọi nút bấm >= 48dp, cuộn an toàn khi xoay ngang. -->
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="?attr/colorSurface"
+    android:fillViewport="true">
+
+<androidx.constraintlayout.widget.ConstraintLayout
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
     android:paddingHorizontal="24dp"
-    android:paddingVertical="32dp">
+    android:paddingVertical="24dp">
 
     <!-- Biểu ngữ cảnh báo khi mất ICE tạm thời trong thời gian 60s server grace -->
     <TextView
@@ -197,6 +202,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginEnd="8dp"
                     android:layout_weight="1"
+                    android:checkable="true"
                     android:minHeight="52dp"
                     android:text="@string/call_action_mute"
                     app:cornerRadius="26dp"
@@ -210,6 +216,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginStart="8dp"
                     android:layout_weight="1"
+                    android:checkable="true"
                     android:minHeight="52dp"
                     android:text="@string/call_action_speaker"
                     app:cornerRadius="26dp"
@@ -244,3 +251,4 @@
             app:cornerRadius="26dp" />
     </FrameLayout>
 </androidx.constraintlayout.widget.ConstraintLayout>
+</androidx.core.widget.NestedScrollView>

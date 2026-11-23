@@ -12,6 +12,8 @@ import androidx.annotation.Nullable;
 import androidx.annotation.OptIn;
 import androidx.fragment.app.Fragment;
 import androidx.media3.common.MediaItem;
+import androidx.media3.common.PlaybackException;
+import androidx.media3.common.Player;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.datasource.okhttp.OkHttpDataSource;
 import androidx.media3.exoplayer.ExoPlayer;
@@ -40,9 +42,33 @@ public class VideoPlayerFragment extends Fragment {
     public static final String ARG_ATTACHMENT_ID = "attachmentId";
     public static final String ARG_FILE_NAME = "fileName";
     public static final String ARG_MIME = "mime";
+    private static final String STATE_POSITION_MS = "playback_position_ms";
+    private static final String STATE_PLAY_WHEN_READY = "play_when_ready";
 
     @Nullable private FragmentVideoPlayerBinding binding;
     @Nullable private ExoPlayer player;
+    private long playbackPositionMs = 0L;
+    private boolean playWhenReady = true;
+
+    @Override
+    public void onCreate(@Nullable Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        if (savedInstanceState != null) {
+            playbackPositionMs = Math.max(0L, savedInstanceState.getLong(STATE_POSITION_MS, 0L));
+            playWhenReady = savedInstanceState.getBoolean(STATE_PLAY_WHEN_READY, true);
+        }
+    }
+
+    @Override
+    public void onSaveInstanceState(@NonNull Bundle outState) {
+        super.onSaveInstanceState(outState);
+        if (player != null) {
+            playbackPositionMs = Math.max(0L, player.getCurrentPosition());
+            playWhenReady = player.getPlayWhenReady();
+        }
+        outState.putLong(STATE_POSITION_MS, playbackPositionMs);
+        outState.putBoolean(STATE_PLAY_WHEN_READY, playWhenReady);
+    }
 
     @Nullable
     @Override
@@ -104,10 +130,7 @@ public class VideoPlayerFragment extends Fragment {
         File localFile = localPath != null ? new File(localPath) : null;
         if (localFile != null && localFile.isFile()) {
             player = new ExoPlayer.Builder(requireContext()).build();
-            binding.playerView.setPlayer(player);
-            player.setMediaItem(MediaItem.fromUri(Uri.fromFile(localFile)));
-            player.prepare();
-            player.setPlayWhenReady(true);
+            attachPlayer(MediaItem.fromUri(Uri.fromFile(localFile)));
             return;
         }
 
@@ -128,10 +151,28 @@ public class VideoPlayerFragment extends Fragment {
         player = new ExoPlayer.Builder(requireContext())
                 .setMediaSourceFactory(mediaSourceFactory)
                 .build();
+        attachPlayer(MediaItem.fromUri(Uri.parse(resolvedUrl)));
+    }
+
+    private void attachPlayer(@NonNull MediaItem mediaItem) {
+        if (binding == null || player == null) {
+            return;
+        }
         binding.playerView.setPlayer(player);
-        player.setMediaItem(MediaItem.fromUri(Uri.parse(resolvedUrl)));
+        player.addListener(new Player.Listener() {
+            @Override
+            public void onPlayerError(@NonNull PlaybackException error) {
+                if (binding != null && isAdded()) {
+                    Snackbar.make(binding.getRoot(), R.string.media_load_failed, Snackbar.LENGTH_LONG).show();
+                }
+            }
+        });
+        player.setMediaItem(mediaItem);
+        if (playbackPositionMs > 0L) {
+            player.seekTo(playbackPositionMs);
+        }
+        player.setPlayWhenReady(playWhenReady);
         player.prepare();
-        player.setPlayWhenReady(true);
     }
 
     private void releasePlayer() {
@@ -139,6 +180,8 @@ public class VideoPlayerFragment extends Fragment {
             binding.playerView.setPlayer(null);
         }
         if (player != null) {
+            playbackPositionMs = Math.max(0L, player.getCurrentPosition());
+            playWhenReady = player.getPlayWhenReady();
             player.release();
             player = null;
         }

@@ -7,11 +7,14 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 
 /** Gom mọi lỗi về một dạng JSON: { "error": { "code", "message", "details" } } (API_CONTRACT mục 1). */
 @RestControllerAdvice
@@ -34,6 +37,18 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, Object>> handleMissingParameter(MissingServletRequestParameterException e) {
         String code = "phone".equals(e.getParameterName()) ? "PHONE_INVALID" : "VALIDATION";
         return body(HttpStatus.BAD_REQUEST, code, "Missing required parameter: " + e.getParameterName(), Map.of());
+    }
+
+    /** Thiếu phần multipart bắt buộc hoặc nội dung multipart hỏng -> 400 VALIDATION (không rơi vào 500). */
+    @ExceptionHandler({MissingServletRequestPartException.class, MultipartException.class})
+    public ResponseEntity<Map<String, Object>> handleBadMultipart(Exception e) {
+        return body(HttpStatus.BAD_REQUEST, "VALIDATION", "Invalid or missing multipart payload", Map.of());
+    }
+
+    /** Content-Type không được endpoint hỗ trợ (ví dụ gửi JSON lên endpoint multipart) -> 415 UNSUPPORTED_TYPE. */
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<Map<String, Object>> handleUnsupportedMediaType(HttpMediaTypeNotSupportedException e) {
+        return body(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "UNSUPPORTED_TYPE", "Unsupported media type", Map.of());
     }
 
     /** Lỗi không lường trước: ghi log nội bộ, trả thông điệp chung để không lộ SQL hay stacktrace. */

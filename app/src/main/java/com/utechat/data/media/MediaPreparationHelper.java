@@ -248,27 +248,33 @@ public final class MediaPreparationHelper {
         validateClientId(clientId);
         ContentResolver resolver = context.getContentResolver();
         String displayName = queryDisplayName(resolver, sourceUri);
-        String providerMime = resolver.getType(sourceUri);
+        String rawProviderMime = resolver.getType(sourceUri);
+        String providerMime = normalizeMime(rawProviderMime);
         String ext = extensionOf(displayName);
         String allowedMime = ext == null ? null : ALLOWED_DOCUMENTS.get(ext);
         if (allowedMime == null && ext == null && providerMime != null) {
             // Một số document provider SAF không gắn phần mở rộng trong DISPLAY_NAME: suy luận an toàn theo MIME cho phép.
-            String normalizedMime = providerMime.toLowerCase(Locale.ROOT);
             for (Map.Entry<String, String> entry : ALLOWED_DOCUMENTS.entrySet()) {
-                if (entry.getValue().equals(normalizedMime)) {
+                if (entry.getValue().equals(providerMime)) {
                     ext = entry.getKey();
                     allowedMime = entry.getValue();
                     break;
                 }
             }
+            if (allowedMime == null && "application/x-zip-compressed".equals(providerMime)) {
+                ext = "zip";
+                allowedMime = "application/zip";
+            }
         }
         if (allowedMime == null || ext == null) {
             throw new PrepareException("UNSUPPORTED_TYPE");
         }
+        boolean zipAlias = "zip".equals(ext) && "application/x-zip-compressed".equals(providerMime);
         if (providerMime != null
                 && !providerMime.equalsIgnoreCase(allowedMime)
+                && !zipAlias
                 && !providerMime.equalsIgnoreCase("application/octet-stream")
-                && !ALLOWED_DOCUMENTS.containsValue(providerMime.toLowerCase(Locale.ROOT))) {
+                && !ALLOWED_DOCUMENTS.containsValue(providerMime)) {
             throw new PrepareException("UNSUPPORTED_TYPE");
         }
         File dest = new File(ensurePendingDir(context), clientId + "." + ext);
@@ -276,6 +282,16 @@ public final class MediaPreparationHelper {
         String fileName = baseName(displayName, "document") + "." + ext;
         return new PreparedMedia("FILE", dest.getAbsolutePath(), allowedMime, dest.length(),
                 fileName, null, null, null);
+    }
+
+    @Nullable
+    private static String normalizeMime(@Nullable String raw) {
+        if (raw == null || raw.trim().isEmpty()) {
+            return null;
+        }
+        String trimmed = raw.trim().toLowerCase(Locale.ROOT);
+        int semi = trimmed.indexOf(';');
+        return (semi > 0 ? trimmed.substring(0, semi) : trimmed).trim();
     }
 
     /** Làm sạch tên tệp: bỏ đường dẫn, ký tự điều khiển và ký tự nguy hiểm; không bao giờ để lọt "../". */

@@ -542,6 +542,7 @@ public class RealChatRepository implements ChatRepository {
         String sessionKey = session.sessionKey();
         String meId = session.getUserId();
         if (sessionKey == null || meId == null) {
+            deletePendingFileQuietly(prepared.localPath);
             return;
         }
         String cleanCaption = (caption != null && !caption.trim().isEmpty()) ? caption.trim() : null;
@@ -614,10 +615,23 @@ public class RealChatRepository implements ChatRepository {
                 queuedClientId[0] = resolvedClientId;
             }));
 
-            if (queuedClientId[0] != null && workManager != null && sessionKey.equals(session.sessionKey())) {
+            if (queuedClientId[0] == null) {
+                // Phiên đã đổi hoặc người dùng vừa rời nhóm trước khi ghi Room -> xóa tệp tạm tránh rò rỉ đĩa.
+                deletePendingFileQuietly(prepared.localPath);
+            } else if (workManager != null && sessionKey.equals(session.sessionKey())) {
                 SendMessageWorker.enqueue(workManager, queuedClientId[0], sessionKey);
             }
         });
+    }
+
+    private static void deletePendingFileQuietly(@Nullable String localPath) {
+        if (localPath == null || localPath.trim().isEmpty()) {
+            return;
+        }
+        File file = new File(localPath);
+        if (file.isFile() && !file.delete()) {
+            file.deleteOnExit();
+        }
     }
 
     @Override

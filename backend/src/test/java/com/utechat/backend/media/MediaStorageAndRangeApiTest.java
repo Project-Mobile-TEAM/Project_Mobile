@@ -752,6 +752,121 @@ class MediaStorageAndRangeApiTest {
         return json.readTree(res.getResponse().getContentAsString()).get("mediaUrl").asText();
     }
 
+    @Test
+    void hardeningBlocksOverflowM4aZeroWebpBadMediaUrlQueryTokensAndSupportsLargeUtf8AndVideoDuration() throws Exception {
+        makeFriends(alice.id, bob.id);
+        String directConvId = openDirect(alice, bob);
+
+        // 1. M4A tràn số nguyên (duration = 4_294_968, timescale = 1 -> > Integer.MAX_VALUE ms) -> bị chặn 400 VALIDATION, không tràn int!
+        byte[] overflowM4a = createSampleM4aWithCustomTimescale(1, 4_294_968L);
+        mvc.perform(multipart("/api/media")
+                        .file(new MockMultipartFile("file", "overflow.m4a", "audio/mp4", overflowM4a))
+                        .param("clientId", UUID.randomUUID().toString())
+                        .param("kind", "AUDIO")
+                        .header("Authorization", "Bearer " + alice.token))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION"));
+
+        // 2. WebP VP8 lossy với width=0, height=0 -> trả 415 UNSUPPORTED_TYPE, không rơi vào lỗi CHECK DB 500
+        byte[] zeroWebp = new byte[30];
+        System.arraycopy("RIFF".getBytes(StandardCharsets.US_ASCII), 0, zeroWebp, 0, 4);
+        zeroWebp[4] = 22;
+        System.arraycopy("WEBP".getBytes(StandardCharsets.US_ASCII), 0, zeroWebp, 8, 4);
+        System.arraycopy("VP8 ".getBytes(StandardCharsets.US_ASCII), 0, zeroWebp, 12, 4);
+        zeroWebp[23] = (byte) 0x9D;
+        zeroWebp[24] = 0x01;
+        zeroWebp[25] = 0x2A;
+        mvc.perform(multipart("/api/media")
+                        .file(new MockMultipartFile("file", "zero.webp", "image/webp", zeroWebp))
+                        .param("clientId", UUID.randomUUID().toString())
+                        .param("kind", "IMAGE")
+                        .header("Authorization", "Bearer " + alice.token))
+                .andExpect(status().isUnsupportedMediaType())
+                .andExpect(jsonPath("$.error.code").value("UNSUPPORTED_TYPE"));
+
+        // 3. Thiếu part "file" -> 400 VALIDATION (không rơi vào 500)
+        mvc.perform(multipart("/api/media")
+                        .param("clientId", UUID.randomUUID().toString())
+                        .param("kind", "FILE")
+                        .header("Authorization", "Bearer " + alice.token))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION"));
+
+        // 4. mediaUrl 36 ký tự nhưng không phải UUID hợp lệ -> 400 VALIDATION (không ném IllegalArgumentException 500)
+        mvc.perform(post("/api/conversations/" + directConvId + "/messages")
+                        .header("Authorization", "Bearer " + alice.token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(Map.of(
+                                "clientId", UUID.randomUUID().toString(),
+                                "type", "IMAGE",
+                                "mediaUrl", "/api/media/------------------------------------"))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION"));
+
+        // 5. Tệp TXT tiếng Việt > 64KB có ký tự 3-byte nằm vắt ngang ranh giới 65536 -> hợp lệ 201
+        StringBuilder bigVn = new StringBuilder();
+        while (bigVn.toString().getBytes(StandardCharsets.UTF_8).length < 70_000) {
+            bigVn.append("Tiếng Việt UTF-8 không lỗi cắt khối 64KB.\n");
+        }
+        mvc.perform(multipart("/api/media")
+                        .file(new MockMultipartFile("file", "vietnamese.txt", "text/plain",
+                                bigVn.toString().getBytes(StandardCharsets.UTF_8)))
+                        .param("clientId", UUID.randomUUID().toString())
+                        .param("kind", "FILE")
+                        .header("Authorization", "Bearer " + alice.token))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.mime").value("text/plain"));
+
+        // 6. VIDEO MP4 có box mvhd 15_000ms -> giữ nguyên durationMs = 15000 và chặn ?token= khi tải về
+        byte[] mp4WithDuration = createSampleM4aWithDurationMs(15_000);
+        MvcResult videoRes = mvc.perform(multipart("/api/media")
+                        .file(new MockMultipartFile("file", "clip.mp4", "video/mp4", mp4WithDuration))
+                        .param("clientId", UUID.randomUUID().toString())
+                        .param("kind", "VIDEO")
+                        .header("Authorization", "Bearer " + alice.token))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.durationMs").value(15_000))
+                .andReturn();
+        String videoUrl = json.readTree(videoRes.getResponse().getContentAsString()).get("mediaUrl").asText();
+
+        // Chặn tuyệt đối ?token= / ?ticket= trên /api/media/** dù có Bearer header
+        mvc.perform(get(videoUrl + "?token=leaked")
+                        .header("Authorization", "Bearer " + alice.token))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION"));
+        mvc.perform(get(videoUrl + "?ticket=leaked")
+                        .header("Authorization", "Bearer " + alice.token))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION"));
+
+        // 7. Hàng DB có original_name = NULL vẫn tải về 200 OK (không văng 500 ContentDisposition)
+        UUID vidId = UUID.fromString(videoUrl.substring("/api/media/".length()));
+        jdbc.update("UPDATE public.attachments SET original_name = NULL WHERE id = ?", vidId);
+        performAsyncDownload(videoUrl, alice.token, null)
+                .andExpect(status().isOk());
+    }
+
+    private static byte[] createSampleM4aWithCustomTimescale(int timescale, long durationTicks) {
+        ByteBuffer buf = ByteBuffer.allocate(20 + 8 + 36);
+        buf.putInt(20);
+        buf.put("ftyp".getBytes(StandardCharsets.US_ASCII));
+        buf.put("M4A ".getBytes(StandardCharsets.US_ASCII));
+        buf.putInt(0);
+        buf.put("M4A ".getBytes(StandardCharsets.US_ASCII));
+        buf.putInt(44);
+        buf.put("moov".getBytes(StandardCharsets.US_ASCII));
+        buf.putInt(36);
+        buf.put("mvhd".getBytes(StandardCharsets.US_ASCII));
+        buf.putInt(0);
+        buf.putInt(0);
+        buf.putInt(0);
+        buf.putInt(timescale);
+        buf.putInt((int) durationTicks);
+        buf.putInt(0);
+        buf.putInt(0);
+        return buf.array();
+    }
+
     private byte[] createSampleJpeg(int width, int height) throws Exception {
         BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
         ByteArrayOutputStream baos = new ByteArrayOutputStream();

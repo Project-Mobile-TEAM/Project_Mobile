@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Tin người khác (TEXT_IN, SUMMARY_IN, UNKNOWN_FALLBACK): bong bóng trắng bên trái, trong nhóm có avatar + tên người gửi. -->
+<!-- Tin văn bản đến (TEXT_IN, UNKNOWN_FALLBACK): bong bóng trắng bên trái, trong nhóm có avatar + tên người gửi. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical"
     android:paddingHorizontal="12dp" android:paddingVertical="3dp">
@@ -27,16 +27,16 @@
                 android:textSize="16sp" android:textColor="?attr/colorOnSurface" />
             <!-- Khối bản dịch ML Kit chỉ tồn tại trên tin TEXT (D-14, D-15): đường kẻ 1dp + trạng thái không xác định / bản dịch + Ẩn bản dịch. -->
             <LinearLayout android:id="@+id/translation_box" android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:layout_marginTop="6dp" android:orientation="vertical" android:visibility="gone">
+                android:minWidth="168dp" android:layout_marginTop="6dp" android:orientation="vertical" android:visibility="gone">
                 <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/ute_border" />
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:layout_marginTop="4dp" android:gravity="center_vertical" android:orientation="horizontal">
-                    <TextView android:id="@+id/translation_label" android:layout_width="0dp" android:layout_height="wrap_content"
+                    <TextView android:id="@+id/translation_label" android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:layout_weight="1" android:text="@string/chat_translated_label"
                         android:textSize="11sp" android:fontFamily="@font/poppins_medium"
                         android:textColor="?attr/colorOnSurfaceVariant" />
                     <TextView android:id="@+id/translation_hide" android:layout_width="wrap_content" android:layout_height="wrap_content"
-                        android:minHeight="32dp" android:gravity="center_vertical" android:paddingStart="8dp"
+                        android:minHeight="48dp" android:gravity="center_vertical" android:paddingStart="12dp"
                         android:text="@string/chat_translation_hide" android:textSize="11sp"
                         android:fontFamily="@font/poppins_medium" android:textColor="@color/ute_accent" />
                 </LinearLayout>

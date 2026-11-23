@@ -2,6 +2,7 @@ package com.utechat.ui.media;
 
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
+import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -11,6 +12,10 @@ import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.navigation.fragment.NavHostFragment;
 import com.bumptech.glide.Glide;
+import com.bumptech.glide.load.DataSource;
+import com.bumptech.glide.load.engine.GlideException;
+import com.bumptech.glide.request.RequestListener;
+import com.bumptech.glide.request.target.Target;
 import com.google.android.material.snackbar.Snackbar;
 import com.utechat.BuildConfig;
 import com.utechat.R;
@@ -65,16 +70,42 @@ public class ImageViewerFragment extends Fragment {
         binding.btnOpenExternal.setOnClickListener(v ->
                 openExternally(localPath, attachmentId, mediaUrl, fileName, mime));
 
+        RequestListener<Drawable> errorListener = new RequestListener<Drawable>() {
+            @Override
+            public boolean onLoadFailed(
+                    @Nullable GlideException e,
+                    @Nullable Object model,
+                    @NonNull Target<Drawable> target,
+                    boolean isFirstResource) {
+                if (binding != null && isAdded()) {
+                    Snackbar.make(binding.getRoot(), R.string.media_load_failed, Snackbar.LENGTH_LONG).show();
+                }
+                return false;
+            }
+
+            @Override
+            public boolean onResourceReady(
+                    @NonNull Drawable resource,
+                    @NonNull Object model,
+                    Target<Drawable> target,
+                    @NonNull DataSource dataSource,
+                    boolean isFirstResource) {
+                return false;
+            }
+        };
+
         File localFile = localPath != null ? new File(localPath) : null;
         if (localFile != null && localFile.isFile()) {
-            Glide.with(this).load(localFile).into(binding.imageView);
+            Glide.with(this).load(localFile).listener(errorListener).into(binding.imageView);
         } else if (mediaUrl != null && !mediaUrl.trim().isEmpty()) {
             try {
                 String resolved = ApiClient.resolveBackendMediaUrl(BuildConfig.BACKEND_BASE_URL, mediaUrl);
-                Glide.with(this).load(resolved).into(binding.imageView);
+                Glide.with(this).load(resolved).listener(errorListener).into(binding.imageView);
             } catch (IllegalArgumentException e) {
                 Snackbar.make(binding.getRoot(), R.string.media_load_failed, Snackbar.LENGTH_LONG).show();
             }
+        } else {
+            Snackbar.make(binding.getRoot(), R.string.media_load_failed, Snackbar.LENGTH_LONG).show();
         }
     }
 

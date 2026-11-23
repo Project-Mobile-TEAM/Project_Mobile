@@ -8,5 +8,5 @@
 -keep class com.google.mlkit.** { *; }
 
 # Giữ nguyên Glide AppGlideModule (tích hợp OkHttp Bearer) và toàn bộ DTO Gson mạng tránh R8 đổi tên trường JSON.
--keep class com.utechat.data.media.UteChatGlideModule
+-keep class com.utechat.data.media.UteChatGlideModule { *; }
 -keep class com.utechat.data.remote.model.** { *; }

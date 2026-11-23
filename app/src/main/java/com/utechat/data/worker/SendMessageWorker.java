@@ -134,6 +134,8 @@ public class SendMessageWorker extends Worker {
         String clientId = getInputData().getString(KEY_CLIENT_ID);
         String enqueuedSessionKey = extractSessionKey(getTags());
         Context appContext = getApplicationContext();
+        // Bảo đảm hook dọn phiên trên SessionManager luôn được gắn ngay cả khi tiến trình chỉ thức dậy chạy Worker nền.
+        Injection.provideAuthRepository(appContext);
         AppDatabase db = AppDatabase.getInstance(appContext);
         ChatApi api = ApiClient.getRetrofit().create(ChatApi.class);
         // Upload dùng Retrofit media với timeout dài 60s/120s thay vì timeout 15s của Retrofit thường.
@@ -245,7 +247,12 @@ public class SendMessageWorker extends Worker {
                 if (conv != null && "GROUP".equals(conv.getType())) {
                     ConversationMemberEntity myMember = db.conversationDao().getMemberSync(msg.getConversationId(), meId);
                     if (myMember == null || myMember.getLeft()) {
-                        db.runInTransaction(() -> { db.messageDao().markFailed(clientId, "NOT_A_MEMBER"); });
+                        db.runInTransaction(() -> {
+                            db.messageDao().markFailed(clientId, "NOT_A_MEMBER");
+                            if (db.transferDao() != null) {
+                                db.transferDao().updateState(clientId, "FAILED", 0, "NOT_A_MEMBER", System.currentTimeMillis());
+                            }
+                        });
                         check.skip = true;
                         return;
                     }
@@ -253,7 +260,12 @@ public class SendMessageWorker extends Worker {
                     long currentCutoff = myMember.getVisibleFromMessageId() != null ? myMember.getVisibleFromMessageId() : 0L;
                     // Chặn gửi nhầm tin nhóm thuộc lần tham gia cũ hoặc dữ liệu nâng cấp từ v1 chưa có mốc (fail closed).
                     if (queuedCutoff == null || queuedCutoff.longValue() != currentCutoff) {
-                        db.runInTransaction(() -> { db.messageDao().markFailed(clientId, "MEMBERSHIP_CHANGED"); });
+                        db.runInTransaction(() -> {
+                            db.messageDao().markFailed(clientId, "MEMBERSHIP_CHANGED");
+                            if (db.transferDao() != null) {
+                                db.transferDao().updateState(clientId, "FAILED", 0, "MEMBERSHIP_CHANGED", System.currentTimeMillis());
+                            }
+                        });
                         check.skip = true;
                         return;
                     }

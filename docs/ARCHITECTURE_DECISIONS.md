@@ -97,7 +97,7 @@ flowchart LR
 
 ### ADR-012 — Chính sách thông báo tin mới
 **Status:** ACCEPTED
-**Quyết định:** V1 không dùng Firebase Cloud Messaging (FCM). Khi ứng dụng đang mở hoặc WebSocket còn kết nối, thông báo hiển thị tức thời qua `NotificationChannel` (`messages`) từ sự kiện WebSocket. Khi ứng dụng ở nền và WebSocket bị ngắt, `PeriodicWorkRequest` (15 phút) của WorkManager định kỳ gọi `/api/sync?after=<syncEventId>` để kiểm tra tin mới theo cơ chế **best-effort** (không cam kết tức thời).
+**Quyết định:** V1 không dùng Firebase Cloud Messaging (FCM). Khi ứng dụng đang mở hoặc WebSocket còn kết nối, thông báo hiển thị tức thời qua đúng 2 `NotificationChannel` (`messages` cho tin nhắn mới và `calls` cho cuộc gọi đến/cuộc gọi nhỡ) từ sự kiện WebSocket/Sync. Khi ứng dụng ở nền và WebSocket bị ngắt, `PeriodicWorkRequest` (15 phút) của WorkManager định kỳ gọi `/api/sync?after=<syncEventId>` để kiểm tra tin mới theo cơ chế **best-effort** (không cam kết tức thời).
 **Giới hạn nền tảng:** Khi ứng dụng bị người dùng hoặc hệ điều hành force-stop hoàn toàn, Android đình chỉ mọi tiến trình nền, do đó không cam kết nhận được thông báo ngay lập tức. FCM chỉ được quy hoạch ở mục Future/V2.
 
 ### ADR-013 — Gọi thoại trong app bằng WebRTC 1-1
@@ -130,7 +130,7 @@ flowchart LR
 ### ADR-020 — Quản lý schema bằng migration và chiến lược Room
 **Status:** ACCEPTED
 **Quyết định:** Server tắt tự tạo bảng của ORM, quản lý schema chuẩn 13 bảng qua Flyway migration.
-**Chiến lược Room Client:** Bật `exportSchema = true`. Trong giai đoạn phát triển (build variant Debug), cho phép sử dụng `fallbackToDestructiveMigration()` để linh hoạt thử nghiệm; trước ngày nộp bài và demo, toàn bộ migration Room cụ thể sẽ được hoàn thiện và khóa chặt.
+**Chiến lược Room Client:** Bật `exportSchema = true` (xuất `1.json`, `2.json`, `3.json`), cung cấp đầy đủ migration tường minh (`MIGRATION_1_2`, `MIGRATION_2_3`) được kiểm chứng bằng `MigrationTestHelper` và **không bật `fallbackToDestructiveMigration()`** kể cả bản Debug.
 
 ### ADR-021 — Giao diện i18n, chế độ tối, xoay màn hình
 **Status:** ACCEPTED

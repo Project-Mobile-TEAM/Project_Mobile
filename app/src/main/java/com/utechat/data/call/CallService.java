@@ -46,6 +46,10 @@ public class CallService extends Service {
     @Nullable private CallSessionCoordinator coordinator;
     private final Observer<CallSessionCoordinator.CallUiState> stateObserver = this::onCallStateChanged;
     private boolean observing = false;
+    private boolean foregroundStarted = false;
+    @Nullable private String lastNotifiedCallId;
+    @Nullable private String lastNotifiedPeerName;
+    @Nullable private String lastSessionKey;
 
     /**
      * Khởi chạy CallService an toàn trên API 26–36:
@@ -151,6 +155,10 @@ public class CallService extends Service {
                 : 0;
         try {
             ServiceCompat.startForeground(this, ONGOING_NOTIFICATION_ID, notification, serviceType);
+            foregroundStarted = true;
+            lastNotifiedCallId = callId;
+            lastNotifiedPeerName = peerName;
+            lastSessionKey = sessionKey;
         } catch (RuntimeException e) {
             Log.w(TAG, "startForeground microphone thất bại: " + e.getMessage());
             if (coordinator != null) {
@@ -159,11 +167,19 @@ public class CallService extends Service {
             stopSelf();
             return START_NOT_STICKY;
         }
+        // Kiểm tra lại trạng thái sau startForeground để không để lại thông báo ma nếu cuộc gọi đã kết thúc nhanh (409/403).
+        if (coordinator != null) {
+            CallSessionCoordinator.State cur = coordinator.getCurrentState().state;
+            if (cur == CallSessionCoordinator.State.ENDED) {
+                stopForegroundAndSelf();
+            }
+        }
         return START_NOT_STICKY;
     }
 
     @Override
     public void onDestroy() {
+        foregroundStarted = false;
         if (coordinator != null && observing) {
             coordinator.getUiState().removeObserver(stateObserver);
             observing = false;
@@ -175,11 +191,29 @@ public class CallService extends Service {
         if (state == null
                 || state.state == CallSessionCoordinator.State.IDLE
                 || state.state == CallSessionCoordinator.State.ENDED) {
-            stopForegroundAndSelf();
+            // Chỉ dừng sau khi onStartCommand đã gọi startForeground (tránh ForegroundServiceDidNotStartInTimeException).
+            if (foregroundStarted) {
+                stopForegroundAndSelf();
+            }
+            return;
+        }
+        // Cập nhật thông báo cuộc gọi đi ngay khi POST /api/calls trả về callId thật để bấm vào quay lại CallFragment được.
+        if (foregroundStarted && state.callId != null && !state.callId.equals(lastNotifiedCallId)) {
+            lastNotifiedCallId = state.callId;
+            if (state.peerName != null) {
+                lastNotifiedPeerName = state.peerName;
+            }
+            String effectiveSessionKey = state.sessionKey != null ? state.sessionKey : lastSessionKey;
+            NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (nm != null) {
+                nm.notify(ONGOING_NOTIFICATION_ID,
+                        buildOngoingNotification(lastNotifiedCallId, lastNotifiedPeerName, effectiveSessionKey));
+            }
         }
     }
 
     private void stopForegroundAndSelf() {
+        foregroundStarted = false;
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE);
         stopSelf();
     }

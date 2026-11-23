@@ -97,9 +97,11 @@ public class MediaController {
             mediaType = MediaType.APPLICATION_OCTET_STREAM;
         }
 
+        String safeFileName = (meta.fileName() == null || meta.fileName().isBlank())
+                ? "attachment" : meta.fileName();
         ContentDisposition disposition = "FILE".equalsIgnoreCase(meta.kind())
-                ? ContentDisposition.attachment().filename(meta.fileName(), StandardCharsets.UTF_8).build()
-                : ContentDisposition.inline().filename(meta.fileName(), StandardCharsets.UTF_8).build();
+                ? ContentDisposition.attachment().filename(safeFileName, StandardCharsets.UTF_8).build()
+                : ContentDisposition.inline().filename(safeFileName, StandardCharsets.UTF_8).build();
 
         // 2. Không có Range -> Trả toàn bộ nội dung (200 OK)
         if (ranges == null || ranges.isEmpty()) {

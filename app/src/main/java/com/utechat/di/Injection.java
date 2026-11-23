@@ -8,7 +8,9 @@ import android.os.SystemClock;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
+import androidx.core.app.NotificationManagerCompat;
 import androidx.work.WorkManager;
+import com.bumptech.glide.Glide;
 import com.google.gson.JsonObject;
 import com.utechat.BuildConfig;
 import com.utechat.MainActivity;
@@ -89,6 +91,8 @@ public final class Injection {
     private static final Executor MEDIA_IO = Executors.newFixedThreadPool(2);
     // Luồng mạng riêng cho REST cuộc gọi thoại (/api/calls/**) để không bao giờ bị HoL-block bởi upload/download media.
     private static final Executor CALL_NETWORK = Executors.newSingleThreadExecutor();
+    // Luồng riêng để ngắt WS & cuộc gọi khi rời phiên BÊN NGOÀI khóa SessionManager, triệt tiêu deadlock AB-BA.
+    private static final Executor SESSION_CLEANUP = Executors.newSingleThreadExecutor();
 
     private Injection() { }
 
@@ -180,7 +184,7 @@ public final class Injection {
                     CALL_NETWORK,
                     MainThreadExecutor.INSTANCE);
 
-            // Cuộc gọi đến: luôn đăng thông báo kèm sessionKey; nếu MainActivity đang mở thì điều hướng ngay sang CallFragment.
+            // Cuộc gọi đến: luôn đăng thông báo kèm sessionKey nguồn của cuộc gọi; nếu MainActivity đang mở thì điều hướng ngay sang CallFragment.
             NotificationHelper notif = provideNotificationHelper(appContext);
             callCoordinator.setIncomingCallAlertListener(new CallSessionCoordinator.IncomingCallAlertListener() {
                 @Override
@@ -188,11 +192,15 @@ public final class Injection {
                     if (state.callId == null) {
                         return;
                     }
-                    String sessionKey = SessionManager.get().sessionKey();
-                    notif.showIncomingCallNotification(state.callId, state.conversationId, state.peerName);
-                    if (sessionKey != null) {
-                        MainActivity.navigateToIncomingCallIfResumed(state.callId, sessionKey);
+                    String callSessionKey = state.sessionKey != null
+                            ? state.sessionKey
+                            : SessionManager.get().sessionKey();
+                    if (callSessionKey == null) {
+                        return;
                     }
+                    notif.showIncomingCallNotification(
+                            state.callId, state.conversationId, state.peerName, callSessionKey);
+                    MainActivity.navigateToIncomingCallIfResumed(state.callId, callSessionKey);
                 }
 
                 @Override
@@ -218,7 +226,7 @@ public final class Injection {
                     AppDatabase.getInstance(appContext).translationDao(),
                     useFake() ? new FakeMessageTranslator() : new RealMlKitTranslator(),
                     cm,
-                    SessionManager.get(),
+                    provideContactsSession(appContext),
                     DISK,
                     MainThreadExecutor.INSTANCE);
         }
@@ -236,17 +244,31 @@ public final class Injection {
             SyncEventApplier applier = new SyncEventApplier(db);
             syncEngine = new SyncEngine(db, chatApi, applier, SessionManager.get(), SYNC_NETWORK, DISK);
 
-            // Gắn callback thông báo chỉ chạy SAU KHI transaction Room của /api/sync đã commit (D-05, D-08).
+            // Gắn callback thông báo & chốt trạng thái cuộc gọi chỉ chạy SAU KHI transaction Room của /api/sync đã commit (D-05, D-08).
             NotificationHelper notif = provideNotificationHelper(appContext);
             ActiveRoomTracker roomTracker = provideActiveRoomTracker();
-            syncEngine.setNotificationCallback((sessionKey, userId, outcome) ->
+            syncEngine.setNotificationCallback((sessionKey, userId, outcome) -> {
+                if (!outcome.newlyInsertedMessages.isEmpty() || !outcome.missedCalls.isEmpty()) {
                     notif.notifyBatch(
                             userId,
                             sessionKey,
                             outcome.newlyInsertedMessages,
                             outcome.missedCalls,
                             roomTracker,
-                            () -> sessionKey.equals(SessionManager.get().sessionKey())));
+                            () -> sessionKey.equals(SessionManager.get().sessionKey()));
+                }
+                if (!outcome.terminalCalls.isEmpty() && sessionKey.equals(SessionManager.get().sessionKey())) {
+                    CallSessionCoordinator currentCall;
+                    synchronized (Injection.class) {
+                        currentCall = callCoordinator;
+                    }
+                    if (currentCall != null) {
+                        for (SyncEventApplier.TerminalCallUpdate tc : outcome.terminalCalls) {
+                            currentCall.onSyncedTerminalCallUpdate(tc.callId, tc.state, tc.endReason);
+                        }
+                    }
+                }
+            });
         }
         return syncEngine;
     }
@@ -317,35 +339,64 @@ public final class Injection {
         NotificationHelper currentNotif;
         ActiveRoomTracker currentRoomTracker;
         MediaDownloadManager currentDownloadManager;
+        SyncEngine currentSync;
         synchronized (Injection.class) {
             currentWs = wsManager;
             currentCall = callCoordinator;
             currentNotif = notificationHelper;
             currentRoomTracker = activeRoomTracker;
             currentDownloadManager = mediaDownloadManager;
+            currentSync = syncEngine;
         }
 
         if (currentDownloadManager != null && departingSessionKey != null && !departingSessionKey.trim().isEmpty()) {
             currentDownloadManager.cancelDownloadsForSession(departingSessionKey);
         }
-        if (currentWs != null) {
-            currentWs.disconnect();
-        }
-        if (currentCall != null) {
-            currentCall.onSessionCleared();
+        if (currentSync != null) {
+            currentSync.cancelPendingRetry();
         }
         if (currentNotif != null) {
             currentNotif.cancelAll();
+        } else {
+            try {
+                NotificationManagerCompat.from(appContext).cancelAll();
+            } catch (RuntimeException ignored) {
+            }
         }
         if (currentRoomTracker != null) {
             currentRoomTracker.clear();
         }
 
-        // Xếp xóa thư mục tạm media trên luồng DISK đơn tuần tự để chạy trước mọi thao tác ghi của tài khoản mới.
+        // Ngắt WS và dọn cuộc gọi ngoài khóa SessionManager để tuyệt đối không xảy ra deadlock AB-BA.
+        if (currentWs != null || currentCall != null) {
+            final ChatWebSocketManager wsToClose = currentWs;
+            final CallSessionCoordinator callToClear = currentCall;
+            final String departingKey = departingSessionKey;
+            SESSION_CLEANUP.execute(() -> {
+                if (wsToClose != null) {
+                    wsToClose.disconnectIfSession(departingKey);
+                }
+                if (callToClear != null) {
+                    callToClear.onSessionClearedForSession(departingKey);
+                }
+            });
+        }
+
+        // Xếp xóa thư mục tạm media + bộ nhớ đệm đĩa Glide trên luồng DISK đơn tuần tự trước mọi thao tác ghi phiên mới.
         DISK.execute(() -> {
             deleteDirectoryContents(new File(appContext.getFilesDir(), "pending_media"));
             deleteDirectoryContents(new File(appContext.getCacheDir(), "media_cache"));
             deleteDirectoryContents(new File(appContext.getCacheDir(), "camera"));
+            try {
+                Glide.get(appContext).clearDiskCache();
+            } catch (Throwable ignored) {
+            }
+        });
+        MainThreadExecutor.INSTANCE.execute(() -> {
+            try {
+                Glide.get(appContext).clearMemory();
+            } catch (Throwable ignored) {
+            }
         });
     }
 
@@ -463,6 +514,12 @@ public final class Injection {
         testChatOverride = null;
         testContactsOverride = null;
         testTranslationOverride = null;
+        if (mediaDownloadManager != null && SessionManager.get() != null) {
+            String key = SessionManager.get().sessionKey();
+            if (key != null) {
+                mediaDownloadManager.cancelDownloadsForSession(key);
+            }
+        }
         if (wsManager != null) {
             wsManager.disconnect();
         }
@@ -474,6 +531,9 @@ public final class Injection {
         }
         if (activeRoomTracker != null) {
             activeRoomTracker.clear();
+        }
+        if (SessionManager.get() != null) {
+            SessionManager.get().setOnSessionChanged(() -> { });
         }
         CallSessionCoordinator.setInstance(null);
         CallSessionCoordinator.setProvider(null);

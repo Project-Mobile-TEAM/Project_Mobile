@@ -38,6 +38,7 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -48,13 +49,17 @@ import java.util.function.Consumer;
  * Bộ điều hợp tin nhắn phòng chat Phase 5 & Phase 6 (D-03, D-13..D-15):
  * - Bảo toàn tuyệt đối 6 viewType và hàm static viewType()/summaryMeta() cho kiểm thử Phase 5.
  * - Bong bóng TEXT (item_message_in/out) hỗ trợ nhấn giữ dịch EN<->VI nội tuyến (translation_box).
- * - Bong bóng media/vị trí/cuộc gọi (item_message_summary_in/out) dựng ảnh Glide, video badge,
- *   voice player nội tuyến, thẻ tài liệu/vị trí/cuộc gọi và thanh tiến trình upload/download.
+ * - Bong bóng media/vị trí/cuộc gọi (item_message_summary_in/out) dựng ảnh Glide, poster video + nút phát,
+ *   voice player nội tuyến, thẻ tài liệu/vị trí/cuộc gọi và thanh tiến trình upload/download với cập nhật payload cục bộ.
  */
 public class MessageAdapter extends ListAdapter<MessageEntity, RecyclerView.ViewHolder> {
     static final int TYPE_SYSTEM = 0, TYPE_TEXT_OUT = 1, TYPE_TEXT_IN = 2,
             NON_TEXT_SUMMARY_OUT = 3, NON_TEXT_SUMMARY_IN = 4, UNKNOWN_FALLBACK = 5;
     private static final Set<String> SUMMARY = Set.of("IMAGE", "AUDIO", "VIDEO", "FILE", "LOCATION", "CALL");
+    private static final Object PAYLOAD_VOICE = new Object();
+    private static final Object PAYLOAD_TRANSFER = new Object();
+    private static final Object PAYLOAD_TRANSLATION = new Object();
+    private static final int VIDEO_REMOTE_POSTER_COLOR = 0xFF1A1F26;
 
     /** Callback tương tác cho các loại bong bóng media, vị trí và dịch tin nhắn TEXT. */
     public interface InteractionListener {
@@ -96,6 +101,21 @@ public class MessageAdapter extends ListAdapter<MessageEntity, RecyclerView.View
         public static TranslationUiEntry translated(@NonNull String translatedText, @NonNull String targetLang) {
             return new TranslationUiEntry(false, translatedText, targetLang);
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (!(o instanceof TranslationUiEntry)) return false;
+            TranslationUiEntry that = (TranslationUiEntry) o;
+            return downloading == that.downloading
+                    && Objects.equals(translatedText, that.translatedText)
+                    && Objects.equals(targetLang, that.targetLang);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(downloading, translatedText, targetLang);
+        }
     }
 
     @Nullable private final String meId;
@@ -133,19 +153,50 @@ public class MessageAdapter extends ListAdapter<MessageEntity, RecyclerView.View
     public void setTransfersMap(@Nullable Map<String, AttachmentTransferEntity> map) {
         Map<String, AttachmentTransferEntity> next = map != null ? map : Collections.emptyMap();
         if (Objects.equals(this.transfersMap, next)) return;
+        Map<String, AttachmentTransferEntity> prev = this.transfersMap;
         this.transfersMap = next;
-        notifyItemRangeChanged(0, getItemCount());
+        // Chỉ vẽ lại đúng những tin nhắn media có trạng thái/tiến độ truyền tệp thực sự thay đổi.
+        for (int i = 0; i < getItemCount(); i++) {
+            MessageEntity m = getItem(i);
+            String type = m.getType();
+            if (type == null || !SUMMARY.contains(type)) continue;
+            JsonObject meta = parseJsonObject(m.getAttachmentJson());
+            AttachmentTransferEntity before = resolveTransfer(m, meta, prev);
+            AttachmentTransferEntity after = resolveTransfer(m, meta, next);
+            if (!Objects.equals(before, after)) {
+                notifyItemChanged(i, PAYLOAD_TRANSFER);
+            }
+        }
     }
 
     public void setVoicePlaybackState(@NonNull VoiceBubblePlayer.PlaybackState state) {
+        String prevId = this.voiceState.clientId;
+        String nextId = state.clientId;
         this.voiceState = state;
-        notifyItemRangeChanged(0, getItemCount());
+        // Chỉ cập nhật tối đa 2 dòng voice (dòng cũ & dòng mới) với payload cục bộ để không giật SeekBar.
+        int prevPos = indexOfClientId(prevId);
+        int nextPos = indexOfClientId(nextId);
+        if (prevPos >= 0) {
+            notifyItemChanged(prevPos, PAYLOAD_VOICE);
+        }
+        if (nextPos >= 0 && nextPos != prevPos) {
+            notifyItemChanged(nextPos, PAYLOAD_VOICE);
+        }
     }
 
     public void setTranslationState(@Nullable Map<String, TranslationUiEntry> map) {
         Map<String, TranslationUiEntry> next = map != null ? map : Collections.emptyMap();
+        if (Objects.equals(this.translationState, next)) return;
+        Map<String, TranslationUiEntry> prev = this.translationState;
         this.translationState = next;
-        notifyItemRangeChanged(0, getItemCount());
+        for (int i = 0; i < getItemCount(); i++) {
+            MessageEntity m = getItem(i);
+            String cid = m.getClientId();
+            if (cid == null) continue;
+            if (!Objects.equals(prev.get(cid), next.get(cid))) {
+                notifyItemChanged(i, PAYLOAD_TRANSLATION);
+            }
+        }
     }
 
     /** Tô nền tin vừa nhảy tới từ tìm kiếm; chỉ vẽ lại dòng cũ và dòng mới. */
@@ -159,6 +210,14 @@ public class MessageAdapter extends ListAdapter<MessageEntity, RecyclerView.View
 
     int indexOf(long localId) {
         for (int i = 0; i < getItemCount(); i++) if (getItem(i).getLocalId() == localId) return i;
+        return -1;
+    }
+
+    private int indexOfClientId(@Nullable String clientId) {
+        if (clientId == null) return -1;
+        for (int i = 0; i < getItemCount(); i++) {
+            if (clientId.equals(getItem(i).getClientId())) return i;
+        }
         return -1;
     }
 
@@ -208,6 +267,69 @@ public class MessageAdapter extends ListAdapter<MessageEntity, RecyclerView.View
         if (type == NON_TEXT_SUMMARY_OUT) return new SummaryOutHolder(ItemMessageSummaryOutBinding.inflate(in, parent, false));
         if (type == NON_TEXT_SUMMARY_IN) return new SummaryInHolder(ItemMessageSummaryInBinding.inflate(in, parent, false));
         return new InHolder(ItemMessageInBinding.inflate(in, parent, false));
+    }
+
+    @Override
+    public void onViewRecycled(@NonNull RecyclerView.ViewHolder holder) {
+        super.onViewRecycled(holder);
+        if (holder instanceof SummaryOutHolder) {
+            Glide.with(((SummaryOutHolder) holder).b.mediaImage).clear(((SummaryOutHolder) holder).b.mediaImage);
+        } else if (holder instanceof SummaryInHolder) {
+            Glide.with(((SummaryInHolder) holder).b.mediaImage).clear(((SummaryInHolder) holder).b.mediaImage);
+        }
+    }
+
+    @Override
+    public void onBindViewHolder(
+            @NonNull RecyclerView.ViewHolder holder, int position, @NonNull List<Object> payloads) {
+        if (payloads.isEmpty()) {
+            super.onBindViewHolder(holder, position, payloads);
+            return;
+        }
+        boolean handled = false;
+        MessageEntity m = getItem(position);
+        if (payloads.contains(PAYLOAD_TRANSLATION)) {
+            if (holder instanceof OutHolder) {
+                OutHolder h = (OutHolder) holder;
+                bindTranslationBox(m, h.b.translationBox, h.b.translationLabel, h.b.translationHide,
+                        h.b.translationProgress, h.b.translationText);
+                handled = true;
+            } else if (holder instanceof InHolder && getItemViewType(position) != UNKNOWN_FALLBACK) {
+                InHolder h = (InHolder) holder;
+                bindTranslationBox(m, h.b.translationBox, h.b.translationLabel, h.b.translationHide,
+                        h.b.translationProgress, h.b.translationText);
+                handled = true;
+            }
+        }
+        if (payloads.contains(PAYLOAD_VOICE) || payloads.contains(PAYLOAD_TRANSFER)) {
+            JsonObject meta = parseJsonObject(m.getAttachmentJson());
+            AttachmentTransferEntity transfer = resolveTransfer(m, meta, transfersMap);
+            String msgType = m.getType() != null ? m.getType() : "";
+            if (holder instanceof SummaryOutHolder) {
+                SummaryOutHolder h = (SummaryOutHolder) holder;
+                if (payloads.contains(PAYLOAD_VOICE) && "AUDIO".equals(msgType)) {
+                    updateVoicePlaybackViews(m, meta, h.b.voicePlayPause, h.b.voiceSeekbar, h.b.voiceDuration);
+                }
+                if (payloads.contains(PAYLOAD_TRANSFER) && ("IMAGE".equals(msgType) || "VIDEO".equals(msgType))) {
+                    loadThumbnail(h.b.mediaImage, "VIDEO".equals(msgType), meta, transfer);
+                }
+                bindTransferProgress(m, msgType, transfer, h.b.mediaProgress);
+                handled = true;
+            } else if (holder instanceof SummaryInHolder) {
+                SummaryInHolder h = (SummaryInHolder) holder;
+                if (payloads.contains(PAYLOAD_VOICE) && "AUDIO".equals(msgType)) {
+                    updateVoicePlaybackViews(m, meta, h.b.voicePlayPause, h.b.voiceSeekbar, h.b.voiceDuration);
+                }
+                if (payloads.contains(PAYLOAD_TRANSFER) && ("IMAGE".equals(msgType) || "VIDEO".equals(msgType))) {
+                    loadThumbnail(h.b.mediaImage, "VIDEO".equals(msgType), meta, transfer);
+                }
+                bindTransferProgress(m, msgType, transfer, h.b.mediaProgress);
+                handled = true;
+            }
+        }
+        if (!handled) {
+            super.onBindViewHolder(holder, position, payloads);
+        }
     }
 
     @Override public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
@@ -378,9 +500,13 @@ public class MessageAdapter extends ListAdapter<MessageEntity, RecyclerView.View
             LinearProgressIndicator progressBar) {
         String msgType = m.getType() != null ? m.getType() : "";
         JsonObject meta = parseJsonObject(m.getAttachmentJson());
-        AttachmentTransferEntity transfer = resolveTransfer(m, meta);
+        AttachmentTransferEntity transfer = resolveTransfer(m, meta, transfersMap);
 
-        // Reset toàn bộ nhóm con trước khi dựng theo từng loại cụ thể.
+        // Reset toàn bộ nhóm con trước khi dựng theo từng loại cụ thể và hủy tải Glide nếu tái dùng cho loại khác.
+        if (!"IMAGE".equals(msgType) && !"VIDEO".equals(msgType)) {
+            Glide.with(imageView).clear(imageView);
+            imageView.setBackground(null);
+        }
         imageBox.setVisibility(View.GONE);
         playBadge.setVisibility(View.GONE);
         voiceBox.setVisibility(View.GONE);
@@ -391,7 +517,7 @@ public class MessageAdapter extends ListAdapter<MessageEntity, RecyclerView.View
         switch (msgType) {
             case "IMAGE": {
                 imageBox.setVisibility(View.VISIBLE);
-                loadThumbnail(imageView, meta, transfer);
+                loadThumbnail(imageView, false, meta, transfer);
                 if (m.getText() != null && !m.getText().trim().isEmpty()) {
                     detailText.setVisibility(View.VISIBLE);
                     detailText.setText(m.getText().trim());
@@ -408,7 +534,7 @@ public class MessageAdapter extends ListAdapter<MessageEntity, RecyclerView.View
             case "VIDEO": {
                 imageBox.setVisibility(View.VISIBLE);
                 playBadge.setVisibility(View.VISIBLE);
-                loadThumbnail(imageView, meta, transfer);
+                loadThumbnail(imageView, true, meta, transfer);
                 String dur = summaryMeta("VIDEO", m.getAttachmentJson());
                 String caption = m.getText() != null && !m.getText().trim().isEmpty() ? m.getText().trim() : null;
                 String combined = caption != null ? (dur != null ? caption + " · " + dur : caption) : dur;
@@ -427,17 +553,9 @@ public class MessageAdapter extends ListAdapter<MessageEntity, RecyclerView.View
             }
             case "AUDIO": {
                 voiceBox.setVisibility(View.VISIBLE);
-                boolean isCurrent = m.getClientId() != null && m.getClientId().equals(voiceState.clientId);
-                boolean isPlaying = isCurrent && voiceState.playing;
-                voicePlayPause.setImageResource(isPlaying ? R.drawable.ic_pause : R.drawable.ic_play);
-
-                int metaDuration = optInt(meta, "durationMs", 0);
-                int totalDuration = isCurrent && voiceState.durationMs > 0 ? voiceState.durationMs : metaDuration;
-                int currentPos = isCurrent ? voiceState.positionMs : 0;
+                voiceSeekbar.setTag(R.id.voice_seekbar, Boolean.FALSE);
                 voiceSeekbar.setOnSeekBarChangeListener(null);
-                voiceSeekbar.setMax(Math.max(1, totalDuration));
-                voiceSeekbar.setProgress(Math.min(currentPos, Math.max(1, totalDuration)));
-                voiceDuration.setText(formatDurationMs(isCurrent && currentPos > 0 ? currentPos : totalDuration));
+                updateVoicePlaybackViews(m, meta, voicePlayPause, voiceSeekbar, voiceDuration);
 
                 voicePlayPause.setOnClickListener(v -> {
                     if (failed) {
@@ -452,8 +570,12 @@ public class MessageAdapter extends ListAdapter<MessageEntity, RecyclerView.View
                             interactionListener.onVoiceSeek(m, progress);
                         }
                     }
-                    @Override public void onStartTrackingTouch(SeekBar seekBar) { }
-                    @Override public void onStopTrackingTouch(SeekBar seekBar) { }
+                    @Override public void onStartTrackingTouch(SeekBar seekBar) {
+                        seekBar.setTag(R.id.voice_seekbar, Boolean.TRUE);
+                    }
+                    @Override public void onStopTrackingTouch(SeekBar seekBar) {
+                        seekBar.setTag(R.id.voice_seekbar, Boolean.FALSE);
+                    }
                 });
                 bubble.setOnClickListener(failed ? v -> onFailedClick.accept(m) : null);
                 break;
@@ -510,7 +632,38 @@ public class MessageAdapter extends ListAdapter<MessageEntity, RecyclerView.View
             }
         }
 
-        // Hiển thị thanh tiến trình khi đang upload hoặc download tệp đính kèm.
+        bindTransferProgress(m, msgType, transfer, progressBar);
+    }
+
+    private void updateVoicePlaybackViews(
+            MessageEntity m,
+            @Nullable JsonObject meta,
+            ImageButton voicePlayPause,
+            SeekBar voiceSeekbar,
+            TextView voiceDuration) {
+        boolean isCurrent = m.getClientId() != null && m.getClientId().equals(voiceState.clientId);
+        boolean isPlaying = isCurrent && voiceState.playing;
+        voicePlayPause.setImageResource(isPlaying ? R.drawable.ic_pause : R.drawable.ic_play);
+
+        int metaDuration = optInt(meta, "durationMs", 0);
+        int totalDuration = isCurrent && voiceState.durationMs > 0 ? voiceState.durationMs : metaDuration;
+        int currentPos = isCurrent ? voiceState.positionMs : 0;
+        int safeMax = Math.max(1, totalDuration);
+        if (voiceSeekbar.getMax() != safeMax) {
+            voiceSeekbar.setMax(safeMax);
+        }
+        // Không ghi đè vị trí thanh tua khi người dùng đang kéo tay trên SeekBar.
+        if (!Boolean.TRUE.equals(voiceSeekbar.getTag(R.id.voice_seekbar))) {
+            voiceSeekbar.setProgress(Math.min(currentPos, safeMax));
+        }
+        voiceDuration.setText(formatDurationMs(isCurrent && currentPos > 0 ? currentPos : totalDuration));
+    }
+
+    private void bindTransferProgress(
+            MessageEntity m,
+            String msgType,
+            @Nullable AttachmentTransferEntity transfer,
+            LinearProgressIndicator progressBar) {
         boolean inFlightTransfer = transfer != null
                 && ("QUEUED".equals(transfer.getState())
                 || "UPLOADING".equals(transfer.getState())
@@ -532,32 +685,47 @@ public class MessageAdapter extends ListAdapter<MessageEntity, RecyclerView.View
     }
 
     @Nullable
-    private AttachmentTransferEntity resolveTransfer(MessageEntity m, @Nullable JsonObject meta) {
+    private static AttachmentTransferEntity resolveTransfer(
+            MessageEntity m, @Nullable JsonObject meta, Map<String, AttachmentTransferEntity> map) {
         if (m.getClientId() != null) {
-            AttachmentTransferEntity up = transfersMap.get(m.getClientId());
+            AttachmentTransferEntity up = map.get(m.getClientId());
             if (up != null) return up;
         }
         String mediaUrl = str(meta, "mediaUrl");
         if (mediaUrl != null) {
             int slash = mediaUrl.lastIndexOf('/');
             if (slash >= 0 && slash + 1 < mediaUrl.length()) {
-                return transfersMap.get("dl:" + mediaUrl.substring(slash + 1));
+                return map.get("dl:" + mediaUrl.substring(slash + 1));
             }
         }
         return null;
     }
 
     private static void loadThumbnail(
-            ImageView target, @Nullable JsonObject meta, @Nullable AttachmentTransferEntity transfer) {
+            ImageView target, boolean isVideo, @Nullable JsonObject meta, @Nullable AttachmentTransferEntity transfer) {
         String localPath = str(meta, "localPath");
         if (localPath == null && transfer != null) {
             localPath = transfer.getLocalPath();
         }
         File localFile = localPath != null ? new File(localPath) : null;
         if (localFile != null && localFile.isFile()) {
-            Glide.with(target).load(localFile).centerCrop().into(target);
+            target.setBackground(null);
+            Glide.with(target)
+                    .load(localFile)
+                    .centerCrop()
+                    .placeholder(R.drawable.ic_camera)
+                    .error(R.drawable.ic_camera)
+                    .into(target);
             return;
         }
+        if (isVideo) {
+            // Video từ xa chưa tải về cache: hiển thị poster tối + nút phát thay vì kéo nguyên tệp tối đa 50MB qua Glide.
+            Glide.with(target).clear(target);
+            target.setImageDrawable(null);
+            target.setBackgroundColor(VIDEO_REMOTE_POSTER_COLOR);
+            return;
+        }
+        target.setBackground(null);
         String mediaUrl = str(meta, "mediaUrl");
         if (mediaUrl == null && transfer != null) {
             mediaUrl = transfer.getMediaUrl();
@@ -565,11 +733,17 @@ public class MessageAdapter extends ListAdapter<MessageEntity, RecyclerView.View
         if (mediaUrl != null && !mediaUrl.trim().isEmpty()) {
             try {
                 String resolved = ApiClient.resolveBackendMediaUrl(BuildConfig.BACKEND_BASE_URL, mediaUrl);
-                Glide.with(target).load(resolved).centerCrop().into(target);
+                Glide.with(target)
+                        .load(resolved)
+                        .centerCrop()
+                        .placeholder(R.drawable.ic_camera)
+                        .error(R.drawable.ic_camera)
+                        .into(target);
                 return;
             } catch (IllegalArgumentException ignored) {
             }
         }
+        Glide.with(target).clear(target);
         target.setImageResource(R.drawable.ic_camera);
     }
 

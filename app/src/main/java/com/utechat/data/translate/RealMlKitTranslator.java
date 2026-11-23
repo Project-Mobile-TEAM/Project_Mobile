@@ -25,7 +25,8 @@ public final class RealMlKitTranslator implements MessageTranslator {
         RemoteModelManager.getInstance()
                 .isModelDownloaded(model)
                 .addOnSuccessListener(downloaded -> cb.onResult(Boolean.TRUE.equals(downloaded)))
-                .addOnFailureListener(e -> cb.onResult(false));
+                .addOnFailureListener(e -> cb.onResult(false))
+                .addOnCanceledListener(() -> cb.onResult(false));
     }
 
     @Override
@@ -39,7 +40,8 @@ public final class RealMlKitTranslator implements MessageTranslator {
                 .download(model, conditionsBuilder.build())
                 .addOnSuccessListener(unused -> cb.onSuccess())
                 .addOnFailureListener(e -> cb.onError(
-                        e.getMessage() != null ? e.getMessage() : "DOWNLOAD_FAILED"));
+                        e.getMessage() != null ? e.getMessage() : "DOWNLOAD_FAILED"))
+                .addOnCanceledListener(() -> cb.onError("DOWNLOAD_CANCELED"));
     }
 
     @Override
@@ -62,6 +64,10 @@ public final class RealMlKitTranslator implements MessageTranslator {
                 .addOnFailureListener(e -> {
                     closeOnce(translator, closed);
                     cb.onError(e.getMessage() != null ? e.getMessage() : "TRANSLATE_FAILED");
+                })
+                .addOnCanceledListener(() -> {
+                    closeOnce(translator, closed);
+                    cb.onError("TRANSLATE_CANCELED");
                 });
     }
 

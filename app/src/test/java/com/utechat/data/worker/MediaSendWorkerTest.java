@@ -373,6 +373,26 @@ public class MediaSendWorkerTest {
         assertTrue(temp.exists());
     }
 
+    /** Preflight nhóm phát hiện đã rời nhóm: phải đánh FAILED cả tin nhắn lẫn attachment_transfer để không treo progress (M-04). */
+    @Test
+    public void groupPreflightNotMemberAlsoMarksTransferFailed() {
+        ConversationEntity group = new ConversationEntity();
+        group.setId(CONV);
+        group.setType("GROUP");
+        when(conversationDao.getConversationSync(CONV)).thenReturn(group);
+        com.utechat.data.local.entity.ConversationMemberEntity leftMember = new com.utechat.data.local.entity.ConversationMemberEntity();
+        leftMember.setConversationId(CONV);
+        leftMember.setUserId(USER_A);
+        leftMember.setLeft(true);
+        when(conversationDao.getMemberSync(CONV, USER_A)).thenReturn(leftMember);
+        when(messageDao.findByClientId(CLIENT_ID)).thenReturn(mediaMsg("IMAGE", null));
+
+        assertEquals(ListenableWorker.Result.success(), run(0));
+        verify(messageDao).markFailed(CLIENT_ID, "NOT_A_MEMBER");
+        verify(transferDao).updateState(eq(CLIENT_ID), eq("FAILED"), eq(0), eq("NOT_A_MEMBER"), anyLong());
+        verifyNoInteractions(mediaApi);
+    }
+
     // ======================== HELPERS ========================
 
     private ListenableWorker.Result run(int attempt) {
