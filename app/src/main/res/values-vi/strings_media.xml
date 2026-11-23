@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Chuỗi giao diện Media, Ghi âm, Vị trí và Dịch tin nhắn ML Kit (VI). -->
+<resources>
+    <string name="media_attach_cd">Đính kèm tệp hoặc vị trí</string>
+    <string name="media_mic_cd">Ghi âm tin nhắn thoại</string>
+    <string name="media_picker_title">Gửi tệp đính kèm</string>
+    <string name="media_pick_photo">Hình ảnh</string>
+    <string name="media_pick_video">Video</string>
+    <string name="media_take_photo">Chụp ảnh</string>
+    <string name="media_record_voice">Ghi âm thoại</string>
+    <string name="media_pick_file">Tài liệu / Tệp tin</string>
+    <string name="media_share_location">Chia sẻ vị trí</string>
+
+    <string name="media_voice_cancel">Hủy</string>
+    <string name="media_voice_send">Gửi thoại</string>
+    <string name="media_voice_play_cd">Phát hoặc tạm dừng tin nhắn thoại</string>
+    <string name="media_voice_recording">Đang ghi… %1$s / 05:00</string>
+    <string name="media_voice_too_short">Tin nhắn thoại quá ngắn.</string>
+    <string name="media_voice_permission_denied">Cần quyền micro để ghi âm tin nhắn thoại.</string>
+    <string name="media_camera_permission_denied">Cần quyền máy ảnh để chụp ảnh.</string>
+    <string name="media_location_permission_denied">Cần quyền vị trí để chia sẻ tọa độ hiện tại.</string>
+    <string name="media_location_fetching">Đang lấy vị trí hiện tại…</string>
+    <string name="media_location_failed">Không thể lấy vị trí hiện tại.</string>
+
+    <string name="media_open_external">Mở bằng app ngoài</string>
+    <string name="media_open_maps">Mở trong Google Maps</string>
+    <string name="media_no_external_app">Không có ứng dụng nào trên thiết bị hỗ trợ mở nội dung này.</string>
+    <string name="media_load_failed">Không thể tải tệp đa phương tiện.</string>
+    <string name="media_downloading">Đang tải xuống…</string>
+
+    <!-- Dịch tin nhắn ML Kit EN <-> VI (D-13..D-15). -->
+    <string name="chat_translate_menu_title">Dịch tin nhắn</string>
+    <string name="chat_translate_to_vi">Dịch sang Tiếng Việt</string>
+    <string name="chat_translate_to_en">Dịch sang Tiếng Anh</string>
+    <string name="chat_translating_download">Đang tải gói ngôn ngữ…</string>
+    <string name="chat_translated_label">Đã dịch</string>
+    <string name="chat_translation_hide">Ẩn bản dịch</string>
+    <string name="chat_translate_cellular_title">Tải gói ngôn ngữ</string>
+    <string name="chat_translate_cellular_message">Tải gói ngôn ngữ (~30MB) qua dữ liệu di động?</string>
+    <string name="chat_translate_cellular_confirm">Tải xuống</string>
+    <string name="chat_translate_offline_error">Cần kết nối mạng để tải gói ngôn ngữ cho lần dịch đầu tiên.</string>
+    <string name="chat_translate_failed">Không thể dịch tin nhắn này. Vui lòng thử lại.</string>
+</resources>

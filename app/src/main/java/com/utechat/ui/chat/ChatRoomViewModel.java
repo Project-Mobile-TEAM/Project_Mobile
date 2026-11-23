@@ -4,6 +4,7 @@ import static androidx.lifecycle.SavedStateHandleSupport.createSavedStateHandle;
 import static androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY;
 
 import android.app.Application;
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
@@ -12,49 +13,87 @@ import androidx.lifecycle.Transformations;
 import androidx.lifecycle.ViewModel;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.lifecycle.viewmodel.ViewModelInitializer;
+import com.utechat.R;
+import com.utechat.data.call.CallSessionCoordinator;
+import com.utechat.data.local.entity.AttachmentTransferEntity;
 import com.utechat.data.local.entity.ConversationEntity;
 import com.utechat.data.local.entity.ConversationMemberEntity;
 import com.utechat.data.local.entity.MessageEntity;
 import com.utechat.data.local.entity.UserEntity;
+import com.utechat.data.media.LocationFetchHelper;
+import com.utechat.data.media.MediaPreparationHelper;
 import com.utechat.data.repository.ChatRepository;
 import com.utechat.data.repository.ContactsRepository;
 import com.utechat.data.sync.WsConnectionState;
+import com.utechat.data.translate.MessageTranslationManager;
 import com.utechat.di.Injection;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 /**
- * Phòng chat: cửa sổ tin nhắn (windowLimit) mở rộng dần khi cuộn lên hoặc nhảy tới kết quả tìm kiếm (D-13),
- * gửi/gửi lại tin, typing, và báo đã đọc chỉ khi màn đang RESUMED (D-11).
- * Mọi trạng thái người dùng thấy (hội thoại, cửa sổ, từ khóa, vị trí kết quả) nằm trong SavedStateHandle để xoay màn hình không mất.
+ * Phòng chat (Phase 5 & Phase 6):
+ * - Cửa sổ tin nhắn (windowLimit), gửi/gửi lại tin, typing, báo đã đọc chỉ khi RESUMED (D-11).
+ * - Quan sát trạng thái upload/download media, gửi tệp/vị trí, và quản lý trạng thái dịch ML Kit EN<->VI
+ *   bền vững qua xoay màn hình bằng SavedStateHandle (ADR-021, D-13..D-15).
  */
 public class ChatRoomViewModel extends ViewModel {
     static final int PAGE = 50;
     private static final String K_CONV = "conversationId", K_PEER = "peerUserId", K_TARGET = "targetMessageLocalId",
-            K_WINDOW = "windowLimit", K_QUERY = "roomQuery", K_MATCH = "matchIndex", K_TARGET_DONE = "targetHandled";
+            K_WINDOW = "windowLimit", K_QUERY = "roomQuery", K_MATCH = "matchIndex", K_TARGET_DONE = "targetHandled",
+            K_TRANS_LANGS = "activeTranslationLangs", K_TRANS_TEXTS = "activeTranslationTexts";
+
+    /** Sự kiện một lần yêu cầu xác nhận tải gói ngôn ngữ ~30MB qua mạng di động (D-15). */
+    public static final class CellularConfirmRequest {
+        @NonNull public final MessageEntity message;
+        @NonNull public final String targetLang;
+
+        public CellularConfirmRequest(@NonNull MessageEntity message, @NonNull String targetLang) {
+            this.message = message;
+            this.targetLang = targetLang;
+        }
+    }
 
     public static final ViewModelProvider.Factory FACTORY = ViewModelProvider.Factory.from(
             new ViewModelInitializer<>(ChatRoomViewModel.class, extras -> {
                 Application app = extras.get(APPLICATION_KEY);
-                return new ChatRoomViewModel(createSavedStateHandle(extras), Injection.provideChatRepository(app),
-                        Injection.provideContactsRepository(app));
+                return new ChatRoomViewModel(
+                        createSavedStateHandle(extras),
+                        Injection.provideChatRepository(app),
+                        Injection.provideContactsRepository(app),
+                        Injection.provideMessageTranslationManager(app),
+                        Injection.provideMediaPreparationHelper(),
+                        Injection.provideCallSessionCoordinator(app),
+                        Injection.provideLocationFetchHelper());
             }));
 
     private final SavedStateHandle state;
     private final ChatRepository repo;
     private final ContactsRepository contacts;
+    @Nullable private final MessageTranslationManager translationManager;
+    @Nullable private final MediaPreparationHelper mediaPreparationHelper;
+    @Nullable private final CallSessionCoordinator callCoordinator;
+    @Nullable private final LocationFetchHelper locationFetchHelper;
+
     /** true khi đã gửi lời mời kết bạn từ biểu ngữ CONTACT_REQUIRED (ẩn nút, hiện "Đã gửi lời mời"). */
     public final MutableLiveData<Boolean> requestSent = new MutableLiveData<>(false);
     public final MutableLiveData<Integer> notice = new MutableLiveData<>();
+    public final MutableLiveData<CellularConfirmRequest> cellularConfirmPending = new MutableLiveData<>();
     private final LiveData<String> conversationId;
     private final LiveData<List<MessageEntity>> messages;
     private final LiveData<ConversationEntity> conversation;
     private final LiveData<List<ConversationMemberEntity>> members;
     private final LiveData<Set<String>> typing;
     private final LiveData<Map<String, UserEntity>> users; // Giữ một instance để Fragment đọc getValue() được.
+    private final LiveData<Map<String, AttachmentTransferEntity>> transfers;
+    private final MutableLiveData<Map<String, MessageAdapter.TranslationUiEntry>> translations =
+            new MutableLiveData<>(Collections.emptyMap());
+    private final Map<String, MessageAdapter.TranslationUiEntry> translationEntries = new LinkedHashMap<>();
+
     /** Lỗi chính sách khi mở chat 1-1 bằng peerUserId (BLOCKED / CONTACT_REQUIRED). */
     public final MutableLiveData<String> openError = new MutableLiveData<>();
     /** localId cần cuộn tới khi nó đã có trong danh sách; Fragment cuộn xong thì consumeScroll(). */
@@ -65,10 +104,28 @@ public class ChatRoomViewModel extends ViewModel {
     private boolean endReached;
     private long readWatermark; // serverId cao nhất đã gửi báo đọc, để không gửi lặp khi cuộn/layout liên tục.
 
+    /** Constructor 3 tham số Phase 5 được bảo toàn nguyên vẹn cho ChatViewModelTest. */
     public ChatRoomViewModel(SavedStateHandle state, ChatRepository repo, ContactsRepository contacts) {
+        this(state, repo, contacts, null, null, null, null);
+    }
+
+    /** Constructor đầy đủ Phase 6 tiêm thêm translation, media prep, call và location helpers. */
+    public ChatRoomViewModel(
+            SavedStateHandle state,
+            ChatRepository repo,
+            ContactsRepository contacts,
+            @Nullable MessageTranslationManager translationManager,
+            @Nullable MediaPreparationHelper mediaPreparationHelper,
+            @Nullable CallSessionCoordinator callCoordinator,
+            @Nullable LocationFetchHelper locationFetchHelper) {
         this.state = state;
         this.repo = repo;
         this.contacts = contacts;
+        this.translationManager = translationManager;
+        this.mediaPreparationHelper = mediaPreparationHelper;
+        this.callCoordinator = callCoordinator;
+        this.locationFetchHelper = locationFetchHelper;
+
         conversationId = state.getLiveData(K_CONV);
         LiveData<Integer> window = state.getLiveData(K_WINDOW, PAGE);
         messages = Transformations.switchMap(conversationId, id -> id == null
@@ -80,6 +137,11 @@ public class ChatRoomViewModel extends ViewModel {
         typing = Transformations.switchMap(conversationId, id -> id == null
                 ? new MutableLiveData<>(Collections.emptySet()) : repo.observeTypingUsers(id));
         users = repo.observeAllUsersMap();
+        LiveData<Map<String, AttachmentTransferEntity>> observedTransfers = repo.observeTransfersMap();
+        transfers = observedTransfers != null ? observedTransfers : new MutableLiveData<>(Collections.emptyMap());
+
+        // Khôi phục bản dịch đang mở từ SavedStateHandle sau khi xoay màn hình (ADR-021).
+        restoreTranslationsFromSavedState();
 
         // Vào từ deep link utechat://chat/direct/{peerUserId} (D-02): hỏi server hội thoại 1-1, có rồi thì dùng lại.
         String peer = state.get(K_PEER);
@@ -103,7 +165,11 @@ public class ChatRoomViewModel extends ViewModel {
     public LiveData<List<ConversationMemberEntity>> getMembers() { return members; }
     public LiveData<Set<String>> getTyping() { return typing; }
     public LiveData<Map<String, UserEntity>> getUsers() { return users; }
+    public LiveData<Map<String, AttachmentTransferEntity>> getTransfers() { return transfers; }
+    public LiveData<Map<String, MessageAdapter.TranslationUiEntry>> getTranslations() { return translations; }
     public LiveData<WsConnectionState> getWsState() { return repo.observeWsState(); }
+    @Nullable public MediaPreparationHelper getMediaPreparationHelper() { return mediaPreparationHelper; }
+    @Nullable public LocationFetchHelper getLocationFetchHelper() { return locationFetchHelper; }
     @Nullable public String meId() { return repo.currentUserId(); }
     public String getQuery() { String q = state.get(K_QUERY); return q == null ? "" : q; }
     public int getMatchIndex() { Integer i = state.get(K_MATCH); return i == null ? 0 : i; }
@@ -196,6 +262,162 @@ public class ChatRoomViewModel extends ViewModel {
         repo.sendTypingStop(id);
     }
 
+    /** Xếp tệp media đã chuẩn bị (IMAGE/AUDIO/VIDEO/FILE) vào hàng đợi gửi 2 pha (D-04). */
+    public void enqueuePreparedMedia(
+            @NonNull MediaPreparationHelper.PreparedMedia prepared, @Nullable String caption) {
+        String id = state.get(K_CONV);
+        if (id == null) return;
+        repo.enqueueMediaMessage(id, prepared, caption);
+        repo.sendTypingStop(id);
+    }
+
+    /** Xếp tin nhắn vị trí tọa độ vào hàng đợi gửi (D-02). */
+    public void enqueueLocation(double latitude, double longitude) {
+        String id = state.get(K_CONV);
+        if (id == null) return;
+        repo.enqueueLocationMessage(id, latitude, longitude);
+        repo.sendTypingStop(id);
+    }
+
+    /** Ủy quyền khởi tạo cuộc gọi thoại 1-1 tới CallSessionCoordinator khi cần gọi trực tiếp từ ViewModel. */
+    public void startVoiceCall(
+            @Nullable String peerUserId,
+            @Nullable String peerName,
+            @Nullable String peerAvatarUrl,
+            @Nullable String peerPhone) {
+        String id = state.get(K_CONV);
+        if (id == null || callCoordinator == null) return;
+        callCoordinator.startOutgoingCall(id, peerUserId, peerName, peerAvatarUrl, peerPhone);
+    }
+
+    // ======================== DỊCH TIN NHẮN ML KIT (D-13..D-15) ========================
+
+    /**
+     * Yêu cầu dịch tin TEXT sang "vi" hoặc "en":
+     * lưu (clientId -> targetLang) và bản dịch trong SavedStateHandle để sống sót sau khi xoay màn hình.
+     */
+    public void requestTranslate(
+            @NonNull MessageEntity message, @NonNull String targetLang, boolean cellularConfirmed) {
+        if (translationManager == null || message.getClientId() == null) {
+            return;
+        }
+        final String clientId = message.getClientId();
+        translationManager.translateMessage(message, targetLang, cellularConfirmed, update -> {
+            switch (update.status) {
+                case NEEDS_CELLULAR_CONFIRMATION:
+                    cellularConfirmPending.setValue(new CellularConfirmRequest(message, targetLang));
+                    break;
+                case DOWNLOADING_MODEL:
+                    translationEntries.put(clientId, MessageAdapter.TranslationUiEntry.downloading(targetLang));
+                    publishTranslations();
+                    break;
+                case TRANSLATED:
+                    String translated = update.translatedText != null ? update.translatedText : "";
+                    String lang = update.targetLang != null ? update.targetLang : targetLang;
+                    translationEntries.put(clientId, MessageAdapter.TranslationUiEntry.translated(translated, lang));
+                    saveTranslationToSavedState(clientId, lang, translated);
+                    publishTranslations();
+                    break;
+                case ERROR:
+                    MessageAdapter.TranslationUiEntry existing = translationEntries.get(clientId);
+                    if (existing != null && existing.downloading) {
+                        translationEntries.remove(clientId);
+                        publishTranslations();
+                    }
+                    if (MessageTranslationManager.ERR_OFFLINE.equals(update.errorCode)) {
+                        notice.setValue(R.string.chat_translate_offline_error);
+                    } else if (MessageTranslationManager.ERR_UNSUPPORTED_TYPE.equals(update.errorCode)) {
+                        notice.setValue(R.string.chat_error_unsupported_type);
+                    } else {
+                        notice.setValue(R.string.chat_translate_failed);
+                    }
+                    break;
+                default:
+                    break;
+            }
+        });
+    }
+
+    /** Ẩn bản dịch của một tin nhắn và xóa khỏi SavedStateHandle (D-14). */
+    public void hideTranslation(@NonNull String clientId) {
+        translationEntries.remove(clientId);
+        HashMap<String, String> langs = getSavedMap(K_TRANS_LANGS);
+        HashMap<String, String> texts = getSavedMap(K_TRANS_TEXTS);
+        langs.remove(clientId);
+        texts.remove(clientId);
+        state.set(K_TRANS_LANGS, langs);
+        state.set(K_TRANS_TEXTS, texts);
+        publishTranslations();
+    }
+
+    public boolean hasActiveTranslation(@Nullable String clientId) {
+        if (clientId == null) return false;
+        MessageAdapter.TranslationUiEntry entry = translationEntries.get(clientId);
+        return entry != null && !entry.downloading && entry.translatedText != null;
+    }
+
+    public void consumeCellularConfirm() {
+        cellularConfirmPending.setValue(null);
+    }
+
+    /** Khôi phục bản dịch đã chọn từ SavedStateHandle (nếu thiếu text thì đọc lại từ cache Room qua manager). */
+    public void rehydrateSavedTranslations(@Nullable List<MessageEntity> loadedMessages) {
+        HashMap<String, String> savedLangs = getSavedMap(K_TRANS_LANGS);
+        if (savedLangs.isEmpty() || loadedMessages == null || translationManager == null) {
+            return;
+        }
+        for (MessageEntity m : loadedMessages) {
+            if (m == null || m.getClientId() == null) continue;
+            String lang = savedLangs.get(m.getClientId());
+            if (lang != null && !translationEntries.containsKey(m.getClientId())) {
+                requestTranslate(m, lang, false);
+            }
+        }
+    }
+
+    private void restoreTranslationsFromSavedState() {
+        HashMap<String, String> langs = getSavedMap(K_TRANS_LANGS);
+        HashMap<String, String> texts = getSavedMap(K_TRANS_TEXTS);
+        for (Map.Entry<String, String> e : langs.entrySet()) {
+            String cid = e.getKey();
+            String lang = e.getValue();
+            String text = texts.get(cid);
+            if (cid != null && lang != null && text != null) {
+                translationEntries.put(cid, MessageAdapter.TranslationUiEntry.translated(text, lang));
+            }
+        }
+        publishTranslations();
+    }
+
+    private void saveTranslationToSavedState(
+            @NonNull String clientId, @NonNull String targetLang, @NonNull String translatedText) {
+        HashMap<String, String> langs = getSavedMap(K_TRANS_LANGS);
+        HashMap<String, String> texts = getSavedMap(K_TRANS_TEXTS);
+        langs.put(clientId, targetLang);
+        texts.put(clientId, translatedText);
+        state.set(K_TRANS_LANGS, langs);
+        state.set(K_TRANS_TEXTS, texts);
+    }
+
+    @SuppressWarnings("unchecked")
+    private HashMap<String, String> getSavedMap(@NonNull String key) {
+        Object raw = state.get(key);
+        if (raw instanceof Map<?, ?>) {
+            HashMap<String, String> copy = new HashMap<>();
+            for (Map.Entry<?, ?> entry : ((Map<?, ?>) raw).entrySet()) {
+                if (entry.getKey() instanceof String && entry.getValue() instanceof String) {
+                    copy.put((String) entry.getKey(), (String) entry.getValue());
+                }
+            }
+            return copy;
+        }
+        return new HashMap<>();
+    }
+
+    private void publishTranslations() {
+        translations.setValue(Collections.unmodifiableMap(new LinkedHashMap<>(translationEntries)));
+    }
+
     /**
      * Người kia chỉ nhận tin từ bạn bè (CONTACT_REQUIRED): gửi lời mời kết bạn ngay trong phòng chat,
      * dùng lại ContactsRepository của Phase 4. Lời mời đã chờ sẵn cũng coi như đã gửi.
@@ -205,7 +427,7 @@ public class ChatRoomViewModel extends ViewModel {
         Once.observe(contacts.act("send", peerUserId, null), r -> {
             if (r.isSuccess() || "REQUEST_ALREADY_PENDING".equals(r.errorCode)) {
                 requestSent.setValue(true);
-                notice.setValue(com.utechat.R.string.chat_friend_request_sent);
+                notice.setValue(R.string.chat_friend_request_sent);
             } else {
                 notice.setValue(ChatErrors.message(r.errorCode));
             }
@@ -253,5 +475,4 @@ public class ChatRoomViewModel extends ViewModel {
         if (list != null) for (MessageEntity m : list) if (m.getLocalId() == localId) return true;
         return false;
     }
-
 }

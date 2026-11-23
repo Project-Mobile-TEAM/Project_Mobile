@@ -25,6 +25,27 @@
             </LinearLayout>
             <TextView android:id="@+id/text" android:layout_width="wrap_content" android:layout_height="wrap_content"
                 android:textSize="16sp" android:textColor="?attr/colorOnSurface" />
+            <!-- Khối bản dịch ML Kit chỉ tồn tại trên tin TEXT (D-14, D-15): đường kẻ 1dp + trạng thái không xác định / bản dịch + Ẩn bản dịch. -->
+            <LinearLayout android:id="@+id/translation_box" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="6dp" android:orientation="vertical" android:visibility="gone">
+                <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/ute_border" />
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp" android:gravity="center_vertical" android:orientation="horizontal">
+                    <TextView android:id="@+id/translation_label" android:layout_width="0dp" android:layout_height="wrap_content"
+                        android:layout_weight="1" android:text="@string/chat_translated_label"
+                        android:textSize="11sp" android:fontFamily="@font/poppins_medium"
+                        android:textColor="?attr/colorOnSurfaceVariant" />
+                    <TextView android:id="@+id/translation_hide" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:minHeight="32dp" android:gravity="center_vertical" android:paddingStart="8dp"
+                        android:text="@string/chat_translation_hide" android:textSize="11sp"
+                        android:fontFamily="@font/poppins_medium" android:textColor="@color/ute_accent" />
+                </LinearLayout>
+                <com.google.android.material.progressindicator.LinearProgressIndicator
+                    android:id="@+id/translation_progress" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp" android:indeterminate="true" android:visibility="gone" />
+                <TextView android:id="@+id/translation_text" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp" android:textSize="15sp" android:textColor="?attr/colorOnSurface" />
+            </LinearLayout>
             <TextView android:id="@+id/meta" android:layout_width="wrap_content" android:layout_height="wrap_content"
                 android:layout_gravity="end" android:layout_marginTop="2dp" android:textSize="11sp"
                 android:textColor="?attr/colorOnSurfaceVariant" />

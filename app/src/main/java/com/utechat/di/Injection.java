@@ -72,9 +72,10 @@ public final class Injection {
     private static CallSessionCoordinator callCoordinator;
     private static MessageTranslationManager translationManager;
 
-    // Hook dành riêng cho kiểm thử instrumentation Espresso (tiêm repository thật trên Room in-memory khi Debug).
+    // Hook dành riêng cho kiểm thử instrumentation Espresso (tiêm repository/translator giả khi Debug).
     @Nullable private static ChatRepository testChatOverride;
     @Nullable private static ContactsRepository testContactsOverride;
+    @Nullable private static MessageTranslationManager testTranslationOverride;
 
     // Luồng đĩa đơn tuần tự cho mọi thao tác ghi/xóa Room và dọn thư mục media khi chuyển phiên.
     private static final Executor DISK = Executors.newSingleThreadExecutor();
@@ -207,6 +208,9 @@ public final class Injection {
     }
 
     public static synchronized MessageTranslationManager provideMessageTranslationManager(Context context) {
+        if (testTranslationOverride != null) {
+            return testTranslationOverride;
+        }
         if (translationManager == null) {
             Context appContext = context.getApplicationContext();
             ConnectivityManager cm = appContext.getSystemService(ConnectivityManager.class);
@@ -449,9 +453,16 @@ public final class Injection {
     }
 
     @VisibleForTesting
+    public static synchronized void overrideMessageTranslationManagerForTest(
+            @Nullable MessageTranslationManager testManager) {
+        testTranslationOverride = testManager;
+    }
+
+    @VisibleForTesting
     public static synchronized void resetForTest() {
         testChatOverride = null;
         testContactsOverride = null;
+        testTranslationOverride = null;
         if (wsManager != null) {
             wsManager.disconnect();
         }

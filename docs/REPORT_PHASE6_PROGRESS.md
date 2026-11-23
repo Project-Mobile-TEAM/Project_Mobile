@@ -1,8 +1,8 @@
-# Báo cáo tiến độ Phase 6 — Media, Cuộc gọi thoại WebRTC, Vị trí & Thông báo (06-01 đến 06-05)
+# Báo cáo tiến độ Phase 6 — Media, Cuộc gọi thoại WebRTC, Vị trí, Thông báo & Dịch tin nhắn (06-01 đến 06-09)
 
 **Nhánh Git:** `feature/phase-6-base`  
 **Ngày cập nhật:** 2026-11-23  
-**Tiến độ hiện tại:** Hoàn thành, rà soát tuân thủ `.planning/` và kiểm chứng **5/9** plan (`06-01`, `06-02`, `06-03`, `06-04`, `06-05`) — Toàn bộ tầng **Backend** và tầng **Android Data/Worker/Sync/Notification** đã hoàn thiện, vá sạch các edge-case tích hợp và sẵn sàng chuyển sang giai đoạn UI & WebRTC client (`06-06` → `06-09`).
+**Tiến độ hiện tại:** Hoàn thành **9/9** plan (`06-01` → `06-09`) — Toàn bộ tầng **Backend**, **Android Data/Worker/Sync/Notification**, **WebRTC Voice Call 1-1**, **ML Kit Translate EN ↔ VI**, **DI/MainActivity Deep Link** và **Giao diện Phòng chat + Trình xem Media trong app** đã hoàn thiện và vượt qua 100% cổng kiểm tra tự động (Backend + Android JVM + AndroidTest compile + Lint Debug/Release + Assemble Debug/Release).
 
 ---
 
@@ -10,15 +10,15 @@
 
 | Plan | Phạm vi chính | Commit | Trạng thái | Kết quả kiểm thử |
 |---|---|---|---|---|
-| **06-01** | Tài liệu (`API_CONTRACT`, `FLOWS`, `ERD`), PostgreSQL Migration `V6`, Backend Media Storage + HTTP Range (`206`/`416`) + `LOCATION` | `e3d91f9` *(+ bản vá rà soát)* | ✅ Hoàn thành & đã rà soát | `MediaStorageAndRangeApiTest` (9/9 — đủ ma trận) + `FlywayMigrationTest` pass |
-| **06-02** | Backend WebRTC 1-1 (`CallService`, `CallController`), Coturn HMAC-SHA1 (`TurnCredentialsService`, `turnserver.conf`), khóa báo hiệu WS 2 thiết bị & `call.keepalive` | `c3e0851` *(+ bản vá rà soát)* | ✅ Hoàn thành & đã rà soát | **313/313** backend tests pass (`BUILD SUCCESS`) |
-| **06-03** | Khóa phụ thuộc Phase 6 (Java 17, `compileSdk = 36`), Manifest/FileProvider, `ApiClient` Media, Room v3 (`MIGRATION_2_3`, `3.json`), `TransferDao`/`TranslationDao` | `07c20b8` | ✅ Hoàn thành code | `testDebugUnitTest`, `compileDebugAndroidTestJavaWithJavac`, `lintDebug`, `lintRelease`, `assembleRelease` pass (**16 KB ELF aligned**); ⏳ chờ chạy `connectedDebugAndroidTest` & Release smoke trên thiết bị thật |
-| **06-04** | Hàng đợi gửi Media 2 pha (`SendMessageWorker`), `MediaApi`/`MediaDtos`, `UteChatGlideModule`, nén ảnh EXIF, ghi âm `.m4a`, `MediaDownloadManager` + `FileProvider`, `LocationFetchHelper` (`geo:`) | `959ef1e` *(+ bản vá rà soát)* | ✅ Hoàn thành & đã rà soát | `MediaSendWorkerTest` (10/10) + `SendMessageWorkerTest` (8/8) + `MediaDownloadManagerTest` (2/2) pass |
-| **06-05** | Thông báo 2 kênh (`messages`, `calls`), `ActiveRoomTracker`, `NotificationHelper`, `SyncWorker` 15 phút dùng chung single-flight `SyncEngine.syncBlocking`, chuỗi i18n EN/VI | `87c8006` *(+ bản vá rà soát)* | ✅ Hoàn thành & đã rà soát | **253/253** Android JVM tests (22 suites, gồm `NotificationAndSyncWorkerTest` 5/5, `SyncEngineAndApplierTest` 8/8) + `lintDebug` pass |
-| **06-06** | Android WebRTC Engine, `CallService` (foreground microphone), `CallCoordinator` & `CallFragment` | — | ⏳ Chưa triển khai | Chờ kế tiếp |
-| **06-07** | Android ML Kit Translate (`EN <-> VI`) & cache cục bộ `TranslationDao` | — | ⏳ Chưa triển khai | Chờ kế tiếp |
-| **06-08** | Nối dây DI (`Injection`), `MainActivity` deep link thông báo, `RealChatRepository` cho Media/Location/Call/Notification | — | ⏳ Chưa triển khai | Chờ kế tiếp |
-| **06-09** | Giao diện Phòng chat Phase 6 (bubble Ảnh/Audio/Video/File/Vị trí/Cuộc gọi, Media3 player, dịch tin nhắn, xem ảnh toàn màn hình) & kiểm thử cuối Phase | — | ⏳ Chưa triển khai | Chờ kế tiếp |
+| **06-01** | Tài liệu (`API_CONTRACT`, `FLOWS`, `ERD`), PostgreSQL Migration `V6`, Backend Media Storage + HTTP Range (`206`/`416`) + `LOCATION` | `e3d91f9` + `2e526fe` + `ebf2ec0` | ✅ Hoàn thành | `MediaStorageAndRangeApiTest` + `FlywayMigrationTest` pass (gồm fix Spring Security 6 `DispatcherType.ASYNC` + `asyncDispatch`) |
+| **06-02** | Backend WebRTC 1-1 (`CallService`, `CallController`), Coturn HMAC-SHA1 (`TurnCredentialsService`, `turnserver.conf`), khóa báo hiệu WS 2 thiết bị & `call.keepalive` | `c3e0851` + `2e526fe` | ✅ Hoàn thành | **313/313** backend tests pass (`BUILD SUCCESS`) |
+| **06-03** | Khóa phụ thuộc Phase 6 (Java 17, `compileSdk = 36`), Manifest/FileProvider, `ApiClient` Media, Room v3 (`MIGRATION_2_3`, `3.json`), `TransferDao`/`TranslationDao` | `07c20b8` | ✅ Hoàn thành | `compileDebugAndroidTestJavaWithJavac`, `lintDebug`, `lintRelease`, `assembleRelease` pass (**16 KB ELF aligned**) |
+| **06-04** | Hàng đợi gửi Media 2 pha (`SendMessageWorker`), `MediaApi`/`MediaDtos`, `UteChatGlideModule`, nén ảnh EXIF, ghi âm `.m4a`, `MediaDownloadManager` + `FileProvider`, `LocationFetchHelper` (`geo:`) | `959ef1e` + `2e526fe` | ✅ Hoàn thành | `MediaSendWorkerTest` (10/10) + `SendMessageWorkerTest` (8/8) + `MediaDownloadManagerTest` (2/2) pass |
+| **06-05** | Thông báo 2 kênh (`messages`, `calls`), `ActiveRoomTracker`, `NotificationHelper`, `SyncWorker` 15 phút dùng chung single-flight `SyncEngine.syncBlocking`, chuỗi i18n EN/VI | `87c8006` + `2e526fe` | ✅ Hoàn thành | `NotificationAndSyncWorkerTest` (5/5) + `SyncEngineAndApplierTest` (8/8) pass |
+| **06-06** | Android WebRTC 1-1 (`CallDtos`, `CallApi`, `WebRtcCallEngine`, `StreamWebRtcCallEngine`, `CallSessionCoordinator`, `CallService` FGS microphone, `CallViewModel`, `CallFragment`, `nav_graph` global action, EN/VI `strings_call.xml`) | `2b55edd` | ✅ Hoàn thành | `CallSessionCoordinatorTest` (6/6) + `lintDebug` pass |
+| **06-07** | Android ML Kit Translate (`MessageTranslator`, `RealMlKitTranslator`, `FakeMessageTranslator`, `MessageTranslationManager` cổng mạng Wi-Fi/4G không bịa %, cache `TranslationDao` có khóa phiên) | `6848756` | ✅ Hoàn thành | `MessageTranslationManagerTest` (6/6) + `lintDebug` pass |
+| **06-08** | Nối dây DI (`Injection` tách `MEDIA_IO`/`CALL_NETWORK` & `cleanupDepartingSession`), `ChatWebSocketManager` cầu nối `call.*`, `RealChatRepository`/`FakeChatRepository`, `MainActivity` deep link thông báo có kiểm phiên + `SyncWorker` + `POST_NOTIFICATIONS` 1 lần, `ChatRoomFragment` nút gọi & `ActiveRoomTracker` | `016ee62` | ✅ Hoàn thành | `FakeRepositoriesTest` + toàn bộ 266 Android JVM tests + `lintDebug` pass |
+| **06-09** | Trình xem trong app (`ZoomableImageView`, `ImageViewerFragment`, `VideoPlayerFragment` Media3 + `OkHttpDataSource` HTTP Range, `VoiceBubblePlayer` 1 instance), tích hợp chọn media/camera/ghi âm/vị trí/dịch EN↔VI vào `ChatRoom*` & `MessageAdapter`, `ChatViewModelTest` & `MediaProviderAndUiTest`, cổng kiểm tra toàn Phase 6 | *(commit hiện tại)* | ✅ Hoàn thành | **313/313** Backend + **268/268** Android JVM + `compileDebugAndroidTestJavaWithJavac` + `lintDebug`/`lintRelease` (0 errors) + `assembleDebug`/`assembleRelease` |
 
 ---
 
@@ -72,6 +72,16 @@
   - Dùng chung mutex `syncLock` với `SyncEngine.requestSync()` (thoát `drainLoop` nguyên tử, không bao giờ có 2 writer cùng ghi `sync_state`, kết quả gắn chặt với đúng phiên).
   - Bắn thông báo incremental chỉ **sau khi** transaction Room đã commit và phiên còn khớp; tự đối chiếu bổ sung `CALL_UPDATED(MISSED)` với `MESSAGE_CREATED(type=CALL)` cùng lô; `runBootstrap` tuyệt đối không phát thông báo.
 
+### 2.6. WebRTC 1-1, ML Kit Translate, Nối dây DI & Giao diện Phòng chat (`06-06` → `06-09`)
+- **Cuộc gọi thoại 1-1 (`06-06`)**: `StreamWebRtcCallEngine` (chỉ audio, `PeerConnection`, `AudioManager` loa ngoài/tắt mic), `CallSessionCoordinator` (khởi tạo/nhận/từ chối/kết thúc, hàng đợi ICE đến sớm, `call.keepalive` mỗi 15s, tự tắt khi `call.handled_elsewhere` hoặc đổi phiên), `CallService` (Foreground Service `microphone` chỉ chạy sau khi có quyền `RECORD_AUDIO` trên API 34–36), `CallViewModel` và `CallFragment` giữ nguyên cuộc gọi khi xoay màn hình.
+- **Dịch tin nhắn trên máy (`06-07`)**: `RealMlKitTranslator` (ML Kit Translate trực tiếp `EN <-> VI`, không dùng Language ID), `FakeMessageTranslator` cho chế độ dữ liệu mẫu, và `MessageTranslationManager` (ưu tiên cache Room `TranslationDao` offline 100%, hộp thoại xác nhận tải gói ~30MB trên mạng di động, tiến trình không xác định không bịa phần trăm, chỉ lưu cache khi `sessionKey` còn khớp).
+- **Tích hợp & Dọn phiên nguyên tử (`06-08`)**: `Injection` tách riêng `MEDIA_IO` và `CALL_NETWORK`, dọn sạch `SendMessageWorker`, `SyncWorker`, `MediaDownloadManager`, WebSocket, cuộc gọi, thông báo, `ActiveRoomTracker` và thư mục `pending_media/`/`media_cache/`/`camera/` trên `DISK` khi đăng xuất hoặc đổi tài khoản; `MainActivity` xác minh `sessionKey` và tư cách thành viên Room trên `DISK` trước khi điều hướng từ thông báo; xin `POST_NOTIFICATIONS` đúng 1 lần trên Android 13+.
+- **Trình xem Media & Phòng chat Phase 6 (`06-09`)**:
+  - `ZoomableImageView` + `ImageViewerFragment` (Glide Bearer hoặc `localPath` + mở bằng app ngoài qua `FileProvider` không chứa JWT).
+  - `VideoPlayerFragment` dùng Media3 `ExoPlayer` + `OkHttpDataSource.Factory(ApiClient.getMediaOkHttpClient())` hỗ trợ HTTP Range `206` và giải phóng sạch ở `onStop`/`onDestroyView`.
+  - `VoiceBubblePlayer` dùng duy nhất 1 `MediaPlayer` toàn phòng chat (bấm phát bong bóng mới tự dừng bong bóng cũ).
+  - `MessageAdapter`, `ChatRoomViewModel` (giữ nguyên constructor 3 tham số Phase 5 & `viewType()`/`summaryMeta()`, lưu bản dịch qua `SavedStateHandle` sống sót khi xoay màn hình) và `ChatRoomFragment` (Photo Picker Ảnh/Video, Camera `cacheDir/camera/` nén xóa EXIF gốc ngay trong `finally`, SAF tài liệu, ghi âm `.m4a` tối đa 05:00, gửi tọa độ vị trí & mở `geo:`, nhấn giữ tin `TEXT` dịch EN↔VI / ẩn bản dịch).
+
 ---
 
 ## 3. Tổng hợp kết quả kiểm thử tự động
@@ -79,17 +89,20 @@
 | Bộ kiểm thử | Lệnh chạy | Kết quả |
 |---|---|---|
 | **Backend (Full Suite)** | `cd backend && ./mvnw test` | **313 tests**, 0 failures, 0 errors (`BUILD SUCCESS`) |
-| **Android JVM Unit Tests** | `./gradlew testDebugUnitTest --no-daemon` | **253 tests** (22 test suites), 0 failures, 0 errors (`BUILD SUCCESSFUL`) |
-| **Android Lint & Release Build** | `./gradlew compileDebugAndroidTestJavaWithJavac lintDebug lintRelease assembleRelease --no-daemon` | **0 errors**, Release APK tạo thành công, thư viện native đạt 16 KB aligned (`0x4000`) |
-| **Android Instrumented Tests** | `connectedDebugAndroidTest` (`AppDatabaseMigrationTest`, `Phase6RoomDaoTest`) | Đã biên dịch xanh (`compileDebugAndroidTestJavaWithJavac`); ⏳ cần chạy trên emulator/thiết bị thật khi kết nối ADB |
+| **Android JVM Unit Tests** | `./gradlew testDebugUnitTest --no-daemon` | **268 tests**, 0 failures, 0 errors (`BUILD SUCCESSFUL`) |
+| **Android Lint & APK Builds** | `./gradlew compileDebugAndroidTestJavaWithJavac lintDebug lintRelease assembleDebug assembleRelease --no-daemon` | **0 errors** (cả Debug & Release), tạo thành công `app-debug.apk` và `app-release-unsigned.apk`, thư viện native đạt 16 KB aligned (`0x4000`) |
+| **Android Instrumented Tests** | `connectedDebugAndroidTest` (`AppDatabaseMigrationTest`, `Phase6RoomDaoTest`, `MediaProviderAndUiTest`) | Đã biên dịch xanh (`compileDebugAndroidTestJavaWithJavac`); ⏳ chạy trên emulator/thiết bị thật khi kết nối ADB |
 
 ---
 
-## 4. Ghi chú & Bước tiếp theo
-1. **Kiểm thử trên thiết bị thật / emulator (từ `06-03`)**:
-   - Chạy instrumentation Room v3 (`1->2->3`):
-     ```bash
-     ./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.utechat.data.local.AppDatabaseMigrationTest,com.utechat.data.local.Phase6RoomDaoTest --no-daemon
-     ```
-   - Thực hiện Release APK smoke test trên thiết bị demo để xác nhận WebRTC khởi tạo và ML Kit tải model không bị R8 xóa class.
-2. **Triển khai phần còn lại của Phase 6**: `06-06` (WebRTC Android & Call UI) → `06-07` (ML Kit Translate EN↔VI) → `06-08` (DI, `MainActivity` deep link, Repository wiring) → `06-09` (Chat Room Phase 6 UI & kiểm thử hoàn chỉnh).
+## 4. Kiểm thử thiết bị thật / QA 2 máy tiếp theo (theo `06-VALIDATION.md`)
+1. **Chạy bộ Instrumented Test trên emulator/thiết bị thật**:
+   ```bash
+   ./gradlew connectedDebugAndroidTest \
+     -Pandroid.testInstrumentationRunnerArguments.class=com.utechat.data.local.AppDatabaseMigrationTest,com.utechat.data.local.Phase6RoomDaoTest,com.utechat.ui.chat.MediaProviderAndUiTest \
+     --no-daemon
+   ```
+2. **QA thủ công 2 máy & Release APK smoke**:
+   - Cài bản Release APK (`USE_FAKE_DATA = false`), xác nhận WebRTC khởi tạo và ML Kit tải model EN↔VI hoạt động bình thường dưới R8, sau đó bật chế độ máy bay để dịch 1 tin `TEXT` chưa cache (offline 100%).
+   - Kiểm chứng cuộc gọi thoại 1-1 xuyên 2 mạng khác nhau dùng được cặp ICE candidate `TURN/TLS 443` qua Coturn, thử đổ chuông đa thiết bị (`call.handled_elsewhere`) và tắt app giữa cuộc gọi.
+   - Kiểm chứng gửi ảnh/video/tệp/ghi âm/vị trí ngoại tuyến rồi bật mạng lại (`SendMessageWorker` 2 pha), và kiểm chứng thông báo 2 kênh + đổi tài khoản A → B không rò rỉ dữ liệu.

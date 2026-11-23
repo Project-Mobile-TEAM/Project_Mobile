@@ -62,15 +62,39 @@
         android:text="@string/chat_error_not_member" android:textSize="14sp" android:textColor="?attr/colorOnSurfaceVariant"
         android:visibility="gone" />
 
+    <!-- Thanh ghi âm tin nhắn thoại (tối đa 5 phút / 10MB, D-02) -->
+    <LinearLayout android:id="@+id/recording_bar" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:background="@color/ute_error_bg" android:gravity="center_vertical" android:paddingHorizontal="12dp"
+        android:paddingVertical="8dp" android:visibility="gone">
+        <com.google.android.material.button.MaterialButton android:id="@+id/voice_cancel"
+            style="@style/Widget.Material3.Button.TextButton" android:layout_width="wrap_content"
+            android:layout_height="wrap_content" android:minHeight="48dp"
+            android:text="@string/media_voice_cancel" android:textColor="@color/ute_error" />
+        <TextView android:id="@+id/voice_timer" android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:gravity="center" android:textColor="@color/ute_error"
+            android:textSize="14sp" android:textStyle="bold" />
+        <com.google.android.material.button.MaterialButton android:id="@+id/voice_send"
+            android:layout_width="wrap_content" android:layout_height="wrap_content" android:minHeight="48dp"
+            android:text="@string/media_voice_send" android:textColor="@color/ute_on_accent"
+            app:backgroundTint="@color/ute_accent" />
+    </LinearLayout>
+
     <LinearLayout android:id="@+id/composer" android:layout_width="match_parent" android:layout_height="wrap_content"
         android:background="@color/ute_card" android:gravity="center_vertical" android:padding="8dp">
+        <ImageButton android:id="@+id/attach" android:layout_width="48dp" android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless" android:src="@drawable/ic_attach"
+            android:contentDescription="@string/media_attach_cd" app:tint="@color/ute_accent" />
         <EditText android:id="@+id/input" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
             android:minHeight="48dp" android:background="@drawable/bg_search_field" android:paddingHorizontal="16dp"
             android:paddingVertical="10dp" android:hint="@string/chat_message_hint" android:textColorHint="@color/ute_text_secondary"
             android:textColor="?attr/colorOnSurface" android:textSize="16sp" android:maxLines="5"
             android:inputType="textMultiLine|textCapSentences" android:importantForAutofill="no" />
+        <ImageButton android:id="@+id/mic" android:layout_width="48dp" android:layout_height="48dp"
+            android:layout_marginStart="4dp" android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_mic" android:contentDescription="@string/media_mic_cd"
+            app:tint="@color/ute_accent" />
         <ImageButton android:id="@+id/send" android:layout_width="48dp" android:layout_height="48dp"
-            android:layout_marginStart="8dp" android:background="@drawable/bg_send_button" android:src="@drawable/ic_send"
+            android:layout_marginStart="4dp" android:background="@drawable/bg_send_button" android:src="@drawable/ic_send"
             android:contentDescription="@string/chat_send" app:tint="@color/ute_on_accent" />
     </LinearLayout>
 </LinearLayout>

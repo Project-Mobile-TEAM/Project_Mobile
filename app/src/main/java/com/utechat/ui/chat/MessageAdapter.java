@@ -4,26 +4,40 @@ import android.content.Context;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageButton;
+import android.widget.ImageView;
+import android.widget.SeekBar;
+import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.DiffUtil;
 import androidx.recyclerview.widget.ListAdapter;
 import androidx.recyclerview.widget.RecyclerView;
+import com.bumptech.glide.Glide;
+import com.google.android.material.progressindicator.LinearProgressIndicator;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.utechat.BuildConfig;
 import com.utechat.R;
+import com.utechat.data.local.entity.AttachmentTransferEntity;
 import com.utechat.data.local.entity.MessageEntity;
 import com.utechat.data.local.entity.UserEntity;
+import com.utechat.data.remote.api.ApiClient;
 import com.utechat.databinding.ItemMessageInBinding;
 import com.utechat.databinding.ItemMessageOutBinding;
+import com.utechat.databinding.ItemMessageSummaryInBinding;
+import com.utechat.databinding.ItemMessageSummaryOutBinding;
 import com.utechat.databinding.ItemMessageSystemBinding;
 import com.utechat.databinding.ViewDatePillBinding;
+import com.utechat.ui.media.VoiceBubblePlayer;
+import java.io.File;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -31,17 +45,66 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 /**
- * Tin nhắn trong phòng (D-15) với 6 kiểu hiển thị. Tin ảnh/thoại/file/vị trí/cuộc gọi chỉ hiện thẻ tóm tắt,
- * KHÔNG gắn hành động mở/phát/gọi (thuộc phase sau); kiểu lạ hiện thẻ "không hỗ trợ" thay vì crash.
+ * Bộ điều hợp tin nhắn phòng chat Phase 5 & Phase 6 (D-03, D-13..D-15):
+ * - Bảo toàn tuyệt đối 6 viewType và hàm static viewType()/summaryMeta() cho kiểm thử Phase 5.
+ * - Bong bóng TEXT (item_message_in/out) hỗ trợ nhấn giữ dịch EN<->VI nội tuyến (translation_box).
+ * - Bong bóng media/vị trí/cuộc gọi (item_message_summary_in/out) dựng ảnh Glide, video badge,
+ *   voice player nội tuyến, thẻ tài liệu/vị trí/cuộc gọi và thanh tiến trình upload/download.
  */
 public class MessageAdapter extends ListAdapter<MessageEntity, RecyclerView.ViewHolder> {
     static final int TYPE_SYSTEM = 0, TYPE_TEXT_OUT = 1, TYPE_TEXT_IN = 2,
             NON_TEXT_SUMMARY_OUT = 3, NON_TEXT_SUMMARY_IN = 4, UNKNOWN_FALLBACK = 5;
     private static final Set<String> SUMMARY = Set.of("IMAGE", "AUDIO", "VIDEO", "FILE", "LOCATION", "CALL");
 
+    /** Callback tương tác cho các loại bong bóng media, vị trí và dịch tin nhắn TEXT. */
+    public interface InteractionListener {
+        void onImageClick(@NonNull MessageEntity message);
+
+        void onVideoClick(@NonNull MessageEntity message);
+
+        void onVoiceToggleClick(@NonNull MessageEntity message);
+
+        void onVoiceSeek(@NonNull MessageEntity message, int positionMs);
+
+        void onFileClick(@NonNull MessageEntity message);
+
+        void onLocationClick(@NonNull MessageEntity message);
+
+        void onTextLongClick(@NonNull MessageEntity message);
+
+        void onHideTranslationClick(@NonNull MessageEntity message);
+    }
+
+    /** Trạng thái hiển thị bản dịch cho một tin TEXT (không bao giờ có trường phần trăm tải!). */
+    public static final class TranslationUiEntry {
+        public final boolean downloading;
+        @Nullable public final String translatedText;
+        @Nullable public final String targetLang;
+
+        private TranslationUiEntry(boolean downloading, @Nullable String translatedText, @Nullable String targetLang) {
+            this.downloading = downloading;
+            this.translatedText = translatedText;
+            this.targetLang = targetLang;
+        }
+
+        @NonNull
+        public static TranslationUiEntry downloading(@NonNull String targetLang) {
+            return new TranslationUiEntry(true, null, targetLang);
+        }
+
+        @NonNull
+        public static TranslationUiEntry translated(@NonNull String translatedText, @NonNull String targetLang) {
+            return new TranslationUiEntry(false, translatedText, targetLang);
+        }
+    }
+
     @Nullable private final String meId;
     private final Consumer<MessageEntity> onFailedClick;
+    @Nullable private InteractionListener interactionListener;
     @Nullable private Map<String, UserEntity> users;
+    @NonNull private Map<String, AttachmentTransferEntity> transfersMap = Collections.emptyMap();
+    @NonNull private Map<String, TranslationUiEntry> translationState = Collections.emptyMap();
+    @NonNull private VoiceBubblePlayer.PlaybackState voiceState = VoiceBubblePlayer.PlaybackState.idle();
     private boolean group;
     private long highlighted = -1;
 
@@ -49,6 +112,10 @@ public class MessageAdapter extends ListAdapter<MessageEntity, RecyclerView.View
         super(DIFF);
         this.meId = meId;
         this.onFailedClick = onFailedClick;
+    }
+
+    public void setInteractionListener(@Nullable InteractionListener listener) {
+        this.interactionListener = listener;
     }
 
     public void setUsers(@Nullable Map<String, UserEntity> users) {
@@ -60,6 +127,24 @@ public class MessageAdapter extends ListAdapter<MessageEntity, RecyclerView.View
     public void setGroup(boolean group) {
         if (this.group == group) return;
         this.group = group;
+        notifyItemRangeChanged(0, getItemCount());
+    }
+
+    public void setTransfersMap(@Nullable Map<String, AttachmentTransferEntity> map) {
+        Map<String, AttachmentTransferEntity> next = map != null ? map : Collections.emptyMap();
+        if (Objects.equals(this.transfersMap, next)) return;
+        this.transfersMap = next;
+        notifyItemRangeChanged(0, getItemCount());
+    }
+
+    public void setVoicePlaybackState(@NonNull VoiceBubblePlayer.PlaybackState state) {
+        this.voiceState = state;
+        notifyItemRangeChanged(0, getItemCount());
+    }
+
+    public void setTranslationState(@Nullable Map<String, TranslationUiEntry> map) {
+        Map<String, TranslationUiEntry> next = map != null ? map : Collections.emptyMap();
+        this.translationState = next;
         notifyItemRangeChanged(0, getItemCount());
     }
 
@@ -103,6 +188,14 @@ public class MessageAdapter extends ListAdapter<MessageEntity, RecyclerView.View
         final ItemMessageInBinding b;
         InHolder(ItemMessageInBinding b) { super(b.getRoot()); this.b = b; }
     }
+    static class SummaryOutHolder extends RecyclerView.ViewHolder {
+        final ItemMessageSummaryOutBinding b;
+        SummaryOutHolder(ItemMessageSummaryOutBinding b) { super(b.getRoot()); this.b = b; }
+    }
+    static class SummaryInHolder extends RecyclerView.ViewHolder {
+        final ItemMessageSummaryInBinding b;
+        SummaryInHolder(ItemMessageSummaryInBinding b) { super(b.getRoot()); this.b = b; }
+    }
     static class SysHolder extends RecyclerView.ViewHolder {
         final ItemMessageSystemBinding b;
         SysHolder(ItemMessageSystemBinding b) { super(b.getRoot()); this.b = b; }
@@ -111,7 +204,9 @@ public class MessageAdapter extends ListAdapter<MessageEntity, RecyclerView.View
     @NonNull @Override public RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int type) {
         LayoutInflater in = LayoutInflater.from(parent.getContext());
         if (type == TYPE_SYSTEM) return new SysHolder(ItemMessageSystemBinding.inflate(in, parent, false));
-        if (type == TYPE_TEXT_OUT || type == NON_TEXT_SUMMARY_OUT) return new OutHolder(ItemMessageOutBinding.inflate(in, parent, false));
+        if (type == TYPE_TEXT_OUT) return new OutHolder(ItemMessageOutBinding.inflate(in, parent, false));
+        if (type == NON_TEXT_SUMMARY_OUT) return new SummaryOutHolder(ItemMessageSummaryOutBinding.inflate(in, parent, false));
+        if (type == NON_TEXT_SUMMARY_IN) return new SummaryInHolder(ItemMessageSummaryInBinding.inflate(in, parent, false));
         return new InHolder(ItemMessageInBinding.inflate(in, parent, false));
     }
 
@@ -129,59 +224,368 @@ public class MessageAdapter extends ListAdapter<MessageEntity, RecyclerView.View
             h.b.text.setText(SystemMessageFormatter.format(c::getString, m.getAttachmentJson(), users, meId));
             return;
         }
+
         if (holder instanceof OutHolder) {
             OutHolder h = (OutHolder) holder;
             bindDate(h.b.date, position);
-            bindBody(c, type == NON_TEXT_SUMMARY_OUT, m, h.b.summary, h.b.summaryIcon, h.b.summaryLabel, h.b.text);
+            h.b.summary.setVisibility(View.GONE);
+            h.b.text.setVisibility(View.VISIBLE);
+            h.b.text.setText(m.getText());
             h.b.meta.setText(c.getString(R.string.chat_dot_pair, time, c.getString(statusLabel(m.getStatus()))));
+            bindFailedRow(c, m, h.b.failed);
+            bindTranslationBox(m, h.b.translationBox, h.b.translationLabel, h.b.translationHide,
+                    h.b.translationProgress, h.b.translationText);
+
             boolean failed = "FAILED".equals(m.getStatus());
-            h.b.failed.setVisibility(failed ? View.VISIBLE : View.GONE);
-            if (failed && m.getErrorCode() != null) {
-                h.b.failed.setText(c.getString(R.string.chat_dot_pair, c.getString(ChatErrors.message(m.getErrorCode())), c.getString(R.string.chat_resend)));
-            } else {
-                h.b.failed.setText(R.string.chat_status_failed);
-            }
-            // Chỉ tin lỗi mới bấm được (mở hộp thoại Gửi lại / Xóa tin lỗi).
             View.OnClickListener click = failed ? v -> onFailedClick.accept(m) : null;
             h.b.bubble.setOnClickListener(click);
             h.b.failed.setOnClickListener(click);
             h.b.bubble.setClickable(failed);
             h.b.failed.setClickable(failed);
+            h.b.bubble.setOnLongClickListener(v -> {
+                if (interactionListener != null) {
+                    interactionListener.onTextLongClick(m);
+                    return true;
+                }
+                return false;
+            });
             return;
         }
-        InHolder h = (InHolder) holder;
+
+        if (holder instanceof InHolder) {
+            InHolder h = (InHolder) holder;
+            bindDate(h.b.date, position);
+            bindSenderHeader(c, m, h.b.sender, h.b.avatar);
+            h.b.meta.setText(time);
+            h.b.summary.setVisibility(View.GONE);
+            if (type == UNKNOWN_FALLBACK) {
+                h.b.text.setText(R.string.chat_type_unknown);
+                h.b.text.setTextColor(ContextCompat.getColor(c, R.color.ute_text_secondary));
+                h.b.translationBox.setVisibility(View.GONE);
+                h.b.bubble.setOnLongClickListener(null);
+            } else {
+                h.b.text.setTextColor(ContextCompat.getColor(c, R.color.ute_text));
+                h.b.text.setText(m.getText());
+                bindTranslationBox(m, h.b.translationBox, h.b.translationLabel, h.b.translationHide,
+                        h.b.translationProgress, h.b.translationText);
+                h.b.bubble.setOnLongClickListener(v -> {
+                    if (interactionListener != null) {
+                        interactionListener.onTextLongClick(m);
+                        return true;
+                    }
+                    return false;
+                });
+            }
+            return;
+        }
+
+        if (holder instanceof SummaryOutHolder) {
+            SummaryOutHolder h = (SummaryOutHolder) holder;
+            bindDate(h.b.date, position);
+            h.b.meta.setText(c.getString(R.string.chat_dot_pair, time, c.getString(statusLabel(m.getStatus()))));
+            bindFailedRow(c, m, h.b.failed);
+            boolean failed = "FAILED".equals(m.getStatus());
+            h.b.failed.setOnClickListener(failed ? v -> onFailedClick.accept(m) : null);
+            h.b.failed.setClickable(failed);
+            bindMediaSummaryBubble(c, m, true, failed,
+                    h.b.bubble, h.b.mediaImageBox, h.b.mediaImage, h.b.mediaPlayBadge,
+                    h.b.voiceBox, h.b.voicePlayPause, h.b.voiceSeekbar, h.b.voiceDuration,
+                    h.b.summary, h.b.summaryIcon, h.b.summaryLabel, h.b.text, h.b.mediaProgress);
+            return;
+        }
+
+        SummaryInHolder h = (SummaryInHolder) holder;
         bindDate(h.b.date, position);
+        bindSenderHeader(c, m, h.b.sender, h.b.avatar);
+        h.b.meta.setText(time);
+        bindMediaSummaryBubble(c, m, false, false,
+                h.b.bubble, h.b.mediaImageBox, h.b.mediaImage, h.b.mediaPlayBadge,
+                h.b.voiceBox, h.b.voicePlayPause, h.b.voiceSeekbar, h.b.voiceDuration,
+                h.b.summary, h.b.summaryIcon, h.b.summaryLabel, h.b.text, h.b.mediaProgress);
+    }
+
+    private void bindSenderHeader(Context c, MessageEntity m, TextView senderView, TextView avatarView) {
         UserEntity sender = users == null || m.getSenderId() == null ? null : users.get(m.getSenderId());
         String name = sender == null || sender.getDisplayName() == null ? c.getString(R.string.chat_someone) : sender.getDisplayName();
-        h.b.sender.setVisibility(group ? View.VISIBLE : View.GONE);
-        h.b.sender.setText(name);
-        h.b.avatar.setVisibility(group ? View.VISIBLE : View.GONE);
-        h.b.avatar.setText(ConversationListAdapter.initials(name));
-        h.b.meta.setText(time);
-        if (type == UNKNOWN_FALLBACK) {
-            h.b.summary.setVisibility(View.GONE);
-            h.b.text.setText(R.string.chat_type_unknown);
-            h.b.text.setTextColor(ContextCompat.getColor(c, R.color.ute_text_secondary));
+        senderView.setVisibility(group ? View.VISIBLE : View.GONE);
+        senderView.setText(name);
+        avatarView.setVisibility(group ? View.VISIBLE : View.GONE);
+        avatarView.setText(ConversationListAdapter.initials(name));
+    }
+
+    private static void bindFailedRow(Context c, MessageEntity m, TextView failedView) {
+        boolean failed = "FAILED".equals(m.getStatus());
+        failedView.setVisibility(failed ? View.VISIBLE : View.GONE);
+        if (failed && m.getErrorCode() != null) {
+            failedView.setText(c.getString(R.string.chat_dot_pair,
+                    c.getString(ChatErrors.message(m.getErrorCode())), c.getString(R.string.chat_resend)));
         } else {
-            h.b.text.setTextColor(ContextCompat.getColor(c, R.color.ute_text));
-            bindBody(c, type == NON_TEXT_SUMMARY_IN, m, h.b.summary, h.b.summaryIcon, h.b.summaryLabel, h.b.text);
+            failedView.setText(R.string.chat_status_failed);
         }
     }
 
-    /** Tin chữ hiện nội dung; tin khác hiện icon + nhãn + chi tiết an toàn đọc từ attachmentJson. */
-    private static void bindBody(Context c, boolean summary, MessageEntity m, View box, android.widget.ImageView icon,
-                                 android.widget.TextView label, android.widget.TextView text) {
-        box.setVisibility(summary ? View.VISIBLE : View.GONE);
-        if (!summary) {
-            text.setVisibility(View.VISIBLE);
-            text.setText(m.getText());
+    private void bindTranslationBox(
+            MessageEntity m,
+            View box,
+            TextView label,
+            TextView hideBtn,
+            LinearProgressIndicator progress,
+            TextView translatedText) {
+        TranslationUiEntry entry = m.getClientId() != null ? translationState.get(m.getClientId()) : null;
+        if (entry == null) {
+            box.setVisibility(View.GONE);
             return;
         }
-        icon.setImageResource(icon(m.getType()));
-        label.setText(SystemMessageFormatter.summaryLabel(m.getType()));
-        String meta = summaryMeta(m.getType(), m.getAttachmentJson());
-        text.setVisibility(meta == null ? View.GONE : View.VISIBLE);
-        text.setText(meta);
+        box.setVisibility(View.VISIBLE);
+        if (entry.downloading) {
+            // Tiến trình không xác định, tuyệt đối không hiển thị phần trăm (D-15).
+            label.setText(R.string.chat_translating_download);
+            hideBtn.setVisibility(View.GONE);
+            progress.setIndeterminate(true);
+            progress.setVisibility(View.VISIBLE);
+            translatedText.setVisibility(View.GONE);
+        } else {
+            label.setText(R.string.chat_translated_label);
+            hideBtn.setVisibility(View.VISIBLE);
+            hideBtn.setOnClickListener(v -> {
+                if (interactionListener != null) {
+                    interactionListener.onHideTranslationClick(m);
+                }
+            });
+            progress.setVisibility(View.GONE);
+            translatedText.setVisibility(View.VISIBLE);
+            translatedText.setText(entry.translatedText);
+        }
+    }
+
+    private void bindMediaSummaryBubble(
+            Context c,
+            MessageEntity m,
+            boolean outgoing,
+            boolean failed,
+            View bubble,
+            View imageBox,
+            ImageView imageView,
+            ImageView playBadge,
+            View voiceBox,
+            ImageButton voicePlayPause,
+            SeekBar voiceSeekbar,
+            TextView voiceDuration,
+            View summaryRow,
+            ImageView summaryIcon,
+            TextView summaryLabel,
+            TextView detailText,
+            LinearProgressIndicator progressBar) {
+        String msgType = m.getType() != null ? m.getType() : "";
+        JsonObject meta = parseJsonObject(m.getAttachmentJson());
+        AttachmentTransferEntity transfer = resolveTransfer(m, meta);
+
+        // Reset toàn bộ nhóm con trước khi dựng theo từng loại cụ thể.
+        imageBox.setVisibility(View.GONE);
+        playBadge.setVisibility(View.GONE);
+        voiceBox.setVisibility(View.GONE);
+        summaryRow.setVisibility(View.GONE);
+        detailText.setVisibility(View.GONE);
+        bubble.setOnLongClickListener(null);
+
+        switch (msgType) {
+            case "IMAGE": {
+                imageBox.setVisibility(View.VISIBLE);
+                loadThumbnail(imageView, meta, transfer);
+                if (m.getText() != null && !m.getText().trim().isEmpty()) {
+                    detailText.setVisibility(View.VISIBLE);
+                    detailText.setText(m.getText().trim());
+                }
+                bubble.setOnClickListener(v -> {
+                    if (failed) {
+                        onFailedClick.accept(m);
+                    } else if (interactionListener != null) {
+                        interactionListener.onImageClick(m);
+                    }
+                });
+                break;
+            }
+            case "VIDEO": {
+                imageBox.setVisibility(View.VISIBLE);
+                playBadge.setVisibility(View.VISIBLE);
+                loadThumbnail(imageView, meta, transfer);
+                String dur = summaryMeta("VIDEO", m.getAttachmentJson());
+                String caption = m.getText() != null && !m.getText().trim().isEmpty() ? m.getText().trim() : null;
+                String combined = caption != null ? (dur != null ? caption + " · " + dur : caption) : dur;
+                if (combined != null) {
+                    detailText.setVisibility(View.VISIBLE);
+                    detailText.setText(combined);
+                }
+                bubble.setOnClickListener(v -> {
+                    if (failed) {
+                        onFailedClick.accept(m);
+                    } else if (interactionListener != null) {
+                        interactionListener.onVideoClick(m);
+                    }
+                });
+                break;
+            }
+            case "AUDIO": {
+                voiceBox.setVisibility(View.VISIBLE);
+                boolean isCurrent = m.getClientId() != null && m.getClientId().equals(voiceState.clientId);
+                boolean isPlaying = isCurrent && voiceState.playing;
+                voicePlayPause.setImageResource(isPlaying ? R.drawable.ic_pause : R.drawable.ic_play);
+
+                int metaDuration = optInt(meta, "durationMs", 0);
+                int totalDuration = isCurrent && voiceState.durationMs > 0 ? voiceState.durationMs : metaDuration;
+                int currentPos = isCurrent ? voiceState.positionMs : 0;
+                voiceSeekbar.setOnSeekBarChangeListener(null);
+                voiceSeekbar.setMax(Math.max(1, totalDuration));
+                voiceSeekbar.setProgress(Math.min(currentPos, Math.max(1, totalDuration)));
+                voiceDuration.setText(formatDurationMs(isCurrent && currentPos > 0 ? currentPos : totalDuration));
+
+                voicePlayPause.setOnClickListener(v -> {
+                    if (failed) {
+                        onFailedClick.accept(m);
+                    } else if (interactionListener != null) {
+                        interactionListener.onVoiceToggleClick(m);
+                    }
+                });
+                voiceSeekbar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+                    @Override public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                        if (fromUser && interactionListener != null) {
+                            interactionListener.onVoiceSeek(m, progress);
+                        }
+                    }
+                    @Override public void onStartTrackingTouch(SeekBar seekBar) { }
+                    @Override public void onStopTrackingTouch(SeekBar seekBar) { }
+                });
+                bubble.setOnClickListener(failed ? v -> onFailedClick.accept(m) : null);
+                break;
+            }
+            case "FILE": {
+                summaryRow.setVisibility(View.VISIBLE);
+                summaryIcon.setImageResource(R.drawable.ic_file);
+                String fileName = str(meta, "fileName");
+                summaryLabel.setText(fileName != null && !fileName.isBlank()
+                        ? fileName : c.getString(R.string.chat_type_file));
+                long sizeBytes = optLong(meta, "sizeBytes", transfer != null ? transfer.getSizeBytes() : 0L);
+                String sizeText = sizeBytes > 0 ? formatBytes(sizeBytes) : c.getString(R.string.media_open_external);
+                detailText.setVisibility(View.VISIBLE);
+                detailText.setText(sizeText);
+                bubble.setOnClickListener(v -> {
+                    if (failed) {
+                        onFailedClick.accept(m);
+                    } else if (interactionListener != null) {
+                        interactionListener.onFileClick(m);
+                    }
+                });
+                break;
+            }
+            case "LOCATION": {
+                summaryRow.setVisibility(View.VISIBLE);
+                summaryIcon.setImageResource(R.drawable.ic_location);
+                summaryLabel.setText(R.string.chat_type_location);
+                String coords = summaryMeta("LOCATION", m.getAttachmentJson());
+                detailText.setVisibility(View.VISIBLE);
+                detailText.setText(coords != null
+                        ? coords + " · " + c.getString(R.string.media_open_maps)
+                        : c.getString(R.string.media_open_maps));
+                bubble.setOnClickListener(v -> {
+                    if (failed) {
+                        onFailedClick.accept(m);
+                    } else if (interactionListener != null) {
+                        interactionListener.onLocationClick(m);
+                    }
+                });
+                break;
+            }
+            case "CALL":
+            default: {
+                summaryRow.setVisibility(View.VISIBLE);
+                summaryIcon.setImageResource(R.drawable.ic_phone);
+                summaryLabel.setText(R.string.chat_type_call);
+                String callDetail = formatCallSummary(c, meta);
+                if (callDetail != null) {
+                    detailText.setVisibility(View.VISIBLE);
+                    detailText.setText(callDetail);
+                }
+                bubble.setOnClickListener(failed ? v -> onFailedClick.accept(m) : null);
+                break;
+            }
+        }
+
+        // Hiển thị thanh tiến trình khi đang upload hoặc download tệp đính kèm.
+        boolean inFlightTransfer = transfer != null
+                && ("QUEUED".equals(transfer.getState())
+                || "UPLOADING".equals(transfer.getState())
+                || "DOWNLOADING".equals(transfer.getState()));
+        boolean voiceLoading = "AUDIO".equals(msgType) && m.getClientId() != null
+                && m.getClientId().equals(voiceState.clientId) && voiceState.loading;
+        if (inFlightTransfer || voiceLoading) {
+            progressBar.setVisibility(View.VISIBLE);
+            int pct = transfer != null ? transfer.getProgress() : 0;
+            if (voiceLoading || pct <= 0) {
+                progressBar.setIndeterminate(true);
+            } else {
+                progressBar.setIndeterminate(false);
+                progressBar.setProgress(Math.min(100, pct));
+            }
+        } else {
+            progressBar.setVisibility(View.GONE);
+        }
+    }
+
+    @Nullable
+    private AttachmentTransferEntity resolveTransfer(MessageEntity m, @Nullable JsonObject meta) {
+        if (m.getClientId() != null) {
+            AttachmentTransferEntity up = transfersMap.get(m.getClientId());
+            if (up != null) return up;
+        }
+        String mediaUrl = str(meta, "mediaUrl");
+        if (mediaUrl != null) {
+            int slash = mediaUrl.lastIndexOf('/');
+            if (slash >= 0 && slash + 1 < mediaUrl.length()) {
+                return transfersMap.get("dl:" + mediaUrl.substring(slash + 1));
+            }
+        }
+        return null;
+    }
+
+    private static void loadThumbnail(
+            ImageView target, @Nullable JsonObject meta, @Nullable AttachmentTransferEntity transfer) {
+        String localPath = str(meta, "localPath");
+        if (localPath == null && transfer != null) {
+            localPath = transfer.getLocalPath();
+        }
+        File localFile = localPath != null ? new File(localPath) : null;
+        if (localFile != null && localFile.isFile()) {
+            Glide.with(target).load(localFile).centerCrop().into(target);
+            return;
+        }
+        String mediaUrl = str(meta, "mediaUrl");
+        if (mediaUrl == null && transfer != null) {
+            mediaUrl = transfer.getMediaUrl();
+        }
+        if (mediaUrl != null && !mediaUrl.trim().isEmpty()) {
+            try {
+                String resolved = ApiClient.resolveBackendMediaUrl(BuildConfig.BACKEND_BASE_URL, mediaUrl);
+                Glide.with(target).load(resolved).centerCrop().into(target);
+                return;
+            } catch (IllegalArgumentException ignored) {
+            }
+        }
+        target.setImageResource(R.drawable.ic_camera);
+    }
+
+    @Nullable
+    private static String formatCallSummary(Context c, @Nullable JsonObject meta) {
+        if (meta == null || !meta.has("call") || !meta.get("call").isJsonObject()) {
+            return null;
+        }
+        JsonObject call = meta.getAsJsonObject("call");
+        String state = str(call, "state");
+        if ("MISSED".equalsIgnoreCase(state)) return c.getString(R.string.call_status_no_answer);
+        if ("REJECTED".equalsIgnoreCase(state)) return c.getString(R.string.call_status_rejected);
+        if ("BUSY".equalsIgnoreCase(state)) return c.getString(R.string.call_status_busy);
+        if ("FAILED".equalsIgnoreCase(state)) return c.getString(R.string.call_status_offline);
+        if ("ENDED".equalsIgnoreCase(state)) return c.getString(R.string.call_status_ended);
+        return null;
     }
 
     private void bindDate(ViewDatePillBinding date, int position) {
@@ -215,28 +619,36 @@ public class MessageAdapter extends ListAdapter<MessageEntity, RecyclerView.View
         }
     }
 
-    private static int icon(@Nullable String type) {
-        if ("IMAGE".equals(type) || "VIDEO".equals(type)) return R.drawable.ic_camera;
-        if ("AUDIO".equals(type)) return R.drawable.ic_mic;
-        if ("CALL".equals(type)) return R.drawable.ic_phone;
-        if ("LOCATION".equals(type)) return R.drawable.ic_globe;
-        return R.drawable.ic_file;
+    private static String formatDurationMs(int ms) {
+        long totalSec = Math.max(0, ms / 1000L);
+        return String.format(Locale.ROOT, "%d:%02d", totalSec / 60L, totalSec % 60L);
+    }
+
+    private static String formatBytes(long bytes) {
+        if (bytes < 1024L) return bytes + " B";
+        if (bytes < 1024L * 1024L) return String.format(Locale.ROOT, "%.1f KB", bytes / 1024.0);
+        return String.format(Locale.ROOT, "%.1f MB", bytes / (1024.0 * 1024.0));
+    }
+
+    @Nullable
+    static JsonObject parseJsonObject(@Nullable String json) {
+        if (json == null || json.isBlank()) return null;
+        try {
+            JsonElement e = JsonParser.parseString(json);
+            return e != null && e.isJsonObject() ? e.getAsJsonObject() : null;
+        } catch (RuntimeException malformed) {
+            return null;
+        }
     }
 
     /**
      * Chi tiết hiển thị được của tin không phải chữ: tên file, thời lượng mm:ss, tọa độ làm tròn.
-     * Chỉ đọc chữ/số; không bao giờ dùng URL trong JSON để mở gì cả. JSON hỏng trả null.
+     * Chỉ đọc chữ/số; JSON hỏng trả null.
      */
     @Nullable static String summaryMeta(@Nullable String type, @Nullable String json) {
         if (type == null || json == null || json.isBlank()) return null;
-        JsonObject o;
-        try {
-            JsonElement e = JsonParser.parseString(json);
-            if (!e.isJsonObject()) return null;
-            o = e.getAsJsonObject();
-        } catch (RuntimeException malformed) {
-            return null;
-        }
+        JsonObject o = parseJsonObject(json);
+        if (o == null) return null;
         try {
             switch (type) {
                 case "FILE": return str(o, "fileName");
@@ -254,13 +666,28 @@ public class MessageAdapter extends ListAdapter<MessageEntity, RecyclerView.View
                 default: return null;
             }
         } catch (RuntimeException wrongType) {
-            return null; // Trường có kiểu lạ (chuỗi thay vì số...) thì bỏ chi tiết, vẫn hiện nhãn.
+            return null;
         }
     }
 
-    @Nullable private static String str(JsonObject o, String key) {
+    @Nullable static String str(@Nullable JsonObject o, String key) {
+        if (o == null) return null;
         JsonElement e = o.get(key);
         return e != null && e.isJsonPrimitive() ? e.getAsString() : null;
+    }
+
+    private static int optInt(@Nullable JsonObject o, String key, int fallback) {
+        if (o == null) return fallback;
+        JsonElement e = o.get(key);
+        if (e == null || !e.isJsonPrimitive()) return fallback;
+        try { return e.getAsInt(); } catch (RuntimeException ex) { return fallback; }
+    }
+
+    private static long optLong(@Nullable JsonObject o, String key, long fallback) {
+        if (o == null) return fallback;
+        JsonElement e = o.get(key);
+        if (e == null || !e.isJsonPrimitive()) return fallback;
+        try { return e.getAsLong(); } catch (RuntimeException ex) { return fallback; }
     }
 
     private static final DiffUtil.ItemCallback<MessageEntity> DIFF = new DiffUtil.ItemCallback<>() {
