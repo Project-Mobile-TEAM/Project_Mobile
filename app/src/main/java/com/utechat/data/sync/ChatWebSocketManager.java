@@ -45,9 +45,18 @@ public class ChatWebSocketManager {
     private final String wsUrl;
     private final boolean fakeMode;
 
+    /** Listener chuyển tiếp khung call.* từ WebSocket tới CallSessionCoordinator mà không tạo vòng phụ thuộc. */
+    public interface CallSignalListener {
+        void onCallFrame(@NonNull String type, @NonNull JsonObject payload);
+
+        /** Gọi khi kết nối WebSocket mở lại trên phiên hiện hành để gia hạn call.keepalive nếu ICE đang nối. */
+        default void onSocketReconnected() { }
+    }
+
     private final MutableLiveData<WsConnectionState> connectionState =
             new MutableLiveData<>(WsConnectionState.DISCONNECTED);
 
+    @Nullable private volatile CallSignalListener callSignalListener;
     @Nullable private WebSocket activeSocket;
     @Nullable private String activeSessionKey;
     private boolean socketOpen;
@@ -107,6 +116,30 @@ public class ChatWebSocketManager {
 
     public LiveData<WsConnectionState> getConnectionState() {
         return connectionState;
+    }
+
+    /** Đăng ký CallSessionCoordinator nhận các sự kiện call.* (Wave 4 Injection). */
+    public void setCallSignalListener(@Nullable CallSignalListener listener) {
+        this.callSignalListener = listener;
+    }
+
+    /**
+     * Gửi khung báo hiệu WebRTC hoặc call.keepalive qua socket của phiên hiện hành (API_CONTRACT §3):
+     * kiểm tra phiên hiện hành khớp với activeSessionKey trước khi gửi để tránh lọt khung của phiên cũ.
+     */
+    public synchronized boolean sendCallSignalingFrame(@NonNull String frameType, @NonNull JsonObject payload) {
+        if (!socketOpen
+                || activeSocket == null
+                || activeSessionKey == null
+                || !activeSessionKey.equals(session.sessionKey())) {
+            return false;
+        }
+        JsonObject envelope = new JsonObject();
+        envelope.addProperty("v", 1);
+        envelope.addProperty("type", frameType);
+        envelope.addProperty("id", UUID.randomUUID().toString());
+        envelope.add("payload", payload);
+        return activeSocket.send(GSON.toJson(envelope));
     }
 
     /** Mở kết nối WebSocket nếu người dùng đã đăng nhập và không ở chế độ dữ liệu giả. */
@@ -330,6 +363,7 @@ public class ChatWebSocketManager {
         @Override
         public void onOpen(@NonNull WebSocket webSocket, @NonNull Response response) {
             boolean shouldSync = false;
+            CallSignalListener callListener = null;
             synchronized (ChatWebSocketManager.this) {
                 if (manualDisconnect || webSocket != activeSocket || !sessionKey.equals(session.sessionKey())) {
                     webSocket.close(1000, "stale_socket");
@@ -341,6 +375,10 @@ public class ChatWebSocketManager {
                 // Chưa đặt CONNECTED ngay; giữ RECONNECTING cho tới khi SyncEngine bắt kịp sạch.
                 connectionState.postValue(WsConnectionState.RECONNECTING);
                 shouldSync = true;
+                callListener = callSignalListener;
+            }
+            if (callListener != null && sessionKey.equals(session.sessionKey())) {
+                callListener.onSocketReconnected();
             }
             if (shouldSync) {
                 syncEngine.requestSync();
@@ -360,6 +398,9 @@ public class ChatWebSocketManager {
             }
 
             boolean shouldRequestSync = false;
+            CallSignalListener callListener = null;
+            String callFrameType = null;
+            JsonObject callPayload = null;
             synchronized (ChatWebSocketManager.this) {
                 if (manualDisconnect || webSocket != activeSocket || !sessionKey.equals(session.sessionKey())) {
                     return;
@@ -388,9 +429,38 @@ public class ChatWebSocketManager {
                         // Khung dữ liệu WS chỉ báo có thay đổi mới: KHÔNG ghi Room, KHÔNG nâng sync cursor.
                         shouldRequestSync = true;
                         break;
+                    case "call.incoming":
+                    case "call.accepted":
+                    case "call.ended":
+                    case "call.handled_elsewhere":
+                        // Sự kiện vòng đời cuộc gọi mang syncEventId -> vừa kích hoạt /sync vừa chuyển sang CallSessionCoordinator.
+                        shouldRequestSync = true;
+                        if (env.payload != null && env.payload.isJsonObject()) {
+                            callListener = callSignalListener;
+                            callFrameType = env.type;
+                            callPayload = env.payload.getAsJsonObject();
+                        }
+                        break;
+                    case "call.offer":
+                    case "call.answer":
+                    case "call.ice":
+                        // Báo hiệu WebRTC tạm thời: chuyển trực tiếp ngoài monitor lock, không kích hoạt /sync.
+                        if (env.payload != null && env.payload.isJsonObject()) {
+                            callListener = callSignalListener;
+                            callFrameType = env.type;
+                            callPayload = env.payload.getAsJsonObject();
+                        }
+                        break;
                     default:
                         break;
                 }
+            }
+            // Kiểm tra lại phiên hiện hành ngoài monitor lock trước khi giao khung cuộc gọi (T-06-18).
+            if (callListener != null
+                    && callFrameType != null
+                    && callPayload != null
+                    && sessionKey.equals(session.sessionKey())) {
+                callListener.onCallFrame(callFrameType, callPayload);
             }
             if (shouldRequestSync) {
                 syncEngine.requestSync();

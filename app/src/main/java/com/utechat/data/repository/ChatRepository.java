@@ -4,10 +4,12 @@ import androidx.annotation.Nullable;
 import androidx.lifecycle.LiveData;
 import com.utechat.data.local.dao.ConversationListItem;
 import com.utechat.data.local.dao.MessageDao;
+import com.utechat.data.local.entity.AttachmentTransferEntity;
 import com.utechat.data.local.entity.ConversationEntity;
 import com.utechat.data.local.entity.ConversationMemberEntity;
 import com.utechat.data.local.entity.MessageEntity;
 import com.utechat.data.local.entity.UserEntity;
+import com.utechat.data.media.MediaPreparationHelper;
 import com.utechat.data.sync.WsConnectionState;
 import java.util.List;
 import java.util.Map;
@@ -42,9 +44,12 @@ public interface ChatRepository {
     LiveData<ChatResult<Boolean>> removeOrLeaveMember(String conversationId, String targetUserId, @Nullable String successorUserId);
     LiveData<ChatResult<Boolean>> updateMemberRole(String conversationId, String targetUserId, String role);
 
-    // ---- Tải lịch sử, hàng đợi gửi offline & biên nhận ----
+    // ---- Tải lịch sử, hàng đợi gửi offline, media & biên nhận ----
     LiveData<ChatResult<Integer>> loadOlderMessages(String conversationId, @Nullable Long beforeServerId, int limit);
+    LiveData<Map<String, AttachmentTransferEntity>> observeTransfersMap();
     void enqueueTextMessage(String conversationId, String text);
+    void enqueueMediaMessage(String conversationId, MediaPreparationHelper.PreparedMedia prepared, @Nullable String caption);
+    void enqueueLocationMessage(String conversationId, double latitude, double longitude);
     void retryFailedMessage(String clientId);
     void deleteFailedMessage(String clientId);
     void markConversationRead(String conversationId, long upToServerId);

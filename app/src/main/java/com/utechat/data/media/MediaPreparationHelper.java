@@ -49,10 +49,11 @@ public final class MediaPreparationHelper {
         ALLOWED_DOCUMENTS.put("zip", "application/zip");
     }
 
-    private MediaPreparationHelper() { }
+    public MediaPreparationHelper() { }
 
     /** Kết quả chuẩn bị tệp: mô tả đầy đủ tệp riêng tư đã nằm trong filesDir/pending_media/. */
     public static final class PreparedMedia {
+        @Nullable public final String clientId;
         @NonNull public final String kind;
         @NonNull public final String localPath;
         @NonNull public final String mime;
@@ -71,6 +72,20 @@ public final class MediaPreparationHelper {
                 @Nullable Integer width,
                 @Nullable Integer height,
                 @Nullable Integer durationMs) {
+            this(extractClientIdFromPath(localPath), kind, localPath, mime, sizeBytes, fileName, width, height, durationMs);
+        }
+
+        public PreparedMedia(
+                @Nullable String clientId,
+                @NonNull String kind,
+                @NonNull String localPath,
+                @NonNull String mime,
+                long sizeBytes,
+                @NonNull String fileName,
+                @Nullable Integer width,
+                @Nullable Integer height,
+                @Nullable Integer durationMs) {
+            this.clientId = clientId;
             this.kind = kind;
             this.localPath = localPath;
             this.mime = mime;
@@ -79,6 +94,14 @@ public final class MediaPreparationHelper {
             this.width = width;
             this.height = height;
             this.durationMs = durationMs;
+        }
+
+        @Nullable
+        private static String extractClientIdFromPath(@NonNull String path) {
+            String name = new File(path).getName();
+            int dot = name.lastIndexOf('.');
+            String stem = dot > 0 ? name.substring(0, dot) : name;
+            return stem.matches("[A-Za-z0-9-]{1,64}") ? stem : null;
         }
     }
 

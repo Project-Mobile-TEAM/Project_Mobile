@@ -22,6 +22,13 @@ public final class ChatErrors {
             case "VALIDATION": return R.string.chat_error_validation;
             case "NOT_FOUND": return R.string.chat_error_not_found;
             case "NETWORK": return R.string.chat_error_network;
+            case "FILE_TOO_LARGE": return R.string.chat_error_file_too_large;
+            case "UNSUPPORTED_TYPE": return R.string.chat_error_unsupported_type;
+            case "FILE_MISSING": return R.string.chat_error_file_missing;
+            case "CALL_BUSY": return R.string.chat_error_call_busy;
+            case "CALL_UNSUPPORTED": return R.string.chat_error_call_unsupported;
+            case "CALL_NOT_FOUND": return R.string.chat_error_call_not_found;
+            case "INVALID_STATE": return R.string.chat_error_invalid_state;
             default: return R.string.chat_error_generic;
         }
     }

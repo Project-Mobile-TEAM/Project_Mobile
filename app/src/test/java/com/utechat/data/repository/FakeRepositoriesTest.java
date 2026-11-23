@@ -92,4 +92,25 @@ public class FakeRepositoriesTest {
         assertThrows(IllegalArgumentException.class,
                 () -> chats.sendMessage(DemoData.DIRECT, DemoData.EVE, "Không phải thành viên"));
     }
+
+    @Test public void fakeChatEnqueuesMediaAndLocationMessagesAndPublishesTransfers() {
+        FakeChatRepository chats = new FakeChatRepository();
+        int before = chats.getMessages(DemoData.DIRECT).getValue().size();
+
+        com.utechat.data.media.MediaPreparationHelper.PreparedMedia prepared =
+                new com.utechat.data.media.MediaPreparationHelper.PreparedMedia(
+                        "cid-fake-img-1", "IMAGE", "/tmp/cid-fake-img-1.jpg", "image/jpeg",
+                        12345L, "photo.jpg", 800, 600, null);
+        chats.enqueueMediaMessage(DemoData.DIRECT, prepared, "Ảnh mẫu");
+        chats.enqueueLocationMessage(DemoData.DIRECT, 10.7769, 106.7009);
+
+        java.util.List<com.utechat.data.local.entity.MessageEntity> after =
+                chats.getMessages(DemoData.DIRECT).getValue();
+        assertEquals(before + 2, after.size());
+        assertEquals("IMAGE", after.get(after.size() - 2).getType());
+        assertEquals("Ảnh mẫu", after.get(after.size() - 2).getText());
+        assertEquals("LOCATION", after.get(after.size() - 1).getType());
+        assertNotNull(chats.observeTransfersMap().getValue().get("cid-fake-img-1"));
+        assertEquals("COMPLETED", chats.observeTransfersMap().getValue().get("cid-fake-img-1").getState());
+    }
 }

@@ -21,6 +21,8 @@ import com.utechat.data.local.entity.MessageEntity;
 import com.utechat.data.local.entity.UserEntity;
 import com.utechat.data.sync.WsConnectionState;
 import com.utechat.databinding.FragmentChatRoomBinding;
+import com.utechat.di.Injection;
+import com.utechat.ui.call.CallFragment;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -49,6 +51,10 @@ public class ChatRoomFragment extends Fragment {
         binding.toolbar.setNavigationOnClickListener(v -> NavHostFragment.findNavController(this).navigateUp());
         binding.toolbar.inflateMenu(R.menu.menu_chat_room);
         binding.toolbar.setOnMenuItemClickListener(item -> {
+            if (item.getItemId() == R.id.action_voice_call) {
+                openVoiceCall();
+                return true;
+            }
             if (item.getItemId() == R.id.action_search_room) { openSearch(); return true; }
             if (item.getItemId() == R.id.action_group_info) {
                 Bundle args = new Bundle();
@@ -103,6 +109,11 @@ public class ChatRoomFragment extends Fragment {
         vm.getConversation().observe(getViewLifecycleOwner(), c -> {
             adapter.setGroup(c != null && "GROUP".equals(c.getType()));
             renderHeader();
+        });
+        vm.getConversationId().observe(getViewLifecycleOwner(), cid -> {
+            if (cid != null && isResumed()) {
+                Injection.provideActiveRoomTracker().setActive(cid);
+            }
         });
         vm.getMembers().observe(getViewLifecycleOwner(), m -> {
             readOnly = ChatRoomViewModel.isReadOnly(m, meId);
@@ -183,6 +194,28 @@ public class ChatRoomFragment extends Fragment {
         binding.toolbar.setSubtitle(othersTyping ? getString(R.string.chat_typing)
                 : group ? getResources().getQuantityString(R.plurals.group_member_count, active, active) : null);
         binding.toolbar.getMenu().findItem(R.id.action_group_info).setVisible(group);
+        boolean canVoiceCall = !group && c != null && !readOnly && vm.openError.getValue() == null;
+        binding.toolbar.getMenu().findItem(R.id.action_voice_call).setVisible(canVoiceCall);
+    }
+
+    /** Mở màn hình cuộc gọi thoại 1-1 qua global action gốc; CallFragment tự lo quyền micro và CallService. */
+    private void openVoiceCall() {
+        String convId = vm.getConversationId().getValue();
+        if (convId == null || convId.trim().isEmpty()) {
+            return;
+        }
+        String peerId = ChatRoomViewModel.peerOf(vm.deepLinkPeer(), vm.getMembers().getValue(), vm.meId());
+        Map<String, UserEntity> users = vm.getUsers().getValue();
+        UserEntity peer = (peerId != null && users != null) ? users.get(peerId) : null;
+        Bundle args = new Bundle();
+        args.putString(CallFragment.ARG_CONVERSATION_ID, convId);
+        args.putString(CallFragment.ARG_PEER_USER_ID, peerId);
+        if (peer != null) {
+            args.putString(CallFragment.ARG_PEER_NAME, peer.getDisplayName());
+            args.putString(CallFragment.ARG_PEER_AVATAR_URL, peer.getAvatarUrl());
+            args.putString(CallFragment.ARG_PEER_PHONE, peer.getPhone());
+        }
+        NavHostFragment.findNavController(this).navigate(R.id.action_global_call, args);
     }
 
     private void renderComposer() {
@@ -249,10 +282,18 @@ public class ChatRoomFragment extends Fragment {
 
     @Override public void onResume() {
         super.onResume();
+        String activeConvId = vm.getConversationId().getValue();
+        if (activeConvId != null) {
+            Injection.provideActiveRoomTracker().setActive(activeConvId);
+        }
         if (binding != null) binding.messages.post(this::markVisibleRead);
     }
 
     @Override public void onPause() {
+        String activeConvId = vm.getConversationId().getValue();
+        if (activeConvId != null) {
+            Injection.provideActiveRoomTracker().clearIfMatches(activeConvId);
+        }
         vm.stopTyping(); // Rời màn hình thì người kia không còn thấy "Đang nhập…".
         super.onPause();
     }
