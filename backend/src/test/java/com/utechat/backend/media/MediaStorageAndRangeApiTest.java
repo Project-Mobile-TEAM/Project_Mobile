@@ -40,6 +40,8 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 /**
  * Bộ kiểm thử tích hợp trên EmbeddedPostgres cho Plan 06-01:
@@ -473,9 +475,8 @@ class MediaStorageAndRangeApiTest {
                 .andReturn();
         String mediaUrl = json.readTree(uploadRes.getResponse().getContentAsString()).get("mediaUrl").asText();
 
-        // 1. Tải toàn bộ -> 200 OK
-        MvcResult fullRes = mvc.perform(get(mediaUrl)
-                        .header("Authorization", "Bearer " + alice.token))
+        // 1. Tải toàn bộ -> 200 OK (StreamingResponseBody chạy bất đồng bộ nên phải dùng asyncDispatch để đợi ghi đủ byte)
+        MvcResult fullRes = performAsyncDownload(mediaUrl, alice.token, null)
                 .andExpect(status().isOk())
                 .andExpect(header().string("Accept-Ranges", "bytes"))
                 .andExpect(header().string("X-Content-Type-Options", "nosniff"))
@@ -484,9 +485,7 @@ class MediaStorageAndRangeApiTest {
         assertArrayEquals(pdfBytes, fullRes.getResponse().getContentAsByteArray());
 
         // 2. Range hợp lệ bytes=0-9 -> 206 Partial Content
-        MvcResult rangeRes = mvc.perform(get(mediaUrl)
-                        .header("Range", "bytes=0-9")
-                        .header("Authorization", "Bearer " + alice.token))
+        MvcResult rangeRes = performAsyncDownload(mediaUrl, alice.token, "bytes=0-9")
                 .andExpect(status().isPartialContent())
                 .andExpect(header().string("Accept-Ranges", "bytes"))
                 .andExpect(header().string("Content-Range", "bytes 0-9/" + pdfBytes.length))
@@ -525,7 +524,7 @@ class MediaStorageAndRangeApiTest {
 
         // 1. Tệp chưa gắn vào tin nhắn nào: chỉ uploader (Alice) tải được, Bob nhận 403
         String unattachedUrl = uploadSampleImage(alice);
-        mvc.perform(get(unattachedUrl).header("Authorization", "Bearer " + alice.token))
+        performAsyncDownload(unattachedUrl, alice.token, null)
                 .andExpect(status().isOk());
         mvc.perform(get(unattachedUrl).header("Authorization", "Bearer " + bob.token))
                 .andExpect(status().isForbidden());
@@ -539,7 +538,7 @@ class MediaStorageAndRangeApiTest {
                                 "type", "IMAGE",
                                 "mediaUrl", unattachedUrl))))
                 .andExpect(status().isCreated());
-        mvc.perform(get(unattachedUrl).header("Authorization", "Bearer " + bob.token))
+        performAsyncDownload(unattachedUrl, bob.token, null)
                 .andExpect(status().isOk());
         mvc.perform(get(unattachedUrl).header("Authorization", "Bearer " + charlie.token))
                 .andExpect(status().isForbidden());
@@ -558,7 +557,7 @@ class MediaStorageAndRangeApiTest {
                 .andExpect(status().isCreated());
 
         // Khi còn trong nhóm -> Bob tải được 200
-        mvc.perform(get(preRejoinImg).header("Authorization", "Bearer " + bob.token))
+        performAsyncDownload(preRejoinImg, bob.token, null)
                 .andExpect(status().isOk());
 
         // Alice xóa Bob khỏi nhóm -> Bob không còn tải được (403)
@@ -588,7 +587,7 @@ class MediaStorageAndRangeApiTest {
                                 "mediaUrl", postRejoinImg,
                                 "expectedVisibleFromMessageId", 0))))
                 .andExpect(status().isCreated());
-        mvc.perform(get(postRejoinImg).header("Authorization", "Bearer " + bob.token))
+        performAsyncDownload(postRejoinImg, bob.token, null)
                 .andExpect(status().isOk());
     }
 
@@ -725,6 +724,21 @@ class MediaStorageAndRangeApiTest {
     }
 
     // ======================== HELPERS ========================
+
+    /**
+     * Gọi GET /api/media/{id} trả StreamingResponseBody (Servlet Async) đúng chuẩn MockMvc:
+     * luôn dùng asyncDispatch để đợi luồng nền ghi đủ byte và đóng FileChannel trước khi assert (tránh flaky/khóa file trên Windows).
+     */
+    private ResultActions performAsyncDownload(String mediaUrl, String bearerToken, String rangeHeader) throws Exception {
+        MockHttpServletRequestBuilder req = get(mediaUrl).header("Authorization", "Bearer " + bearerToken);
+        if (rangeHeader != null) {
+            req.header("Range", rangeHeader);
+        }
+        MvcResult asyncResult = mvc.perform(req)
+                .andExpect(request().asyncStarted())
+                .andReturn();
+        return mvc.perform(asyncDispatch(asyncResult));
+    }
 
     private String uploadSampleImage(TestUser user) throws Exception {
         byte[] jpegBytes = createSampleJpeg(60, 40);
