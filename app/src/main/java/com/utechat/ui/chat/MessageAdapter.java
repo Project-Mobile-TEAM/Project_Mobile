@@ -272,11 +272,16 @@ public class MessageAdapter extends ListAdapter<MessageEntity, RecyclerView.View
     @Override
     public void onViewRecycled(@NonNull RecyclerView.ViewHolder holder) {
         super.onViewRecycled(holder);
+        ImageView imageView;
         if (holder instanceof SummaryOutHolder) {
-            Glide.with(((SummaryOutHolder) holder).b.mediaImage).clear(((SummaryOutHolder) holder).b.mediaImage);
+            imageView = ((SummaryOutHolder) holder).b.mediaImage;
         } else if (holder instanceof SummaryInHolder) {
-            Glide.with(((SummaryInHolder) holder).b.mediaImage).clear(((SummaryInHolder) holder).b.mediaImage);
+            imageView = ((SummaryInHolder) holder).b.mediaImage;
+        } else {
+            return;
         }
+        // RecyclerView có thể tái chế hàng sau khi Activity bị hủy, nên hủy yêu cầu ảnh qua context ứng dụng.
+        Glide.with(imageView.getContext().getApplicationContext()).clear(imageView);
     }
 
     @Override

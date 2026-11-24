@@ -167,7 +167,7 @@ public class RealAuthRepository implements AuthRepository {
         api.me().enqueue(new Callback<UserDto>() {
             @Override public void onResponse(Call<UserDto> c, Response<UserDto> r) {
                 if (r.isSuccessful() && r.body() != null)
-                    session.runIfCurrent(key, () -> { if (meId.equals(r.body().id)) apply(r.body()); });
+                    session.runIfCurrent(key, () -> { if (meId == null || meId.equals(r.body().id)) apply(r.body()); });
             }
             @Override public void onFailure(Call<UserDto> c, Throwable t) { }
         });
