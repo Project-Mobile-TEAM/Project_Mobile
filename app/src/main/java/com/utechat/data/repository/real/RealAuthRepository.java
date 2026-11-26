@@ -12,6 +12,7 @@ import com.utechat.data.remote.model.AuthDtos.*;
 import com.utechat.data.repository.AuthRepository;
 import com.utechat.data.repository.AuthResult;
 import com.utechat.data.repository.DeviceInfo;
+import com.utechat.data.repository.FriendChallenge;
 import com.utechat.data.repository.OtpChallenge;
 import com.utechat.data.repository.TwoFactorSetup;
 import com.utechat.data.repository.UserProfile;
@@ -37,6 +38,9 @@ public class RealAuthRepository implements AuthRepository {
     private String trackedSessionKey;
     // Token tạm của bước 2FA: chỉ ở bộ nhớ (không ghi đĩa, không vào SavedState), mất khi tiến trình chết.
     private String pendingSecondFactorToken;
+    // Token và bộ 15 người của bước bạn bè: cũng chỉ ở bộ nhớ.
+    private String pendingFriendToken;
+    private FriendChallenge pendingFriendChallenge;
     private final MutableLiveData<UserEntity> current = new MutableLiveData<>(null);
     private final MutableLiveData<UserProfile> profile = new MutableLiveData<>(null);
 
@@ -86,6 +90,8 @@ public class RealAuthRepository implements AuthRepository {
     // ---------- đăng nhập / đăng xuất ----------
     @Override public LiveData<AuthResult<UserEntity>> login(String phoneE164, String password) {
         pendingSecondFactorToken = null;
+        pendingFriendToken = null;
+        pendingFriendChallenge = null;
         return call(api.loginPassword(new PasswordLoginRequest(phoneE164, password, session.getDeviceId(), Build.MODEL)), r -> {
             if ("NEED_2FA".equals(r.state)) {
                 pendingSecondFactorToken = r.secondFactorToken;
@@ -100,7 +106,50 @@ public class RealAuthRepository implements AuthRepository {
         if (token == null) return new MutableLiveData<>(AuthResult.error("OTP_EXPIRED")); // Mất token (tiến trình chết): nhập lại mật khẩu.
         return call(api.loginSecondFactor(new SecondFactorRequest(token, code, Build.MODEL)), r -> {
             pendingSecondFactorToken = null;
+            return completeOrStashFriendStep(r);
+        });
+    }
+
+    /** Sau OTP/2FA trên thiết bị lạ server có thể đòi bước bạn bè: giữ token và bộ 15 người, báo NEED_FRIEND. */
+    private UserEntity completeOrStashFriendStep(AuthSuccessResponse r) {
+        if ("NEED_FRIEND".equals(r.state)) {
+            pendingFriendToken = r.friendToken;
+            pendingFriendChallenge = toChallenge(r.friendChallenge);
+            throw new CodedError("NEED_FRIEND");
+        }
+        return onAuthenticated(r);
+    }
+
+    private static FriendChallenge toChallenge(FriendChallengeDto d) {
+        List<FriendChallenge.Candidate> list = new ArrayList<>();
+        for (FriendCandidateDto c : d.candidates) list.add(new FriendChallenge.Candidate(c.id, c.displayName));
+        return new FriendChallenge(d.challengeId, list, d.attemptsLeft, d.lastAttemptWrong,
+                System.currentTimeMillis() + d.expiresInSeconds * 1000L);
+    }
+
+    @Override public FriendChallenge getPendingFriendChallenge() { return pendingFriendChallenge; }
+
+    @Override public LiveData<AuthResult<UserEntity>> submitFriendChoice(List<String> selectedIds) {
+        String token = pendingFriendToken;
+        FriendChallenge ch = pendingFriendChallenge;
+        if (token == null || ch == null) return new MutableLiveData<>(AuthResult.error("OTP_EXPIRED")); // Mất token: đăng nhập lại.
+        return call(api.loginFriendStep(new FriendStepRequest(token, ch.challengeId, selectedIds, Build.MODEL)), r -> {
+            if ("NEED_FRIEND".equals(r.state)) { // Chọn sai: server trả bộ mới.
+                pendingFriendChallenge = toChallenge(r.friendChallenge);
+                throw new CodedError("FRIEND_WRONG");
+            }
+            pendingFriendToken = null;
+            pendingFriendChallenge = null;
             return onAuthenticated(r);
+        });
+    }
+
+    @Override public LiveData<AuthResult<FriendChallenge>> refreshFriendChallenge() {
+        String token = pendingFriendToken;
+        if (token == null) return new MutableLiveData<>(AuthResult.error("OTP_EXPIRED"));
+        return call(api.loginFriendStep(new FriendStepRequest(token, null, null, Build.MODEL)), r -> {
+            pendingFriendChallenge = toChallenge(r.friendChallenge);
+            return pendingFriendChallenge;
         });
     }
 
@@ -109,7 +158,7 @@ public class RealAuthRepository implements AuthRepository {
                 r -> new OtpChallenge(r.challengeId, r.demoOtp));
     }
     @Override public LiveData<AuthResult<UserEntity>> verifyLoginOtp(String challengeId, String code) {
-        return call(api.loginOtpVerify(new OtpLoginVerifyRequest(challengeId, code, Build.MODEL)), this::onAuthenticated);
+        return call(api.loginOtpVerify(new OtpLoginVerifyRequest(challengeId, code, Build.MODEL)), this::completeOrStashFriendStep);
     }
 
     @Override public LiveData<UserEntity> getCurrentUser() { return current; }

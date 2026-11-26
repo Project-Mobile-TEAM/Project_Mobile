@@ -49,6 +49,7 @@ public class LoginFragment extends Fragment {
         binding.tilPhone.setEnabled(!on);
         binding.tilPassword.setEnabled(!on);
         binding.tvSecondFactorHint.setVisibility(on ? View.VISIBLE : View.GONE);
+        binding.tvCodeLabel.setVisibility(on ? View.VISIBLE : View.GONE);
         binding.tilCode.setVisibility(on ? View.VISIBLE : View.GONE);
         binding.btnLogin.setText(on ? R.string.auth_two_factor_confirm : R.string.auth_login);
         if (!on) binding.etCode.setText("");
@@ -63,6 +64,8 @@ public class LoginFragment extends Fragment {
             binding.btnLogin.setEnabled(true);
             if (result.isSuccess()) {
                 Navigation.findNavController(binding.getRoot()).navigate(R.id.action_login_to_main);
+            } else if ("NEED_FRIEND".equals(result.errorCode)) {
+                Navigation.findNavController(binding.getRoot()).navigate(R.id.action_login_to_friend);
             } else if ("OTP_EXPIRED".equals(result.errorCode)) {
                 showSecondFactor(false); // Token tạm hết hạn hoặc đã mất: nhập lại mật khẩu.
                 binding.tilPassword.setError(getString(R.string.auth_error_otp_expired));

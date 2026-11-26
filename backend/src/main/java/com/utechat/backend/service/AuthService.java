@@ -1,6 +1,8 @@
 package com.utechat.backend.service;
 
 import com.utechat.backend.dto.AuthDtos.AuthSuccessResponse;
+import com.utechat.backend.dto.AuthDtos.FriendCandidateDto;
+import com.utechat.backend.dto.AuthDtos.FriendChallengeDto;
 import com.utechat.backend.dto.AuthDtos.OtpChallengeResponse;
 import com.utechat.backend.exception.ApiException;
 import com.utechat.backend.security.AuthenticatedActor;
@@ -12,6 +14,7 @@ import io.jsonwebtoken.JwtException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.dao.DuplicateKeyException;
@@ -39,10 +42,12 @@ public class AuthService {
     private final ThrottleService throttle;
     private final AccountService account;
     private final TwoFactorService twoFactor;
+    private final FriendStepService friend;
     private final ObjectProvider<WebSocketSessionRegistry> wsRegistryProvider;
 
     public AuthService(JdbcTemplate jdbc, PasswordEncoder encoder, JwtService jwt, OtpService otp,
             ThrottleService throttle, AccountService account, TwoFactorService twoFactor,
+            FriendStepService friend,
             ObjectProvider<WebSocketSessionRegistry> wsRegistryProvider) {
         this.jdbc = jdbc;
         this.encoder = encoder;
@@ -51,6 +56,7 @@ public class AuthService {
         this.throttle = throttle;
         this.account = account;
         this.twoFactor = twoFactor;
+        this.friend = friend;
         this.wsRegistryProvider = wsRegistryProvider;
         this.dummyHash = encoder.encode("not-a-real-password"); // Băm hợp lệ thật, tạo một lần lúc khởi động.
     }
@@ -109,7 +115,7 @@ public class AuthService {
         if (twoFactor.isEnabled(userId) && !isTrustedDevice(userId, deviceHash)) {
             UUID sid = openSession(userId, deviceHash, "PASSWORD");
             String token = jwt.issueTempToken(JwtService.TWO_FACTOR, sid, phone, userId, deviceHash);
-            return new AuthSuccessResponse("NEED_2FA", null, null, token);
+            return new AuthSuccessResponse("NEED_2FA", null, null, token, null, null);
         }
         return success(userId, deviceHash, deviceName);
     }
@@ -122,7 +128,79 @@ public class AuthService {
         if (!userId.equals(findActiveUserId(phone))) throw new ApiException(HttpStatus.BAD_REQUEST, "OTP_EXPIRED", "Token invalid or expired");
         twoFactor.requireValidCode(userId, phone, deviceHash, code);
         consumeSession(claims);
-        return success(userId, deviceHash, deviceName);
+        return finishUntrusted(userId, phone, deviceHash, deviceName);
+    }
+
+    // ================= Bước nhận diện bạn bè (F-04) =================
+
+    /**
+     * Sau OTP hoặc 2FA: thiết bị đã tin cậy vào thẳng; thiết bị lạ thì phải chọn đúng 3 bạn trong 15 người
+     * (nếu tài khoản có từ 3 bạn và đủ 12 mồi), ngược lại bỏ qua bước.
+     */
+    private AuthSuccessResponse finishUntrusted(UUID userId, String phone, String deviceHash, String deviceName) {
+        if (isTrustedDevice(userId, deviceHash)) return success(userId, deviceHash, deviceName);
+        requireFriendStepNotLocked(userId);
+        FriendStepService.Picked picked = friend.pick(userId);
+        if (picked == null) return success(userId, deviceHash, deviceName);
+        UUID sid = openSession(userId, deviceHash, "OTP");
+        String token = jwt.issueTempToken(JwtService.FRIEND, sid, phone, userId, deviceHash);
+        return needFriend(token, friend.persist(userId, sid, picked, 0, false));
+    }
+
+    /** Chọn bạn: chọn đúng thì đăng nhập; sai thì trả bộ mới (còn lượt) hoặc khoá 15 phút ở lần sai thứ 3. */
+    public AuthSuccessResponse loginFriendStep(String friendToken, String challengeId, List<String> selectedIds, String deviceName) {
+        Claims claims = parseTemp(friendToken, JwtService.FRIEND);
+        UUID userId = UUID.fromString(claims.get("uid", String.class)), sid = UUID.fromString(claims.getSubject());
+        String phone = claims.get("phone", String.class), deviceHash = claims.get("did", String.class);
+        if (!userId.equals(findActiveUserId(phone))) throw new ApiException(HttpStatus.BAD_REQUEST, "OTP_EXPIRED", "Token invalid or expired");
+        requireFriendStepNotLocked(userId);
+        // Phiên đã hoàn tất hoặc hết hạn thì token này không còn dùng được, kể cả để xin bộ mới.
+        Integer open = jdbc.queryForObject("SELECT count(*) FROM auth_sessions WHERE id = ? AND state = 'NEED_OTP' AND expires_at > now()", Integer.class, sid);
+        if (open == null || open == 0) throw new ApiException(HttpStatus.BAD_REQUEST, "OTP_EXPIRED", "Token already used or expired");
+        if (selectedIds == null || selectedIds.isEmpty()) { // Xin bộ mới vì bộ cũ hết hạn: không tính lần thử.
+            return newFriendChallenge(friendToken, userId, sid, friend.attemptsUsed(sid), false);
+        }
+        UUID challenge = parseUuid(challengeId);
+        if (selectedIds.size() != FriendStepService.FRIENDS || challenge == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "VALIDATION", "Select exactly 3 people");
+        }
+        FriendStepService.Check check = friend.check(sid, challenge, selectedIds);
+        switch (check.result()) {
+            case OK:
+                consumeSession(claims);
+                return success(userId, deviceHash, deviceName);
+            case EXPIRED:
+                throw new ApiException(HttpStatus.BAD_REQUEST, "FRIEND_CHALLENGE_EXPIRED", "Challenge expired");
+            default:
+                if (check.attemptsUsed() >= FriendStepService.MAX_ATTEMPTS) {
+                    friend.lock(userId);
+                    throw new ApiException(HttpStatus.LOCKED, "LOCKED", "Too many attempts",
+                            Map.of("retryAfterSeconds", (long) FriendStepService.LOCK_SECONDS));
+                }
+                return newFriendChallenge(friendToken, userId, sid, check.attemptsUsed(), true);
+        }
+    }
+
+    private AuthSuccessResponse newFriendChallenge(String token, UUID userId, UUID sid, int attemptsUsed, boolean wrong) {
+        FriendStepService.Picked picked = friend.pick(userId);
+        // Không còn đủ điều kiện (mất bạn hoặc hết mồi) thì KHÔNG cho qua: bắt đăng nhập lại từ đầu.
+        if (picked == null) throw new ApiException(HttpStatus.BAD_REQUEST, "FRIEND_CHALLENGE_EXPIRED", "Challenge unavailable");
+        return needFriend(token, friend.persist(userId, sid, picked, attemptsUsed, wrong));
+    }
+
+    private AuthSuccessResponse needFriend(String token, FriendStepService.Challenge c) {
+        List<FriendCandidateDto> list = c.candidates().stream().map(x -> new FriendCandidateDto(x.id(), x.displayName())).toList();
+        return new AuthSuccessResponse("NEED_FRIEND", null, null, null, token,
+                new FriendChallengeDto(c.id().toString(), FriendStepService.TTL_SECONDS, list, c.attemptsLeft(), c.lastAttemptWrong()));
+    }
+
+    private void requireFriendStepNotLocked(UUID userId) {
+        long locked = friend.lockedSeconds(userId);
+        if (locked > 0) throw new ApiException(HttpStatus.LOCKED, "LOCKED", "Friend step locked", Map.of("retryAfterSeconds", locked));
+    }
+
+    private static UUID parseUuid(String s) {
+        try { return s == null ? null : UUID.fromString(s); } catch (IllegalArgumentException e) { return null; }
     }
 
     private boolean isTrustedDevice(UUID userId, String deviceHash) {
@@ -139,7 +217,7 @@ public class AuthService {
         OtpService.Verified v = otp.verify(challengeId, code, "LOGIN");
         UUID userId = findActiveUserId(v.phone());
         if (userId == null) throw new ApiException(HttpStatus.BAD_REQUEST, "OTP_INVALID", "OTP invalid");
-        return success(userId, v.deviceHash(), deviceName);
+        return finishUntrusted(userId, v.phone(), v.deviceHash(), deviceName);
     }
 
     // ================= Quên mật khẩu (F-04) =================
@@ -232,7 +310,7 @@ public class AuthService {
                 // GREATEST: đăng nhập lại ngay sau khi đăng xuất không được làm token cũ sống lại.
                 + "token_valid_after = GREATEST(user_devices.token_valid_after, EXCLUDED.token_valid_after)",
                 userId, deviceHash, name.length() > 100 ? name.substring(0, 100) : name, Timestamp.from(Instant.now().minusSeconds(2)));
-        return new AuthSuccessResponse("COMPLETE", jwt.issueAccessToken(userId, deviceHash), account.getProfile(userId), null);
+        return new AuthSuccessResponse("COMPLETE", jwt.issueAccessToken(userId, deviceHash), account.getProfile(userId), null, null, null);
     }
 
     /**

@@ -21,6 +21,7 @@ public class JwtService {
     public static final String REGISTRATION = "REGISTRATION";
     public static final String RESET = "RESET";
     public static final String TWO_FACTOR = "TWO_FACTOR";
+    public static final String FRIEND = "FRIEND";
     private final SecretKey key;
     private final Duration accessTtl;
 

@@ -9,6 +9,11 @@
     <string name="auth_login">Đăng nhập</string>
     <string name="auth_two_factor_hint">Đây là thiết bị mới. Nhập mã 6 số từ ứng dụng xác thực hoặc một mã dự phòng.</string>
     <string name="auth_two_factor_code">Mã xác thực</string>
+    <string name="friend_step_title">Xác nhận là bạn</string>
+    <string name="friend_step_desc">Đây là thiết bị mới. Hãy chọn 3 người là bạn của bạn.</string>
+    <string name="friend_step_confirm">Xác nhận</string>
+    <string name="friend_step_wrong">Chưa đúng. Còn %1$d lượt, đây là bộ mới.</string>
+    <string name="friend_step_expires">Hết hạn sau %1$s</string>
     <string name="auth_two_factor_confirm">Xác nhận</string>
     <string name="auth_error_code_invalid">Mã không đúng.</string>
     <string name="auth_no_account">Chưa có tài khoản?</string>

@@ -12,6 +12,7 @@ public interface AuthApi {
     @POST("api/auth/register/complete") Call<AuthSuccessResponse> registerComplete(@Body RegisterCompleteRequest body);
     @POST("api/auth/login/password") Call<AuthSuccessResponse> loginPassword(@Body PasswordLoginRequest body);
     @POST("api/auth/login/second-factor") Call<AuthSuccessResponse> loginSecondFactor(@Body SecondFactorRequest body);
+    @POST("api/auth/login/friend-step") Call<AuthSuccessResponse> loginFriendStep(@Body FriendStepRequest body);
     @POST("api/auth/login/otp/request") Call<OtpChallengeResponse> loginOtpRequest(@Body PhoneDeviceRequest body);
     @POST("api/auth/login/otp/verify") Call<AuthSuccessResponse> loginOtpVerify(@Body OtpLoginVerifyRequest body);
     @POST("api/auth/password-reset/otp") Call<OtpChallengeResponse> resetOtp(@Body PhoneDeviceRequest body);

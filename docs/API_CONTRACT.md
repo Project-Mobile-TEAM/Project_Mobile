@@ -42,6 +42,7 @@
 | `POST /auth/register/verify` | `challengeId`, `code` | `registrationToken` | `OTP_INVALID`, `OTP_EXPIRED`, `OTP_ATTEMPTS` |
 | `POST /auth/register/complete` | `registrationToken`, `displayName`, `password`, `deviceName` | `token`, `user` (201) | `WEAK_PASSWORD`, `VALIDATION` |
 | `POST /auth/login/password` | `phone`, `password`, `deviceId`, `deviceName` | `state` (`COMPLETE`), `token`, `user`; hoặc 200 `state` = `NEED_2FA` kèm `secondFactorToken` (thiết bị lạ + tài khoản bật 2FA) | `BAD_CREDENTIALS` 401, `LOCKED` 423 |
+| `POST /auth/login/friend-step` | `friendToken`, `challengeId`, `selectedIds[3]`, `deviceName` (bỏ `challengeId` và `selectedIds` để xin bộ mới khi bộ hết hạn) | `COMPLETE` (`token`, `user`), hoặc `NEED_FRIEND` kèm `friendToken` và `friendChallenge {challengeId, expiresInSeconds, candidates[15]{id, displayName}, attemptsLeft, lastAttemptWrong}` | Bước nhận diện bạn bè (F-04, ADR-005). Có sau OTP hoặc 2FA trên thiết bị lạ khi tài khoản có từ 3 bạn và đủ 12 mồi. Sai: bộ mới, tối đa 3 lần, lần thứ 3 khoá 15 phút theo tài khoản (`LOCKED` 423); `FRIEND_CHALLENGE_EXPIRED`, `VALIDATION`, `OTP_EXPIRED` |
 | `POST /auth/login/second-factor` | `secondFactorToken`, `code` (TOTP 6 số hoặc mã dự phòng), `deviceName` | `state` (`COMPLETE`), `token`, `user` | `CODE_INVALID` 400, `OTP_EXPIRED` (token tạm quá 10 phút), `LOCKED` 423 |
 | `POST /auth/login/otp/request` | `phone`, `deviceId` | `challengeId` (luôn 200) | `OTP_RATE_LIMIT` |
 | `POST /auth/login/otp/verify` | `challengeId`, `code`, `deviceName` | `state` (`COMPLETE`), `token`, `user` | `OTP_INVALID`, `OTP_EXPIRED`, `LOCKED` 423 |
@@ -314,7 +315,7 @@ Bảng `auth_throttles` kiểm soát theo `(scope_type, scope_key_hash, purpose)
 
 ## 5. Danh mục mã lỗi chính
 
-`VALIDATION`, `PHONE_TAKEN`, `PHONE_INVALID`, `BAD_CREDENTIALS`, `LOCKED`, `WEAK_PASSWORD`, `OTP_INVALID`, `OTP_EXPIRED`, `OTP_ATTEMPTS`, `OTP_RATE_LIMIT`, `CODE_INVALID`, `TWO_FACTOR_ALREADY_ENABLED`, `TWO_FACTOR_NOT_SETUP`, `TWO_FACTOR_NOT_ENABLED`, `SESSION_EXPIRED`, `NOT_FOUND`, `FORBIDDEN`, `NOT_A_MEMBER`, `NOT_ADMIN`, `GROUP_FULL`, `ADMIN_HANDOVER_REQUIRED`, `MEMBERSHIP_CHANGED`, `SYNC_CURSOR_EXPIRED`, `BLOCKED`, `CONTACT_REQUIRED`, `REQUEST_ALREADY_PENDING`, `ALREADY_FRIENDS`, `CONFLICT`, `INVALID_STATE`, `FILE_TOO_LARGE`, `UNSUPPORTED_TYPE`, `CALL_BUSY`, `CALL_NOT_FOUND`, `CALL_UNSUPPORTED`, `SELF`, `RATE_LIMITED`, `INTERNAL`.
+`VALIDATION`, `PHONE_TAKEN`, `PHONE_INVALID`, `BAD_CREDENTIALS`, `LOCKED`, `WEAK_PASSWORD`, `OTP_INVALID`, `OTP_EXPIRED`, `OTP_ATTEMPTS`, `OTP_RATE_LIMIT`, `CODE_INVALID`, `FRIEND_CHALLENGE_EXPIRED`, `TWO_FACTOR_ALREADY_ENABLED`, `TWO_FACTOR_NOT_SETUP`, `TWO_FACTOR_NOT_ENABLED`, `SESSION_EXPIRED`, `NOT_FOUND`, `FORBIDDEN`, `NOT_A_MEMBER`, `NOT_ADMIN`, `GROUP_FULL`, `ADMIN_HANDOVER_REQUIRED`, `MEMBERSHIP_CHANGED`, `SYNC_CURSOR_EXPIRED`, `BLOCKED`, `CONTACT_REQUIRED`, `REQUEST_ALREADY_PENDING`, `ALREADY_FRIENDS`, `CONFLICT`, `INVALID_STATE`, `FILE_TOO_LARGE`, `UNSUPPORTED_TYPE`, `CALL_BUSY`, `CALL_NOT_FOUND`, `CALL_UNSUPPORTED`, `SELF`, `RATE_LIMITED`, `INTERNAL`.
 
 ## 6. Chính sách thông báo (Notification)
 

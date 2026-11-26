@@ -18,6 +18,7 @@ import com.utechat.R;
 import com.utechat.data.local.entity.UserEntity;
 import com.utechat.data.repository.AuthRepository;
 import com.utechat.data.repository.AuthResult;
+import com.utechat.data.repository.FriendChallenge;
 import com.utechat.data.repository.OtpChallenge;
 import com.utechat.di.Injection;
 
@@ -84,10 +85,19 @@ public class AuthViewModel extends ViewModel {
         });
     }
 
+    /** Bộ 15 người đang chờ chọn (null nếu tiến trình bị thu hồi và token đã mất). */
+    @Nullable public FriendChallenge getFriendChallenge() { return repository.getPendingFriendChallenge(); }
+
+    public LiveData<AuthResult<UserEntity>> submitFriendChoice(java.util.List<String> selectedIds) {
+        return repository.submitFriendChoice(selectedIds);
+    }
+
+    public LiveData<AuthResult<FriendChallenge>> refreshFriendChallenge() { return repository.refreshFriendChallenge(); }
+
     /** Bước hai của đăng nhập mật khẩu: mã TOTP hoặc mã dự phòng. Mã hết hạn thì phải nhập lại mật khẩu. */
     public LiveData<AuthResult<UserEntity>> verifySecondFactor(String code) {
         return Transformations.map(repository.verifySecondFactor(code), result -> {
-            if (result.isSuccess() || "OTP_EXPIRED".equals(result.errorCode)) awaitingSecondFactor = false;
+            if (result.isSuccess() || "OTP_EXPIRED".equals(result.errorCode) || "NEED_FRIEND".equals(result.errorCode)) awaitingSecondFactor = false;
             return result;
         });
     }

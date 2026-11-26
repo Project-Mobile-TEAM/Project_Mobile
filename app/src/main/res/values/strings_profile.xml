@@ -25,7 +25,8 @@
     <string name="profile_two_factor_title">Two-factor authentication</string>
     <string name="profile_two_factor_off_desc">Add a second step when you sign in on a new device. You will need an authenticator app such as Google Authenticator.</string>
     <string name="profile_two_factor_enable">Turn on</string>
-    <string name="profile_two_factor_setup_desc">Add this key to your authenticator app (account type: time-based), then enter the 6-digit code it shows.</string>
+    <string name="profile_two_factor_setup_desc">Scan the QR code or add this key to your authenticator app (account type: time-based), then enter the 6-digit code it shows.</string>
+    <string name="profile_two_factor_qr_desc">QR code for your authenticator app</string>
     <string name="profile_two_factor_open_app">Open in authenticator app</string>
     <string name="profile_two_factor_no_app">No authenticator app found. Enter the key manually.</string>
     <string name="profile_two_factor_codes_desc">Save these backup codes now. Each works once if you lose your phone. They will not be shown again.</string>

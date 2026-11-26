@@ -15,6 +15,14 @@ public interface AuthRepository {
     // Thiết bị lạ + tài khoản bật 2FA: login() trả lỗi NEED_2FA, rồi bước này gửi mã TOTP hoặc mã dự phòng;
     // lỗi CODE_INVALID (sai mã), OTP_EXPIRED (quá 10 phút, phải nhập lại mật khẩu), LOCKED.
     LiveData<AuthResult<UserEntity>> verifySecondFactor(String code);
+    // verifyLoginOtp và verifySecondFactor có thể trả lỗi NEED_FRIEND (thiết bị lạ, tài khoản có từ 3 bạn): lấy bộ 15 người
+    // bằng getPendingFriendChallenge() rồi gọi submitFriendChoice (F-04).
+    FriendChallenge getPendingFriendChallenge();
+    // Gửi 3 người đã chọn. Đúng thì đăng nhập; sai trả lỗi FRIEND_WRONG kèm bộ mới (đọc lại getPendingFriendChallenge);
+    // lỗi LOCKED (sai 3 lần), FRIEND_CHALLENGE_EXPIRED (bộ hết hạn), OTP_EXPIRED (phải đăng nhập lại từ đầu).
+    LiveData<AuthResult<UserEntity>> submitFriendChoice(java.util.List<String> selectedIds);
+    // Xin bộ mới khi bộ hiện tại hết hạn (không tính là lần thử).
+    LiveData<AuthResult<FriendChallenge>> refreshFriendChallenge();
     LiveData<UserEntity> getCurrentUser();
     void logout();
 

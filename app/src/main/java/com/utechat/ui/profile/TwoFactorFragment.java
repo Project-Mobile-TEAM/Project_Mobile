@@ -5,6 +5,7 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Bundle;
 import android.view.*;
@@ -13,6 +14,10 @@ import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.navigation.Navigation;
 import com.google.android.material.snackbar.Snackbar;
+import com.google.zxing.BarcodeFormat;
+import com.google.zxing.WriterException;
+import com.google.zxing.common.BitMatrix;
+import com.google.zxing.qrcode.QRCodeWriter;
 import com.utechat.R;
 import com.utechat.databinding.FragmentTwoFactorBinding;
 import com.utechat.ui.auth.AuthErrors;
@@ -55,15 +60,30 @@ public class TwoFactorFragment extends Fragment {
         binding.secOn.setVisibility(step == TwoFactorViewModel.Step.ON ? View.VISIBLE : View.GONE);
         if (step == TwoFactorViewModel.Step.SETUP && viewModel.getSetup() != null) {
             binding.tvSecret.setText(viewModel.getSetup().secret);
+            binding.ivQr.setImageBitmap(qr(viewModel.getSetup().otpauthUri));
         } else if (step == TwoFactorViewModel.Step.CODES && viewModel.getBackupCodes() != null) {
             binding.tvCodes.setText(String.join("\n", viewModel.getBackupCodes()));
         } else {
             binding.tvSecret.setText("");
+            binding.ivQr.setImageDrawable(null);
             binding.tvCodes.setText("");
             binding.etSetupPassword.setText("");
             binding.etEnableCode.setText("");
             binding.etDisablePassword.setText("");
             binding.etDisableCode.setText("");
+        }
+    }
+
+    /** Mã QR đen trên nền trắng (ứng dụng xác thực cần tương phản cao, kể cả ở chế độ tối). Lỗi mã hoá thì không hiện QR, người dùng vẫn nhập khoá tay được. */
+    @Nullable private static Bitmap qr(String text) {
+        try {
+            BitMatrix m = new QRCodeWriter().encode(text, BarcodeFormat.QR_CODE, 512, 512);
+            int[] px = new int[m.getWidth() * m.getHeight()];
+            for (int y = 0; y < m.getHeight(); y++)
+                for (int x = 0; x < m.getWidth(); x++) px[y * m.getWidth() + x] = m.get(x, y) ? 0xFF000000 : 0xFFFFFFFF;
+            return Bitmap.createBitmap(px, m.getWidth(), m.getHeight(), Bitmap.Config.ARGB_8888);
+        } catch (WriterException e) {
+            return null;
         }
     }
 

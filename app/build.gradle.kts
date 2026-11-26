@@ -92,6 +92,7 @@ dependencies {
     implementation(libs.stream.webrtc.android)
     implementation(libs.mlkit.translate)
     implementation(libs.exifinterface)
+    implementation(libs.zxing.core) // Vẽ mã QR otpauth:// ở màn bật 2FA (thuần Java, không cần camera).
     implementation(libs.glide)
     implementation(libs.glide.okhttp3.integration)
     annotationProcessor(libs.glide.compiler)

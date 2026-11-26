@@ -22,7 +22,8 @@
     <string name="profile_two_factor_title">Xác thực hai lớp</string>
     <string name="profile_two_factor_off_desc">Thêm bước thứ hai khi đăng nhập trên thiết bị mới. Bạn cần một ứng dụng xác thực như Google Authenticator.</string>
     <string name="profile_two_factor_enable">Bật</string>
-    <string name="profile_two_factor_setup_desc">Thêm khoá này vào ứng dụng xác thực (loại theo thời gian), rồi nhập mã 6 số nó hiển thị.</string>
+    <string name="profile_two_factor_setup_desc">Quét mã QR hoặc thêm khoá này vào ứng dụng xác thực (loại theo thời gian), rồi nhập mã 6 số nó hiển thị.</string>
+    <string name="profile_two_factor_qr_desc">Mã QR cho ứng dụng xác thực</string>
     <string name="profile_two_factor_open_app">Mở bằng ứng dụng xác thực</string>
     <string name="profile_two_factor_no_app">Không tìm thấy ứng dụng xác thực. Hãy nhập khoá thủ công.</string>
     <string name="profile_two_factor_codes_desc">Hãy lưu các mã dự phòng này ngay. Mỗi mã dùng được một lần khi bạn mất điện thoại. Mã sẽ không hiện lại.</string>

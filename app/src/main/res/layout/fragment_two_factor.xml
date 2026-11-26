@@ -54,6 +54,9 @@
                 android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
                 <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:text="@string/profile_two_factor_setup_desc" android:textAppearance="?attr/textAppearanceBodyMedium" />
+                <ImageView android:id="@+id/iv_qr" android:layout_width="220dp" android:layout_height="220dp"
+                    android:layout_gravity="center_horizontal" android:layout_marginTop="12dp"
+                    android:background="#FFFFFF" android:padding="8dp" android:contentDescription="@string/profile_two_factor_qr_desc" />
                 <TextView android:id="@+id/tv_secret" android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:layout_marginTop="12dp" android:textIsSelectable="true" android:fontFamily="monospace"
                     android:textSize="18sp" android:textStyle="bold" android:textColor="?attr/colorOnSurface" />

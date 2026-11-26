@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Một người trong bộ 15 người của bước nhận diện bạn bè: chạm cả hàng để chọn. -->
+<com.google.android.material.checkbox.MaterialCheckBox xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/cb_candidate" android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:minHeight="56dp" android:paddingStart="8dp" android:paddingEnd="8dp"
+    android:textAppearance="?attr/textAppearanceBodyLarge" android:textColor="?attr/colorOnSurface" />

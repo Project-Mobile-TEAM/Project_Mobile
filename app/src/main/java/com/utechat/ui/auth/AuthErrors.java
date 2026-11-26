@@ -15,6 +15,8 @@ public final class AuthErrors {
             case "OTP_EXPIRED": return R.string.auth_error_otp_expired;
             case "OTP_ATTEMPTS": return R.string.auth_error_otp_attempts;
             case "OTP_RATE_LIMIT": return R.string.auth_error_otp_rate_limit;
+            case "FRIEND_WRONG": return R.string.auth_error_generic;
+            case "FRIEND_CHALLENGE_EXPIRED": return R.string.auth_error_otp_expired;
             case "CODE_INVALID": return R.string.auth_error_code_invalid;
             case "BAD_CREDENTIALS": return R.string.auth_error_bad_credentials;
             case "LOCKED": return R.string.auth_error_locked;

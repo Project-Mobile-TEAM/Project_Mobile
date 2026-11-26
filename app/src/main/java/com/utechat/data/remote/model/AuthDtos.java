@@ -56,6 +56,12 @@ public final class AuthDtos {
             this.secondFactorToken = token; this.code = code; this.deviceName = deviceName;
         }
     }
+    public static final class FriendStepRequest {
+        final String friendToken; final String challengeId; final List<String> selectedIds; final String deviceName;
+        public FriendStepRequest(String friendToken, String challengeId, List<String> selectedIds, String deviceName) {
+            this.friendToken = friendToken; this.challengeId = challengeId; this.selectedIds = selectedIds; this.deviceName = deviceName;
+        }
+    }
     public static final class TwoFactorSetupRequest {
         final String password;
         public TwoFactorSetupRequest(String password) { this.password = password; }
@@ -79,7 +85,15 @@ public final class AuthDtos {
     public static final class RegistrationTokenResponse { public String registrationToken; }
     public static final class ResetTokenResponse { public String resetToken; }
     // state = COMPLETE (có token, user) hoặc NEED_2FA (chỉ có secondFactorToken).
-    public static final class AuthSuccessResponse { public String state; public String token; public UserDto user; public String secondFactorToken; }
+    public static final class AuthSuccessResponse {
+        public String state; public String token; public UserDto user; public String secondFactorToken;
+        public String friendToken; public FriendChallengeDto friendChallenge; // state NEED_FRIEND (F-04)
+    }
+    public static final class FriendCandidateDto { public String id; public String displayName; }
+    public static final class FriendChallengeDto {
+        public String challengeId; public int expiresInSeconds; public List<FriendCandidateDto> candidates;
+        public int attemptsLeft; public boolean lastAttemptWrong;
+    }
     public static final class TwoFactorStatusResponse { public boolean enabled; }
     public static final class TwoFactorSetupResponse { public String secret; public String otpauthUri; }
     public static final class BackupCodesResponse { public List<String> backupCodes; }

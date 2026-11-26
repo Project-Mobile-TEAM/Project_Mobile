@@ -342,6 +342,108 @@ class AuthApiTest {
         login(phone, "abcd1234", "device-0133"); // Thiết bị lạ vào thẳng khi 2FA đã tắt.
     }
 
+    // ---------- bước nhận diện bạn bè (F-04, ADR-005) ----------
+    private static final java.util.concurrent.atomic.AtomicInteger EXTRA = new java.util.concurrent.atomic.AtomicInteger(5000000);
+
+    private String extraPhone() { return "+8492" + EXTRA.getAndIncrement(); }
+
+    /** Tạo tài khoản chính cùng 3 bạn; bảo đảm hệ thống có đủ mồi. Trả id 3 bạn thật. */
+    private java.util.List<String> accountWithFriends(String phone, String device) throws Exception {
+        register(phone, device, "abcd1234");
+        java.util.List<String> friendPhones = new java.util.ArrayList<>();
+        for (int i = 0; i < 3; i++) { String p = extraPhone(); register(p, "dev-" + p, "abcd1234"); friendPhones.add(p); }
+        while (jdbc.queryForObject("SELECT count(*) FROM users WHERE discoverable AND status = 'ACTIVE'", Integer.class) < 40) {
+            String p = extraPhone(); register(p, "dev-" + p, "abcd1234");
+        }
+        java.util.List<String> ids = new java.util.ArrayList<>();
+        for (String p : friendPhones) {
+            String id = jdbc.queryForObject("SELECT id::text FROM users WHERE phone_e164 = ?", String.class, p);
+            jdbc.update("INSERT INTO contacts (owner_id, contact_user_id, is_friend) "
+                    + "SELECT (SELECT id FROM users WHERE phone_e164 = ?), id, TRUE FROM users WHERE phone_e164 = ?", phone, p);
+            ids.add(id);
+        }
+        return ids;
+    }
+
+    private JsonNode otpLoginOnNewDevice(String phone, String device, int expected) throws Exception {
+        JsonNode ch = doPost("/api/auth/login/otp/request", Map.of("phone", phone, "deviceId", device), null, 200);
+        return doPost("/api/auth/login/otp/verify", Map.of("challengeId", ch.get("challengeId").asText(), "code", ch.get("demoOtp").asText(), "deviceName", "M"), null, expected);
+    }
+
+    private JsonNode friendStep(String token, String challengeId, java.util.List<String> selected, int expected) throws Exception {
+        java.util.Map<String, Object> body = new java.util.HashMap<>();
+        body.put("friendToken", token); body.put("deviceName", "M");
+        if (challengeId != null) body.put("challengeId", challengeId);
+        if (selected != null) body.put("selectedIds", selected);
+        return doPost("/api/auth/login/friend-step", body, null, expected);
+    }
+
+    private static java.util.List<String> idsOf(JsonNode challenge) {
+        java.util.List<String> ids = new java.util.ArrayList<>();
+        challenge.get("candidates").forEach(c -> ids.add(c.get("id").asText()));
+        return ids;
+    }
+
+    @Test void newDeviceMustPickTheThreeFriendsAndWrongPickGetsNewSet() throws Exception {
+        String phone = "+84911000401";
+        java.util.List<String> friends = accountWithFriends(phone, "device-0401");
+        JsonNode need = otpLoginOnNewDevice(phone, "device-0501", 200);
+        assertEquals("NEED_FRIEND", need.get("state").asText());
+        assertNull(need.get("token"));
+        JsonNode first = need.get("friendChallenge");
+        assertEquals(15, first.get("candidates").size());
+        assertEquals(3, first.get("attemptsLeft").asInt());
+        assertTrue(idsOf(first).containsAll(friends));
+        String ft = need.get("friendToken").asText();
+        doGet("/api/me", ft, 401); // Token bước bạn bè không phải access token.
+        // Chọn sai (3 người không phải bạn): nhận bộ mới, còn 2 lượt; bộ cũ không dùng lại được.
+        java.util.List<String> wrong = idsOf(first).stream().filter(id -> !friends.contains(id)).limit(3).toList();
+        JsonNode second = friendStep(ft, first.get("challengeId").asText(), wrong, 200).get("friendChallenge");
+        assertTrue(second.get("lastAttemptWrong").asBoolean());
+        assertEquals(2, second.get("attemptsLeft").asInt());
+        assertEquals("FRIEND_CHALLENGE_EXPIRED", code(friendStep(ft, first.get("challengeId").asText(), friends, 400)));
+        // Chọn đúng ở bộ mới thì đăng nhập; chọn thiếu người thì bị từ chối.
+        assertEquals("VALIDATION", code(friendStep(ft, second.get("challengeId").asText(), friends.subList(0, 2), 400)));
+        JsonNode done = friendStep(ft, second.get("challengeId").asText(), friends, 200);
+        assertEquals("COMPLETE", done.get("state").asText());
+        doGet("/api/me", done.get("token").asText(), 200);
+        // Token bước bạn bè chỉ dùng một lần; thiết bị đã tin cậy thì lần sau vào thẳng.
+        assertEquals("OTP_EXPIRED", code(friendStep(ft, null, null, 400)));
+        login(phone, "abcd1234", "device-0501");
+    }
+
+    @Test void threeWrongPicksLockTheFriendStepForTheAccount() throws Exception {
+        String phone = "+84911000402";
+        java.util.List<String> friends = accountWithFriends(phone, "device-0402");
+        JsonNode need = otpLoginOnNewDevice(phone, "device-0502", 200);
+        String ft = need.get("friendToken").asText();
+        JsonNode ch = need.get("friendChallenge");
+        for (int i = 0; i < 2; i++) {
+            java.util.List<String> wrong = idsOf(ch).stream().filter(id -> !friends.contains(id)).limit(3).toList();
+            ch = friendStep(ft, ch.get("challengeId").asText(), wrong, 200).get("friendChallenge");
+        }
+        assertEquals(1, ch.get("attemptsLeft").asInt());
+        java.util.List<String> wrong = idsOf(ch).stream().filter(id -> !friends.contains(id)).limit(3).toList();
+        JsonNode locked = friendStep(ft, ch.get("challengeId").asText(), wrong, 423);
+        assertEquals("LOCKED", code(locked));
+        assertTrue(locked.get("error").get("details").get("retryAfterSeconds").asLong() > 0);
+        // Khoá theo tài khoản: một thiết bị lạ khác cũng bị chặn ngay sau OTP, dù chọn đúng cũng không có cơ hội.
+        otpLoginOnNewDevice(phone, "device-0602", 423);
+    }
+
+    @Test void twoFactorThenFriendStepOnUnknownDevice() throws Exception {
+        String phone = "+84911000403";
+        java.util.List<String> friends = accountWithFriends(phone, "device-0403");
+        String secret = enable2fa(login(phone, "abcd1234", "device-0403"), "abcd1234").getKey();
+        JsonNode need2fa = doPost("/api/auth/login/password", Map.of("phone", phone, "password", "abcd1234", "deviceId", "device-0503", "deviceName", "M"), null, 200);
+        assertEquals("NEED_2FA", need2fa.get("state").asText());
+        JsonNode needFriend = doPost("/api/auth/login/second-factor", Map.of("secondFactorToken", need2fa.get("secondFactorToken").asText(),
+                "code", totp(secret, 1), "deviceName", "M"), null, 200);
+        assertEquals("NEED_FRIEND", needFriend.get("state").asText());
+        JsonNode done = friendStep(needFriend.get("friendToken").asText(), needFriend.get("friendChallenge").get("challengeId").asText(), friends, 200);
+        doGet("/api/me", done.get("token").asText(), 200);
+    }
+
     // ---------- giới hạn gửi OTP (đúng cấu hình sản xuất: 60 giây) ----------
     @Test void otpCooldownAndHourlyLimit() {
         OtpService strict = new OtpService(jdbc, (p, c) -> { }, false, 60);

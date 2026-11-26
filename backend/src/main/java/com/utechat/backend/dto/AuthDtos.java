@@ -21,7 +21,14 @@ public final class AuthDtos {
     public record OtpLoginVerifyRequest(String challengeId, String code, String deviceName) { }
     /** state = COMPLETE (có token, user) hoặc NEED_2FA (chỉ có secondFactorToken, hiệu lực 10 phút). */
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    public record AuthSuccessResponse(String state, String token, UserDto user, String secondFactorToken) { }
+    public record AuthSuccessResponse(String state, String token, UserDto user, String secondFactorToken,
+                                      String friendToken, FriendChallengeDto friendChallenge) { }
+    public record FriendCandidateDto(String id, String displayName) { }
+    /** Bộ 15 người của bước bạn bè (F-04): attemptsLeft còn lại trong 3 lần; lastAttemptWrong báo lần chọn trước sai. */
+    public record FriendChallengeDto(String challengeId, int expiresInSeconds, java.util.List<FriendCandidateDto> candidates,
+                                     int attemptsLeft, boolean lastAttemptWrong) { }
+    /** selectedIds rỗng hoặc null nghĩa là xin bộ mới (bộ hết hạn), không tính là lần thử. */
+    public record FriendStepRequest(String friendToken, String challengeId, java.util.List<String> selectedIds, String deviceName) { }
     public record SecondFactorRequest(String secondFactorToken, String code, String deviceName) { }
 
     // ---- Quên mật khẩu (F-04)
