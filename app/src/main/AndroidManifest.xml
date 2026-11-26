@@ -3,19 +3,71 @@
     <!-- Mọi truy cập REST/WSS đi qua backend; không đưa secret Supabase vào app. -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- Thông báo tin nhắn và cuộc gọi đến toàn màn hình trên Android 13+/14+ (D-07). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+
+    <!-- Ghi âm thoại và dịch vụ nền microphone cho cuộc gọi WebRTC 1-1 (D-09, D-12). -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+
+    <!-- Chia sẻ vị trí một lần qua FusedLocationProviderClient (D-02). -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+
+    <!-- Chụp ảnh gửi tin nhắn; đánh dấu camera không bắt buộc để cài được trên thiết bị không có camera.
+         Cố ý KHÔNG khai báo READ_EXTERNAL_STORAGE / READ_MEDIA_* vì dùng Photo Picker & SAF (D-03). -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+
+    <!-- Khai báo truy vấn gói cho Android 11+ khi mở bản đồ geo: và mở tệp đã cache qua app ngoài. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="geo" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:mimeType="*/*" />
+        </intent>
+    </queries>
+
     <application android:name=".UteChatApp" android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules" android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round"
         android:label="@string/app_name" android:supportsRtl="true"
         android:theme="@style/Theme.UTEChat" android:usesCleartextTraffic="false"
         android:networkSecurityConfig="@xml/network_security_config">
-        <!-- Chỉ một Activity; các tính năng tự quản lý Fragment và navigation graph con. -->
-        <activity android:name=".MainActivity" android:exported="true">
+        <!-- Chỉ một Activity (launchMode=singleTop nhận intent cuộc gọi/thông báo); CallFragment là destination bên trong. -->
+        <activity android:name=".MainActivity" android:exported="true" android:launchMode="singleTop">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- FileProvider chia sẻ tệp trong pending_media/, media_cache/, camera/ có kiểm soát quyền đọc tạm thời. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
+        <!-- Dịch vụ nền microphone cho cuộc gọi thoại WebRTC 1-1; không export và chỉ chạy sau khi có RECORD_AUDIO. -->
+        <service
+            android:name=".data.call.CallService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
+
         <!-- AppCompat tự lưu ngôn ngữ người dùng chọn (Android dưới 13), xem ProfileFragment/LanguageFragment. -->
         <service android:name="androidx.appcompat.app.AppLocalesMetadataHolderService"
             android:enabled="false" android:exported="false">

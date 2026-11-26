@@ -157,6 +157,24 @@ public class FakeAuthRepository implements AuthRepository, com.utechat.data.repo
         return new MutableLiveData<>(AuthResult.ok(true));
     }
 
+    // Bước bạn bè và 2FA chỉ có ở server thật; Fake (Debug) không mô phỏng.
+    @Override public com.utechat.data.repository.FriendChallenge getPendingFriendChallenge() { return null; }
+    @Override public LiveData<AuthResult<UserEntity>> submitFriendChoice(List<String> selectedIds) {
+        return new MutableLiveData<>(AuthResult.error("OTP_EXPIRED"));
+    }
+    @Override public LiveData<AuthResult<com.utechat.data.repository.FriendChallenge>> refreshFriendChallenge() {
+        return new MutableLiveData<>(AuthResult.error("OTP_EXPIRED"));
+    }
+    @Override public LiveData<AuthResult<UserEntity>> verifySecondFactor(String code) {
+        return new MutableLiveData<>(AuthResult.error("OTP_EXPIRED"));
+    }
+    @Override public LiveData<AuthResult<Boolean>> getTwoFactorEnabled() { return new MutableLiveData<>(AuthResult.ok(false)); }
+    @Override public LiveData<AuthResult<com.utechat.data.repository.TwoFactorSetup>> setupTwoFactor(String password) {
+        return new MutableLiveData<>(AuthResult.error("UNAVAILABLE"));
+    }
+    @Override public LiveData<AuthResult<List<String>>> enableTwoFactor(String code) { return new MutableLiveData<>(AuthResult.error("UNAVAILABLE")); }
+    @Override public LiveData<AuthResult<Boolean>> disableTwoFactor(String password, String code) { return new MutableLiveData<>(AuthResult.error("UNAVAILABLE")); }
+
     @Override public LiveData<AuthResult<List<DeviceInfo>>> getDevices() {
         return new MutableLiveData<>(AuthResult.ok(new ArrayList<>(devices))); // Bản sao để DiffUtil thấy thay đổi.
     }

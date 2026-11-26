@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Hộp chọn loại tệp đính kèm trong phòng chat: mọi hàng đạt tối thiểu 48dp touch target. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@color/ute_card"
+    android:orientation="vertical"
+    android:paddingVertical="12dp">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingHorizontal="20dp"
+        android:paddingBottom="8dp"
+        android:text="@string/media_picker_title"
+        android:textColor="@color/ute_text"
+        android:textSize="16sp"
+        android:textStyle="bold" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/pick_photo"
+        style="@style/Widget.Material3.Button.TextButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="start|center_vertical"
+        android:minHeight="48dp"
+        android:paddingHorizontal="20dp"
+        android:text="@string/media_pick_photo"
+        android:textColor="@color/ute_text"
+        app:icon="@drawable/ic_camera"
+        app:iconPadding="16dp"
+        app:iconTint="@color/ute_accent" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/pick_video"
+        style="@style/Widget.Material3.Button.TextButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="start|center_vertical"
+        android:minHeight="48dp"
+        android:paddingHorizontal="20dp"
+        android:text="@string/media_pick_video"
+        android:textColor="@color/ute_text"
+        app:icon="@drawable/ic_play"
+        app:iconPadding="16dp"
+        app:iconTint="@color/ute_accent" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/pick_camera"
+        style="@style/Widget.Material3.Button.TextButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="start|center_vertical"
+        android:minHeight="48dp"
+        android:paddingHorizontal="20dp"
+        android:text="@string/media_take_photo"
+        android:textColor="@color/ute_text"
+        app:icon="@drawable/ic_camera"
+        app:iconPadding="16dp"
+        app:iconTint="@color/ute_accent" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/pick_voice"
+        style="@style/Widget.Material3.Button.TextButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="start|center_vertical"
+        android:minHeight="48dp"
+        android:paddingHorizontal="20dp"
+        android:text="@string/media_record_voice"
+        android:textColor="@color/ute_text"
+        app:icon="@drawable/ic_mic"
+        app:iconPadding="16dp"
+        app:iconTint="@color/ute_accent" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/pick_file"
+        style="@style/Widget.Material3.Button.TextButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="start|center_vertical"
+        android:minHeight="48dp"
+        android:paddingHorizontal="20dp"
+        android:text="@string/media_pick_file"
+        android:textColor="@color/ute_text"
+        app:icon="@drawable/ic_file"
+        app:iconPadding="16dp"
+        app:iconTint="@color/ute_accent" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/pick_location"
+        style="@style/Widget.Material3.Button.TextButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="start|center_vertical"
+        android:minHeight="48dp"
+        android:paddingHorizontal="20dp"
+        android:text="@string/media_share_location"
+        android:textColor="@color/ute_text"
+        app:icon="@drawable/ic_location"
+        app:iconPadding="16dp"
+        app:iconTint="@color/ute_accent" />
+</LinearLayout>

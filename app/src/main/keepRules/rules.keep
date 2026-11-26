@@ -1,12 +1,12 @@
-# Add project specific R8 rules here.
-# AGP will combine all keep rule files in src/main/keepRules to pass to R8
-#
-# For more details, see
-#   https://d.android.com/r/tools/r8/keep-rules
+# Quy tắc R8 / ProGuard cho bản phát hành Release của UTEChat.
+# AGP tự động gộp toàn bộ tệp trong src/main/keepRules khi chạy R8 minify.
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# Giữ nguyên toàn bộ lớp JNI và callback của WebRTC (io.getstream:stream-webrtc-android) tránh lỗi UnsatisfiedLinkError.
+-keep class org.webrtc.** { *; }
+
+# Giữ nguyên các lớp ML Kit Translate để tải mô hình và dịch EN <-> VI ổn định trên bản Release.
+-keep class com.google.mlkit.** { *; }
+
+# Giữ nguyên Glide AppGlideModule (tích hợp OkHttp Bearer) và toàn bộ DTO Gson mạng tránh R8 đổi tên trường JSON.
+-keep class com.utechat.data.media.UteChatGlideModule { *; }
+-keep class com.utechat.data.remote.model.** { *; }

@@ -26,8 +26,24 @@
         <argument android:name="targetMessageLocalId" app:argType="long" android:defaultValue="-1L" />
         <deepLink app:uri="utechat://chat/direct/{peerUserId}" />
         <action android:id="@+id/action_chatRoom_to_groupInfo" app:destination="@id/groupInfoFragment" />
+        <action android:id="@+id/action_chatRoom_to_imageViewer" app:destination="@id/imageViewerFragment" />
+        <action android:id="@+id/action_chatRoom_to_videoPlayer" app:destination="@id/videoPlayerFragment" />
     </fragment>
     <fragment android:id="@+id/groupInfoFragment" android:name="com.utechat.ui.chat.GroupInfoFragment">
         <argument android:name="conversationId" app:argType="string" />
+    </fragment>
+    <fragment android:id="@+id/imageViewerFragment" android:name="com.utechat.ui.media.ImageViewerFragment">
+        <argument android:name="mediaUrl" app:argType="string" app:nullable="true" android:defaultValue="@null" />
+        <argument android:name="localPath" app:argType="string" app:nullable="true" android:defaultValue="@null" />
+        <argument android:name="attachmentId" app:argType="string" app:nullable="true" android:defaultValue="@null" />
+        <argument android:name="fileName" app:argType="string" app:nullable="true" android:defaultValue="@null" />
+        <argument android:name="mime" app:argType="string" app:nullable="true" android:defaultValue="@null" />
+    </fragment>
+    <fragment android:id="@+id/videoPlayerFragment" android:name="com.utechat.ui.media.VideoPlayerFragment">
+        <argument android:name="mediaUrl" app:argType="string" app:nullable="true" android:defaultValue="@null" />
+        <argument android:name="localPath" app:argType="string" app:nullable="true" android:defaultValue="@null" />
+        <argument android:name="attachmentId" app:argType="string" app:nullable="true" android:defaultValue="@null" />
+        <argument android:name="fileName" app:argType="string" app:nullable="true" android:defaultValue="@null" />
+        <argument android:name="mime" app:argType="string" app:nullable="true" android:defaultValue="@null" />
     </fragment>
 </navigation>

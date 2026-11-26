@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Chuỗi giao diện cuộc gọi thoại WebRTC 1-1 và dịch vụ nền microphone (EN). -->
+<resources>
+    <string name="call_channel_name">Voice calls</string>
+    <string name="call_ongoing_title">Voice call</string>
+    <string name="call_ongoing_text">Ongoing voice call</string>
+
+    <string name="call_status_calling">Calling…</string>
+    <string name="call_status_incoming">Incoming voice call</string>
+    <string name="call_status_connecting">Connecting…</string>
+    <string name="call_status_reconnecting">Reconnecting…</string>
+    <string name="call_status_ended">Ended</string>
+    <string name="call_status_busy">Busy</string>
+    <string name="call_status_no_answer">No answer</string>
+    <string name="call_status_rejected">Call declined</string>
+    <string name="call_status_handled_elsewhere">Answered on another device</string>
+    <string name="call_status_offline">Connection lost</string>
+
+    <string name="call_error_blocked">Unable to call this user</string>
+    <string name="call_error_contact_required">Add as friend to make voice calls</string>
+    <string name="call_error_unsupported">Only 1-1 voice calls are supported</string>
+    <string name="call_error_rate_limited">Too many calls. Please try again shortly.</string>
+    <string name="call_error_fgs_failed">Unable to start call audio service</string>
+    <string name="call_error_generic">Call failed</string>
+
+    <string name="call_action_mute">Mute</string>
+    <string name="call_action_unmute">Unmute</string>
+    <string name="call_action_speaker">Speaker</string>
+    <string name="call_action_end">End</string>
+    <string name="call_action_accept">Accept</string>
+    <string name="call_action_reject">Reject</string>
+    <string name="call_action_close">Close</string>
+    <string name="call_action_dial_fallback">Dial via carrier</string>
+
+    <string name="call_permission_audio_rationale">Microphone permission is required for voice calls.</string>
+    <string name="call_permission_audio_denied">Microphone permission denied. Voice call cannot start.</string>
+    <string name="call_unknown_peer">UTEChat user</string>
+    <string name="call_avatar_cd">Caller avatar</string>
+</resources>

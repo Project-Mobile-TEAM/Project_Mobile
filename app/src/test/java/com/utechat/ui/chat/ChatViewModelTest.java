@@ -2,11 +2,16 @@ package com.utechat.ui.chat;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -19,9 +24,11 @@ import androidx.lifecycle.SavedStateHandle;
 import com.utechat.R;
 import com.utechat.data.local.entity.ConversationMemberEntity;
 import com.utechat.data.local.entity.MessageEntity;
+import com.utechat.data.media.MediaPreparationHelper;
 import com.utechat.data.repository.ChatRepository;
 import com.utechat.data.repository.ChatResult;
 import com.utechat.data.repository.ContactsRepository;
+import com.utechat.data.translate.MessageTranslationManager;
 import java.util.List;
 import java.util.Map;
 import org.junit.Rule;
@@ -130,6 +137,93 @@ public class ChatViewModelTest {
         assertEquals("10.7626, 106.6602", MessageAdapter.summaryMeta("LOCATION", "{\"latitude\":10.76262,\"longitude\":106.66017}"));
         assertNull(MessageAdapter.summaryMeta("AUDIO", "{\"durationMs\":\"abc\"}"));
         assertNull(MessageAdapter.summaryMeta("FILE", "not json"));
+    }
+
+    @Test public void translationSelectionPersistsAcrossRotationViaSavedStateHandleAndHidesCleanly() {
+        ChatRepository r = repo();
+        MessageTranslationManager translator = mock(MessageTranslationManager.class);
+        doAnswer(inv -> {
+            MessageTranslationManager.Callback cb = inv.getArgument(3);
+            cb.onUpdate(MessageTranslationManager.TranslationUpdate.translated("Xin chào", "vi"));
+            return null;
+        }).when(translator).translateMessage(any(MessageEntity.class), eq("vi"), anyBoolean(), any());
+
+        SavedStateHandle state = new SavedStateHandle(Map.of("conversationId", "c1"));
+        ChatRoomViewModel vm = new ChatRoomViewModel(
+                state, r, mock(ContactsRepository.class), translator, null, null, null);
+
+        MessageEntity m = msg("an", "TEXT", "SENT");
+        m.setClientId("cid-trans-1");
+        m.setText("Hello");
+
+        vm.requestTranslate(m, "vi", false);
+        Map<String, MessageAdapter.TranslationUiEntry> current = vm.getTranslations().getValue();
+        assertNotNull(current);
+        assertTrue(vm.hasActiveTranslation("cid-trans-1"));
+        assertEquals("Xin chào", current.get("cid-trans-1").translatedText);
+
+        // SavedStateHandle chỉ giữ ánh xạ nhẹ clientId -> targetLang, không nhồi văn bản dịch vào Binder parcel.
+        assertNull(state.get("activeTranslationTexts"));
+
+        // Xoay màn hình: tạo lại ViewModel với cùng SavedStateHandle rồi nạp lại từ Room cache (ADR-021).
+        ChatRoomViewModel rotated = new ChatRoomViewModel(
+                state, r, mock(ContactsRepository.class), translator, null, null, null);
+        rotated.rehydrateSavedTranslations(List.of(m));
+        assertTrue(rotated.hasActiveTranslation("cid-trans-1"));
+        assertEquals("Xin chào", rotated.getTranslations().getValue().get("cid-trans-1").translatedText);
+
+        // Ẩn bản dịch xóa sạch cả LiveData lẫn SavedStateHandle (D-14).
+        rotated.hideTranslation("cid-trans-1");
+        assertFalse(rotated.hasActiveTranslation("cid-trans-1"));
+        assertTrue(rotated.getTranslations().getValue().isEmpty());
+
+        ChatRoomViewModel afterHide = new ChatRoomViewModel(
+                state, r, mock(ContactsRepository.class), translator, null, null, null);
+        afterHide.rehydrateSavedTranslations(List.of(m));
+        assertFalse(afterHide.hasActiveTranslation("cid-trans-1"));
+    }
+
+    @Test public void hideTranslationInvalidatesInFlightTranslationCallback() {
+        ChatRepository r = repo();
+        MessageTranslationManager translator = mock(MessageTranslationManager.class);
+        MessageTranslationManager.Callback[] captured = new MessageTranslationManager.Callback[1];
+        doAnswer(inv -> {
+            captured[0] = inv.getArgument(3);
+            captured[0].onUpdate(MessageTranslationManager.TranslationUpdate.downloadingModel("vi"));
+            return null;
+        }).when(translator).translateMessage(any(MessageEntity.class), eq("vi"), anyBoolean(), any());
+
+        SavedStateHandle state = new SavedStateHandle(Map.of("conversationId", "c1"));
+        ChatRoomViewModel vm = new ChatRoomViewModel(
+                state, r, mock(ContactsRepository.class), translator, null, null, null);
+
+        MessageEntity m = msg("an", "TEXT", "SENT");
+        m.setClientId("cid-race-1");
+        m.setText("Good evening");
+
+        vm.requestTranslate(m, "vi", false);
+        assertTrue(vm.getTranslations().getValue().get("cid-race-1").downloading);
+
+        // Người dùng bấm Ẩn trong khi model đang tải -> callback cũ về trễ phải bị bỏ qua hoàn toàn.
+        vm.hideTranslation("cid-race-1");
+        captured[0].onUpdate(MessageTranslationManager.TranslationUpdate.translated("Chào buổi tối", "vi"));
+        assertFalse(vm.hasActiveTranslation("cid-race-1"));
+        assertTrue(vm.getTranslations().getValue().isEmpty());
+    }
+
+    @Test public void enqueueMediaAndLocationDelegateToRepository() {
+        ChatRepository r = repo();
+        SavedStateHandle state = new SavedStateHandle(Map.of("conversationId", "c1"));
+        ChatRoomViewModel vm = new ChatRoomViewModel(state, r, mock(ContactsRepository.class));
+
+        MediaPreparationHelper.PreparedMedia media = new MediaPreparationHelper.PreparedMedia(
+                "cid-media-1", "IMAGE", "/tmp/cid-media-1.jpg", "image/jpeg", 2048L, "photo.jpg", 800, 600, null);
+        vm.enqueuePreparedMedia(media, "Ảnh lớp học");
+        vm.enqueueLocation(10.8506, 106.7719);
+
+        verify(r, times(1)).enqueueMediaMessage("c1", media, "Ảnh lớp học");
+        verify(r, times(1)).enqueueLocationMessage("c1", 10.8506, 106.7719);
+        verify(r, times(2)).sendTypingStop("c1");
     }
 
     private static MessageEntity msg(String sender, String type, String status) {

@@ -12,6 +12,17 @@ public interface AuthRepository {
     LiveData<AuthResult<OtpChallenge>> requestLoginOtp(String phoneE164);
     // Bước 2: xác minh mã, thành công thì thiết bị này đăng nhập; lỗi OTP_INVALID/OTP_EXPIRED/LOCKED.
     LiveData<AuthResult<UserEntity>> verifyLoginOtp(String challengeId, String code);
+    // Thiết bị lạ + tài khoản bật 2FA: login() trả lỗi NEED_2FA, rồi bước này gửi mã TOTP hoặc mã dự phòng;
+    // lỗi CODE_INVALID (sai mã), OTP_EXPIRED (quá 10 phút, phải nhập lại mật khẩu), LOCKED.
+    LiveData<AuthResult<UserEntity>> verifySecondFactor(String code);
+    // verifyLoginOtp và verifySecondFactor có thể trả lỗi NEED_FRIEND (thiết bị lạ, tài khoản có từ 3 bạn): lấy bộ 15 người
+    // bằng getPendingFriendChallenge() rồi gọi submitFriendChoice (F-04).
+    FriendChallenge getPendingFriendChallenge();
+    // Gửi 3 người đã chọn. Đúng thì đăng nhập; sai trả lỗi FRIEND_WRONG kèm bộ mới (đọc lại getPendingFriendChallenge);
+    // lỗi LOCKED (sai 3 lần), FRIEND_CHALLENGE_EXPIRED (bộ hết hạn), OTP_EXPIRED (phải đăng nhập lại từ đầu).
+    LiveData<AuthResult<UserEntity>> submitFriendChoice(java.util.List<String> selectedIds);
+    // Xin bộ mới khi bộ hiện tại hết hạn (không tính là lần thử).
+    LiveData<AuthResult<FriendChallenge>> refreshFriendChallenge();
     LiveData<UserEntity> getCurrentUser();
     void logout();
 
@@ -40,6 +51,14 @@ public interface AuthRepository {
     LiveData<AuthResult<Boolean>> deleteAccount(String password);
     // Đăng nhập lại trong 15 ngày chờ và chọn giữ tài khoản (POST /me/cancel-deletion).
     LiveData<AuthResult<Boolean>> cancelDeletion();
+    // 2FA TOTP (F-05, F-06): trạng thái bật/tắt.
+    LiveData<AuthResult<Boolean>> getTwoFactorEnabled();
+    // Bước 1: nhập lại mật khẩu, nhận khoá bí mật và đường dẫn otpauth://; lỗi BAD_CREDENTIALS, TWO_FACTOR_ALREADY_ENABLED.
+    LiveData<AuthResult<TwoFactorSetup>> setupTwoFactor(String password);
+    // Bước 2: nhập thử một mã, đúng thì bật và trả 8 mã dự phòng (chỉ hiện một lần); lỗi CODE_INVALID.
+    LiveData<AuthResult<List<String>>> enableTwoFactor(String code);
+    // Tắt 2FA bằng mật khẩu và một mã (TOTP hoặc dự phòng); lỗi BAD_CREDENTIALS, CODE_INVALID.
+    LiveData<AuthResult<Boolean>> disableTwoFactor(String password, String code);
     // Danh sách thiết bị đang đăng nhập (GET /account/devices).
     LiveData<AuthResult<List<DeviceInfo>>> getDevices();
     // Thu hồi một thiết bị khác (DELETE /account/devices/{id}).

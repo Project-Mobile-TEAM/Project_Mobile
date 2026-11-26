@@ -9,6 +9,11 @@ import java.util.HexFormat;
 public final class HashUtils {
     private HashUtils() { }
 
+    /** Khoá 32 byte suy ra từ chuỗi bất kỳ (dùng làm khoá AES-256). */
+    public static byte[] sha256Bytes(String input) {
+        return HexFormat.of().parseHex(sha256Hex(input));
+    }
+
     /** Trả chuỗi hex 64 ký tự chữ thường của SHA-256(input). */
     public static String sha256Hex(String input) {
         try {

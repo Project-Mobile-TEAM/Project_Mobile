@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Chuỗi giao diện Media, Ghi âm, Vị trí và Dịch tin nhắn ML Kit (EN). -->
+<resources>
+    <string name="media_attach_cd">Attach media or location</string>
+    <string name="media_mic_cd">Record voice message</string>
+    <string name="media_picker_title">Send attachment</string>
+    <string name="media_pick_photo">Photo</string>
+    <string name="media_pick_video">Video</string>
+    <string name="media_take_photo">Take photo</string>
+    <string name="media_record_voice">Record voice</string>
+    <string name="media_pick_file">Document / File</string>
+    <string name="media_share_location">Share location</string>
+
+    <string name="media_voice_cancel">Cancel</string>
+    <string name="media_voice_send">Send voice</string>
+    <string name="media_voice_play_cd">Play or pause voice message</string>
+    <string name="media_voice_recording">Recording… %1$s / 05:00</string>
+    <string name="media_voice_too_short">Voice message is too short.</string>
+    <string name="media_voice_permission_denied">Microphone permission is required to record voice messages.</string>
+    <string name="media_camera_permission_denied">Camera permission is required to take a photo.</string>
+    <string name="media_location_permission_denied">Location permission is required to share your location.</string>
+    <string name="media_location_fetching">Getting current location…</string>
+    <string name="media_location_failed">Unable to fetch your current location.</string>
+
+    <string name="media_open_external">Open with external app</string>
+    <string name="media_open_maps">Open in Google Maps</string>
+    <string name="media_no_external_app">No app available on this device to open this item.</string>
+    <string name="media_load_failed">Unable to load media file.</string>
+    <string name="media_downloading">Downloading…</string>
+
+    <!-- Dịch tin nhắn ML Kit EN <-> VI (D-13..D-15). -->
+    <string name="chat_translate_menu_title">Translate message</string>
+    <string name="chat_translate_to_vi">Translate to Vietnamese</string>
+    <string name="chat_translate_to_en">Translate to English</string>
+    <string name="chat_translating_download">Downloading language pack…</string>
+    <string name="chat_translated_label">Translated</string>
+    <string name="chat_translation_hide">Hide translation</string>
+    <string name="chat_translate_cellular_title">Download language pack</string>
+    <string name="chat_translate_cellular_message">Download language pack (~30MB) over mobile data?</string>
+    <string name="chat_translate_cellular_confirm">Download</string>
+    <string name="chat_translate_offline_error">Internet connection is required to download the language pack for the first time.</string>
+    <string name="chat_translate_failed">Could not translate this message. Please try again.</string>
+</resources>

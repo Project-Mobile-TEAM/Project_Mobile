@@ -121,4 +121,12 @@
     <string name="chat_error_validation">Thông tin không hợp lệ.</string>
     <string name="chat_error_not_found">Không tìm thấy cuộc trò chuyện.</string>
     <string name="chat_error_network">Không có kết nối. Kiểm tra mạng rồi thử lại.</string>
+    <string name="chat_error_file_too_large">Tệp vượt quá dung lượng cho phép.</string>
+    <string name="chat_error_unsupported_type">Định dạng tệp này không được hỗ trợ.</string>
+    <string name="chat_error_file_missing">Tệp cục bộ không còn tồn tại. Vui lòng chọn lại tệp.</string>
+    <string name="chat_error_call_busy">Người dùng đang bận trong cuộc gọi khác.</string>
+    <string name="chat_error_call_unsupported">Chỉ hỗ trợ cuộc gọi thoại 1-1.</string>
+    <string name="chat_error_call_not_found">Không tìm thấy cuộc gọi.</string>
+    <string name="chat_error_invalid_state">Cuộc gọi này không còn hoạt động.</string>
+    <string name="chat_voice_call">Gọi thoại</string>
 </resources>

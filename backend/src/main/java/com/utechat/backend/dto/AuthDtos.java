@@ -19,7 +19,17 @@ public final class AuthDtos {
     public record PasswordLoginRequest(String phone, String password, String deviceId, String deviceName) { }
     public record OtpRequest(String phone, String deviceId) { }
     public record OtpLoginVerifyRequest(String challengeId, String code, String deviceName) { }
-    public record AuthSuccessResponse(String state, String token, UserDto user) { }
+    /** state = COMPLETE (có token, user) hoặc NEED_2FA (chỉ có secondFactorToken, hiệu lực 10 phút). */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record AuthSuccessResponse(String state, String token, UserDto user, String secondFactorToken,
+                                      String friendToken, FriendChallengeDto friendChallenge) { }
+    public record FriendCandidateDto(String id, String displayName) { }
+    /** Bộ 15 người của bước bạn bè (F-04): attemptsLeft còn lại trong 3 lần; lastAttemptWrong báo lần chọn trước sai. */
+    public record FriendChallengeDto(String challengeId, int expiresInSeconds, java.util.List<FriendCandidateDto> candidates,
+                                     int attemptsLeft, boolean lastAttemptWrong) { }
+    /** selectedIds rỗng hoặc null nghĩa là xin bộ mới (bộ hết hạn), không tính là lần thử. */
+    public record FriendStepRequest(String friendToken, String challengeId, java.util.List<String> selectedIds, String deviceName) { }
+    public record SecondFactorRequest(String secondFactorToken, String code, String deviceName) { }
 
     // ---- Quên mật khẩu (F-04)
     public record ResetTokenResponse(String resetToken) { }
@@ -34,5 +44,12 @@ public final class AuthDtos {
                                        Boolean discoverable, Boolean allowMessagesFromNonContacts) { }
     public record ChangePasswordRequest(String oldPassword, String newPassword) { }
     public record DeleteAccountRequest(String password) { }
+    // ---- 2FA TOTP (F-05, F-06)
+    public record TwoFactorStatusResponse(boolean enabled) { }
+    public record TwoFactorSetupRequest(String password) { }
+    public record TwoFactorSetupResponse(String secret, String otpauthUri) { }
+    public record TwoFactorEnableRequest(String code) { }
+    public record BackupCodesResponse(java.util.List<String> backupCodes) { }
+    public record TwoFactorDisableRequest(String password, String code) { }
     public record DeviceDto(String id, String name, String platform, String lastSeenAt, boolean current) { }
 }

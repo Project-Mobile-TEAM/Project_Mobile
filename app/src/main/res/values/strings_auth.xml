@@ -7,6 +7,15 @@
     <string name="auth_hint_phone">Phone number</string>
     <string name="auth_hint_password">Password</string>
     <string name="auth_login">Log in</string>
+    <string name="auth_two_factor_hint">This is a new device. Enter the 6-digit code from your authenticator app, or a backup code.</string>
+    <string name="auth_two_factor_code">Verification code</string>
+    <string name="friend_step_title">Verify it\'s you</string>
+    <string name="friend_step_desc">This is a new device. Select the 3 people who are your friends.</string>
+    <string name="friend_step_confirm">Confirm</string>
+    <string name="friend_step_wrong">That is not right. %1$d attempts left, here is a new set.</string>
+    <string name="friend_step_expires">Expires in %1$s</string>
+    <string name="auth_two_factor_confirm">Confirm</string>
+    <string name="auth_error_code_invalid">The code is incorrect.</string>
     <string name="auth_no_account">Don’t have an account?</string>
     <string name="auth_register">Sign up</string>
     <string name="preview_button">Explore the sample interface</string>

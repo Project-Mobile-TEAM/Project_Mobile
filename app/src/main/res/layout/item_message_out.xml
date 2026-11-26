@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Tin của mình (TEXT_OUT và SUMMARY_OUT): bong bóng xanh bên phải, giờ + trạng thái; FAILED hiện dòng đỏ chạm để xử lý. -->
+<!-- Tin văn bản gửi đi (TEXT_OUT): bong bóng xanh bên phải, giờ + trạng thái; FAILED hiện dòng đỏ chạm để xử lý. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical"
     android:paddingHorizontal="12dp" android:paddingVertical="3dp">
@@ -17,6 +17,82 @@
         </LinearLayout>
         <TextView android:id="@+id/text" android:layout_width="wrap_content" android:layout_height="wrap_content"
             android:textSize="16sp" android:textColor="@color/ute_on_accent" android:textIsSelectable="false" />
+        <!-- Khối bản dịch ML Kit chỉ tồn tại trên tin TEXT (D-14, D-15): dùng ConstraintLayout wrap_content để tránh LinearLayout.forceUniformWidth khóa chiều cao 1 dòng làm cắt chữ. -->
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:id="@+id/translation_box"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minWidth="180dp"
+            android:layout_marginTop="6dp"
+            android:visibility="gone">
+            <View
+                android:id="@+id/translation_divider"
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:background="@color/ute_on_accent"
+                android:alpha="0.3"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
+            <TextView
+                android:id="@+id/translation_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minHeight="48dp"
+                android:gravity="center_vertical"
+                android:text="@string/chat_translated_label"
+                android:textSize="11sp"
+                android:fontFamily="@font/poppins_medium"
+                android:textColor="@color/ute_on_accent"
+                app:layout_constrainedWidth="true"
+                app:layout_constraintHorizontal_chainStyle="spread_inside"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintEnd_toStartOf="@id/translation_hide"
+                app:layout_constraintTop_toBottomOf="@id/translation_divider" />
+            <TextView
+                android:id="@+id/translation_hide"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minHeight="48dp"
+                android:gravity="center_vertical"
+                android:paddingStart="12dp"
+                android:paddingEnd="0dp"
+                android:text="@string/chat_translation_hide"
+                android:textSize="11sp"
+                android:fontFamily="@font/poppins_medium"
+                android:textColor="@color/ute_on_accent"
+                app:layout_constraintStart_toEndOf="@id/translation_label"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/translation_divider" />
+            <androidx.constraintlayout.widget.Barrier
+                android:id="@+id/translation_header_barrier"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                app:barrierDirection="bottom"
+                app:constraint_referenced_ids="translation_label,translation_hide" />
+            <com.google.android.material.progressindicator.LinearProgressIndicator
+                android:id="@+id/translation_progress"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:indeterminate="true"
+                android:visibility="gone"
+                app:indicatorColor="@color/ute_on_accent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/translation_header_barrier" />
+            <TextView
+                android:id="@+id/translation_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="15sp"
+                android:textColor="@color/ute_on_accent"
+                app:layout_constrainedWidth="true"
+                app:layout_constraintHorizontal_bias="0"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/translation_progress" />
+        </androidx.constraintlayout.widget.ConstraintLayout>
         <TextView android:id="@+id/meta" android:layout_width="wrap_content" android:layout_height="wrap_content"
             android:layout_gravity="end" android:layout_marginTop="2dp" android:textSize="11sp"
             android:textColor="@color/ute_on_accent" />

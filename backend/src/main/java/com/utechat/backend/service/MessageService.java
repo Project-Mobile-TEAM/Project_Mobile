@@ -8,15 +8,18 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Nghiệp vụ gửi và tải lịch sử tin nhắn (Phase 5: chỉ nhận type = TEXT từ client,
- * chống trùng clientId, rate limit 30/10s, kiểm quyền 1-1/nhóm và bảo toàn metadata Phase 6).
+ * Nghiệp vụ gửi và tải lịch sử tin nhắn (Phase 5 & Phase 6: nhận TEXT/IMAGE/AUDIO/VIDEO/FILE/LOCATION từ client,
+ * chống trùng clientId, rate limit 30/10s, kiểm quyền 1-1/nhóm, gắn attachment và bảo toàn metadata CALL/SYSTEM).
  */
 @Service
 public class MessageService {
@@ -30,6 +33,13 @@ public class MessageService {
                     + "FROM messages m "
                     + "LEFT JOIN attachments a ON a.id = m.attachment_id "
                     + "LEFT JOIN calls c ON c.id = m.call_id";
+
+    /** Các loại tin nhắn được phép gửi trực tiếp từ client (Phase 6 mở rộng D-02, D-04). */
+    private static final Set<String> ALLOWED_CLIENT_TYPES =
+            Set.of("TEXT", "IMAGE", "AUDIO", "VIDEO", "FILE", "LOCATION");
+
+    private static final Pattern ATTACHMENT_URL_PATTERN = Pattern.compile(
+            "^/api/media/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$");
 
     /** Kết quả gửi tin kèm cờ created để Controller trả HTTP 201 (mới tạo) hoặc 200 (trùng clientId). */
     public record SendResult(MessageDto message, boolean created) {
@@ -86,9 +96,10 @@ public class MessageService {
     }
 
     /**
-     * Gửi tin nhắn TEXT với cơ chế chống trùng theo (sender_id, client_id).
+     * Gửi tin nhắn (TEXT, IMAGE, AUDIO, VIDEO, FILE, LOCATION) với cơ chế chống trùng theo (sender_id, client_id).
      * Nhóm khóa hàng conversations FOR UPDATE và kiểm expectedVisibleFromMessageId;
      * 1-1 khóa cặp lockPair và kiểm 403 BLOCKED trước 403 CONTACT_REQUIRED.
+     * Tin nhắn tệp đính kèm kiểm tra quyền sở hữu uploader_id, khớp loại tệp (kind == type) và ràng buộc duy nhất uq_messages_attachment.
      */
     @Transactional
     public SendResult sendMessage(UUID actorId, UUID conversationId, SendMessageRequest req) {
@@ -96,19 +107,107 @@ public class MessageService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "VALIDATION", "Message payload is required");
         }
         UUID clientId = ConversationService.parseRequiredUuid(req.clientId(), "Invalid clientId");
-        // Phase 5 chỉ cho phép client gửi loại TEXT; tuyệt đối từ chối SYSTEM giả mạo từ client.
-        if (req.type() == null || !"TEXT".equals(req.type())) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "VALIDATION", "Only TEXT messages are supported in Phase 5");
+
+        if (req.type() == null || !ALLOWED_CLIENT_TYPES.contains(req.type())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "VALIDATION", "Invalid or unsupported message type");
         }
-        String text = req.text() == null ? "" : req.text().trim();
-        if (text.isEmpty() || text.length() > 4000) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "VALIDATION", "Message text must be 1..4000 characters");
-        }
+        String type = req.type();
 
         // Kiểm tra trùng clientId sớm để replay không tốn rate limit và không ghi trùng sync_events.
-        SendResult replay = findExistingByClientId(actorId, conversationId, clientId);
-        if (replay != null) {
-            return replay;
+        SendResult earlyReplay = findExistingByClientId(actorId, conversationId, clientId);
+        if (earlyReplay != null) {
+            return earlyReplay;
+        }
+
+        String text = null;
+        UUID attachmentId = null;
+        Double latitude = null;
+        Double longitude = null;
+
+        if ("TEXT".equals(type)) {
+            text = req.text() == null ? "" : req.text().trim();
+            if (text.isEmpty() || text.length() > 4000) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "VALIDATION", "Message text must be 1..4000 characters");
+            }
+            if (req.mediaUrl() != null || req.latitude() != null || req.longitude() != null) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "VALIDATION", "TEXT message must not include mediaUrl or coordinates");
+            }
+        } else if ("LOCATION".equals(type)) {
+            if (req.latitude() == null || req.longitude() == null
+                    || !Double.isFinite(req.latitude()) || !Double.isFinite(req.longitude())) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "VALIDATION", "Valid finite latitude and longitude are required");
+            }
+            if (req.latitude() < -90.0 || req.latitude() > 90.0 || req.longitude() < -180.0 || req.longitude() > 180.0) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "VALIDATION", "Latitude must be in [-90, 90] and longitude in [-180, 180]");
+            }
+            if (req.mediaUrl() != null) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "VALIDATION", "LOCATION message must not include mediaUrl");
+            }
+            if (req.text() != null) {
+                String trimmed = req.text().trim();
+                if (trimmed.length() > 4000) {
+                    throw new ApiException(HttpStatus.BAD_REQUEST, "VALIDATION", "Description text must not exceed 4000 characters");
+                }
+                text = trimmed.isEmpty() ? null : trimmed;
+            }
+            latitude = req.latitude();
+            longitude = req.longitude();
+        } else {
+            // IMAGE, AUDIO, VIDEO, FILE
+            if (req.mediaUrl() == null || req.mediaUrl().isBlank()) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "VALIDATION", "mediaUrl is required for " + type);
+            }
+            Matcher matcher = ATTACHMENT_URL_PATTERN.matcher(req.mediaUrl().trim());
+            if (!matcher.matches()) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "VALIDATION", "Invalid mediaUrl format");
+            }
+            attachmentId = ConversationService.parseRequiredUuid(matcher.group(1), "Invalid mediaUrl format");
+
+            if (req.latitude() != null || req.longitude() != null) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "VALIDATION", "Media message must not include coordinates");
+            }
+            if (req.text() != null) {
+                String trimmed = req.text().trim();
+                if (trimmed.length() > 4000) {
+                    throw new ApiException(HttpStatus.BAD_REQUEST, "VALIDATION", "Caption text must not exceed 4000 characters");
+                }
+                text = trimmed.isEmpty() ? null : trimmed;
+            }
+
+            // Khóa dòng attachment FOR UPDATE để kiểm tra tính sở hữu và chống tranh chấp gắn file đồng thời
+            List<AttachmentCheck> atts = jdbc.query(
+                    "SELECT id, uploader_id, kind FROM public.attachments WHERE id = ? FOR UPDATE",
+                    (rs, i) -> new AttachmentCheck(
+                            rs.getObject("id", UUID.class),
+                            rs.getObject("uploader_id", UUID.class),
+                            rs.getString("kind")),
+                    attachmentId);
+
+            if (atts.isEmpty()) {
+                throw new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Attachment not found");
+            }
+            AttachmentCheck att = atts.get(0);
+
+            if (!actorId.equals(att.uploaderId())) {
+                throw new ApiException(HttpStatus.FORBIDDEN, "FORBIDDEN", "Not authorized to attach media owned by another user");
+            }
+            if (!type.equalsIgnoreCase(att.kind())) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "VALIDATION", "Attachment kind " + att.kind() + " does not match message type " + type);
+            }
+
+            // Kiểm tra xem attachment đã bị tin nhắn khác sử dụng hay chưa
+            Boolean alreadyAttached = jdbc.queryForObject(
+                    "SELECT EXISTS(SELECT 1 FROM public.messages WHERE attachment_id = ?)",
+                    Boolean.class,
+                    attachmentId);
+            if (Boolean.TRUE.equals(alreadyAttached)) {
+                // Kiểm tra lại có phải chính tin nhắn này do replay đồng thời hay không
+                SendResult concurrentReplay = findExistingByClientId(actorId, conversationId, clientId);
+                if (concurrentReplay != null) {
+                    return concurrentReplay;
+                }
+                throw new ApiException(HttpStatus.CONFLICT, "CONFLICT", "Attachment already attached to another message");
+            }
         }
 
         List<String> convTypes = jdbc.query(
@@ -164,11 +263,11 @@ public class MessageService {
 
         // Chèn tin nhắn chống trùng đồng thời bằng ON CONFLICT (sender_id, client_id) DO NOTHING.
         List<Long> insertedIds = jdbc.query(
-                "INSERT INTO messages (conversation_id, sender_id, client_id, type, text) "
-                        + "VALUES (?, ?, ?, 'TEXT', ?) "
+                "INSERT INTO messages (conversation_id, sender_id, client_id, type, text, attachment_id, latitude, longitude) "
+                        + "VALUES (?, ?, ?, ?, ?, ?, ?, ?) "
                         + "ON CONFLICT (sender_id, client_id) DO NOTHING RETURNING id",
                 (rs, i) -> rs.getLong("id"),
-                conversationId, actorId, clientId, text);
+                conversationId, actorId, clientId, type, text, attachmentId, latitude, longitude);
 
         if (insertedIds.isEmpty()) {
             // Một luồng đồng thời vừa chèn cùng clientId; trả lại bản ghi đã có mà không tạo thêm sync_events.
@@ -277,5 +376,8 @@ public class MessageService {
     }
 
     private record MemberGuard(long visibleFromMessageId, boolean left) {
+    }
+
+    private record AttachmentCheck(UUID id, UUID uploaderId, String kind) {
     }
 }

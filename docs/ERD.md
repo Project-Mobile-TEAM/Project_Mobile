@@ -1,6 +1,6 @@
 # UTEChat — ERD và lược đồ dữ liệu
 
-> **Trạng thái:** ĐÃ CHỐT 2026-11-09, cập nhật schema Phase 3/4 ngày 2026-11-17 (migration V1 + V3 + V4; demo thêm V2 trước V3/V4). Chuẩn schema phía server là PostgreSQL do Supabase quản lý (ADR-007). Mermaid ERD chỉ rút gọn cột để dễ đọc; **bảng mô tả cột bên dưới là nguồn chính xác theo cột**. Mọi bảng bật Row Level Security không có policy; backend truy cập qua role JDBC quản trị/owner hoặc BYPASSRLS, không dùng Supabase API key làm mật khẩu JDBC.
+> **Trạng thái:** ĐÃ CHỐT 2026-11-09, cập nhật schema Phase 6 ngày 2026-11-23 (migration V1 + V3 + V4 + V5 + V6; demo thêm V2 trước V3/V4/V5/V6). Chuẩn schema phía server là PostgreSQL do Supabase quản lý (ADR-007). Mermaid ERD chỉ rút gọn cột để dễ đọc; **bảng mô tả cột bên dưới là nguồn chính xác theo cột**. Mọi bảng bật Row Level Security không có policy; backend truy cập qua role JDBC quản trị/owner hoặc BYPASSRLS, không dùng Supabase API key làm mật khẩu JDBC.
 >
 > [!NOTE]
 > **Phạm vi CSDL server V1 (đúng 13 bảng cốt lõi):**
@@ -149,6 +149,7 @@ erDiagram
     ATTACHMENTS {
         uuid id PK
         uuid uploader_id FK
+        uuid upload_client_id
         string kind
         string mime
         bigint size_bytes
@@ -164,12 +165,18 @@ erDiagram
         uuid conversation_id FK
         uuid caller_id FK
         uuid callee_id FK
+        string caller_device_id_hash
+        string callee_device_id_hash
         string media
         string state
         string end_reason
         timestamp started_at
         timestamp answered_at
         timestamp ended_at
+        timestamp expires_at
+        timestamp updated_at
+        timestamp caller_alive_until
+        timestamp callee_alive_until
     }
     SYNC_EVENTS {
         bigint id PK
@@ -214,9 +221,9 @@ Bảng chỉ dành cho môi trường `demo` (không có trong `prod`): `demo_sm
 
 | Bảng | Ràng buộc và ghi chú |
 |---|---|
-| `messages` | `id` `bigint` tự tăng toàn cục, **chỉ dùng cho phân trang lịch sử tin nhắn** (`?before=<messageId>&limit=50`), **không dùng làm cursor đồng bộ**. `client_id` UUID do app tạo, UNIQUE (`sender_id`, `client_id`) để chống trùng tin khi gửi lại. `type` ∈ `TEXT`, `IMAGE`, `AUDIO`, `VIDEO`, `FILE`, `LOCATION`, `SYSTEM`, `CALL`. Ghi chú: `VIDEO` là tệp video đính kèm, không phải cuộc gọi video. `text` tối đa 4000 ký tự. `system_event` và `system_params` dùng cho tin hệ thống nhóm (app tự dịch i18n). Chỉ mục composite: (`conversation_id`, `id` DESC) để phân trang lịch sử.<br>• **Kiểm tra chính sách tin nhắn người lạ:** Nếu người gửi bị người nhận chặn, server từ chối với HTTP 403 `BLOCKED`. Nếu không bị chặn nhưng người nhận có `allow_messages_from_non_contacts = false` và người gửi chưa có quan hệ bạn bè `ACCEPTED`, server từ chối với HTTP 403 `CONTACT_REQUIRED`. |
-| `attachments` | `kind` ∈ `IMAGE`, `AUDIO`, `VIDEO`, `FILE`. `storage_path` là đường dẫn tương đối trong thư mục lưu trữ, không dùng tên gốc của người dùng. `mime`, `size_bytes`, `original_name`, `duration_ms`, `width`, `height`. Tải xuống qua `GET /api/media/{id}` bảo vệ bằng Bearer token; mở app ngoài dùng `FileProvider`.<br>• Phase 6 thêm `upload_client_id` UUID nullable. Chỉ mục `uq_attachments_upload_client` bảo đảm cặp `(uploader_id, upload_client_id)` duy nhất khi `upload_client_id` có giá trị. |
-| `calls` | `media` chỉ gồm `VOICE` (cuộc gọi thoại 1-1 qua WebRTC; không có video call trong V1). `state` ∈ `RINGING`, `ACTIVE`, `ENDED`, `MISSED`, `REJECTED`, `BUSY`, `FAILED`. `end_reason` ∈ `HANGUP`, `TIMEOUT`, `REJECT`, `BUSY`, `OFFLINE`, `ERROR`.<br>• **Điều kiện cuộc gọi V1:** Chỉ được phép tạo cuộc gọi giữa hai người dùng đã có quan hệ bạn bè `ACCEPTED` và không bị `blocked`. Người lạ hoặc người bị chặn không được phép gọi điện (HTTP 403 `CONTACT_REQUIRED` hoặc `BLOCKED`).<br>• Phase 6 thêm `caller_device_id_hash`, `callee_device_id_hash`, `expires_at`, `updated_at`, `caller_alive_until`, `callee_alive_until`. Chỉ mục `uq_messages_call_id` bảo đảm mỗi cuộc gọi chỉ có một tin `CALL`. |
+| `messages` | `id` `bigint` tự tăng toàn cục, **chỉ dùng cho phân trang lịch sử tin nhắn** (`?before=<messageId>&limit=50`), **không dùng làm cursor đồng bộ**. `client_id` UUID do app tạo, UNIQUE (`sender_id`, `client_id`) để chống trùng tin khi gửi lại. `type` ∈ `TEXT`, `IMAGE`, `AUDIO`, `VIDEO`, `FILE`, `LOCATION`, `SYSTEM`, `CALL`. Ghi chú: `VIDEO` là tệp video đính kèm, không phải cuộc gọi video. `text` tối đa 4000 ký tự. `system_event` và `system_params` dùng cho tin hệ thống nhóm (app tự dịch i18n). Chỉ mục composite: (`conversation_id`, `id` DESC) để phân trang lịch sử. Ràng buộc duy nhất V6: `uq_messages_call_id` trên `messages(call_id) WHERE call_id IS NOT NULL` (mỗi cuộc gọi chỉ gắn với duy nhất 1 tin nhắn thông báo).<br>• **Kiểm tra chính sách tin nhắn người lạ:** Nếu người gửi bị người nhận chặn, server từ chối với HTTP 403 `BLOCKED`. Nếu không bị chặn nhưng người nhận có `allow_messages_from_non_contacts = false` và người gửi chưa có quan hệ bạn bè `ACCEPTED`, server từ chối với HTTP 403 `CONTACT_REQUIRED`. |
+| `attachments` | `kind` ∈ `IMAGE`, `AUDIO`, `VIDEO`, `FILE`. `storage_path` là đường dẫn tương đối trong thư mục lưu trữ (`MEDIA_STORAGE_DIR/yyyy/MM/uuid.ext`), không dùng tên gốc của người dùng. `mime`, `size_bytes`, `original_name`, `duration_ms`, `width`, `height`. V6 thêm `upload_client_id UUID` và partial unique index `uq_attachments_upload_client` trên `(uploader_id, upload_client_id) WHERE upload_client_id IS NOT NULL` để đảm bảo upload idempotent. Tải xuống qua `GET /api/media/{id}` bảo vệ bằng Bearer token (hỗ trợ HTTP Range 206/416); mở app ngoài dùng `FileProvider`. |
+| `calls` | `media` chỉ gồm `VOICE` (cuộc gọi thoại 1-1 qua WebRTC; không có video call trong V1). `state` ∈ `RINGING`, `ACTIVE`, `ENDED`, `MISSED`, `REJECTED`, `BUSY`, `FAILED`. `end_reason` ∈ `HANGUP`, `TIMEOUT`, `REJECT`, `BUSY`, `OFFLINE`, `ERROR`.<br>• **Schema V6:** Bổ sung `caller_device_id_hash VARCHAR(64)`, `callee_device_id_hash VARCHAR(64)`, `expires_at TIMESTAMPTZ` (mặc định now + 45s), `updated_at TIMESTAMPTZ`, `caller_alive_until TIMESTAMPTZ`, `callee_alive_until TIMESTAMPTZ`.<br>• **Chỉ mục V6 (D-10):** Partial unique index `uq_calls_active_caller` trên `(caller_id) WHERE state IN ('RINGING', 'ACTIVE')` và `uq_calls_active_callee` trên `(callee_id) WHERE state IN ('RINGING', 'ACTIVE')` đảm bảo mỗi người dùng chỉ có tối đa 1 cuộc gọi đang hoạt động (người thứ hai nhận `409 CALL_BUSY`); partial index `idx_calls_ringing_expires` trên `(expires_at) WHERE state = 'RINGING'` phục vụ tác vụ quét timeout chuông 45 giây.<br>• **Điều kiện cuộc gọi V1:** Chỉ được phép tạo cuộc gọi giữa hai người dùng đã có quan hệ bạn bè `ACCEPTED` và không bị `blocked`. Người lạ hoặc người bị chặn không được phép gọi điện (HTTP 403 `CONTACT_REQUIRED` hoặc `BLOCKED`). |
 | `sync_events` | Bảng hàng đợi sự kiện đồng bộ toàn diện cho client. Cột: `id` (BIGSERIAL PK tăng đơn điệu), `user_id` (UUID FK users, người nhận sự kiện), `event_type` (`MESSAGE_CREATED`, `CONVERSATION_UPDATED`, `CONTACT_REQUEST_CREATED`, `CONTACT_REQUEST_UPDATED`, `CONTACT_UPDATED`, `RECEIPT_UPDATED`, `CALL_UPDATED`, `DEVICE_REVOKED`), `entity_type` (`MESSAGE`, `CONVERSATION`, `CONTACT_REQUEST`, `CONTACT`, `RECEIPT`, `CALL`, `DEVICE`), `entity_id` (UUID hoặc chuỗi), `payload_json` (JSONB chứa dữ liệu thay đổi), `created_at` (timestamptz).<br>• **Chỉ mục:** B-tree `(user_id, id)`.<br>• **Chính sách dọn dữ liệu cũ:** Các bản ghi sự kiện được lưu giữ tối đa 30 ngày, sau đó được xóa tự động thông qua tác vụ bảo trì định kỳ trên server.<br>• **Quy chế cursor:** Client lưu `lastSyncEventId` trong Room; gọi `GET /api/sync?after=<syncEventId>`. Nếu không có sự kiện mới hơn, `nextCursor` giữ nguyên giá trị `after` (không tự ý tăng). Realtime WebSocket event mang kèm `syncEventId` khớp với `sync_events.id`. |
 
 ## 3. Quy tắc nhất quán dữ liệu
@@ -245,13 +252,13 @@ Room là bản lưu cục bộ phục vụ offline-first (ADR-009). **Server là
 | `conversation` | `id`, `type`, `title`, `avatarUrl`, `lastMessageId`, `lastMessageAt`, `unreadCount`, `muted` | Danh sách hội thoại |
 | `member` | `conversationId`, `userId`, `role`, `lastDeliveredId`, `lastReadId`, `left` | Thành viên và mốc biên nhận |
 | `message` | `localId` (PK tự tăng), `serverId` (null khi chưa gửi), `clientId` UNIQUE, `conversationId`, `senderId`, `type`, `text`, `attachmentJson`, `createdAt`, `status` | `status` ∈ `SENDING`, `SENT`, `DELIVERED`, `READ`, `FAILED` (suy ra từ mốc của người nhận, trừ `SENDING`/`FAILED`) |
-| `attachment_transfer` | `clientId`, `localUri`, `state`, `progress`, `mediaUrl` | Trạng thái upload/tải xuống, tiếp tục được sau khi mất mạng |
+| `attachment_transfer` | `clientId` (PK), `direction` (`UPLOAD`/`DOWNLOAD`), `localPath`, `kind`, `mime`, `sizeBytes`, `fileName`, `durationMs`, `width`, `height`, `errorCode`, `state` (`QUEUED`, `UPLOADING`, `UPLOADED`, `DOWNLOADING`, `COMPLETED`, `FAILED`), `progress`, `mediaUrl`, `updatedAt` | Trạng thái upload/tải xuống tệp đính kèm Room v3; hỗ trợ tiếp tục sau khi mất mạng và idempotent retry (D-04) |
 | `message_fts` | FTS4 trên `message.text` và `normalized_text` | Tìm kiếm tin nhắn offline (ADR-016). Cột `normalized_text` được chuẩn hóa (loại bỏ dấu tiếng Việt kết hợp, đổi đ/Đ → d, chuyển chữ thường); hỗ trợ tìm kiếm cả tiếng Việt có dấu và không dấu |
 | `message_translation` | `messageKey`, `targetLang`, `translatedText` | Bản dịch lưu cục bộ (ADR-014) |
 | `sync_state` | `lastSyncEventId`, `lastSyncAt` | Con trỏ đồng bộ sự kiện qua `GET /api/sync?after=<lastSyncEventId>` |
 
 - Hàng đợi gửi dùng **WorkManager** (một chuỗi duy nhất `send-messages`, ADR-009), mỗi việc chỉ mang `clientId`, không mang nội dung tin.
-- `fallbackToDestructiveMigration()` được phép bật trong giai đoạn phát triển (build variant Debug); migration cụ thể sẽ được hoàn thiện trước bản demo.
+- Room v3 dùng migration tường minh (`MIGRATION_1_2`, `MIGRATION_2_3`) kèm schema export (`1.json`, `2.json`, `3.json`) và **không bật `fallbackToDestructiveMigration()`** kể cả bản Debug.
 
 ## 5. Dữ liệu mẫu cho demo
 

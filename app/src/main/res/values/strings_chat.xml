@@ -132,4 +132,12 @@
     <string name="chat_error_validation">Invalid information.</string>
     <string name="chat_error_not_found">Conversation not found.</string>
     <string name="chat_error_network">No connection. Check your network and try again.</string>
+    <string name="chat_error_file_too_large">File exceeds the allowed size limit.</string>
+    <string name="chat_error_unsupported_type">This file type is not supported.</string>
+    <string name="chat_error_file_missing">Local file is no longer available. Please pick it again.</string>
+    <string name="chat_error_call_busy">The user is busy on another call.</string>
+    <string name="chat_error_call_unsupported">Only 1-1 voice calls are supported.</string>
+    <string name="chat_error_call_not_found">Call not found.</string>
+    <string name="chat_error_invalid_state">This call is no longer active.</string>
+    <string name="chat_voice_call">Voice call</string>
 </resources>

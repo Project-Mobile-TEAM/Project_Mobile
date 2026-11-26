@@ -38,6 +38,16 @@ public class AuthController {
         return auth.loginPassword(r.phone(), r.password(), r.deviceId(), r.deviceName());
     }
 
+    @PostMapping("/login/second-factor")
+    public AuthSuccessResponse loginSecondFactor(@RequestBody SecondFactorRequest r) {
+        return auth.loginSecondFactor(r.secondFactorToken(), r.code(), r.deviceName());
+    }
+
+    @PostMapping("/login/friend-step")
+    public AuthSuccessResponse loginFriendStep(@RequestBody FriendStepRequest r) {
+        return auth.loginFriendStep(r.friendToken(), r.challengeId(), r.selectedIds(), r.deviceName());
+    }
+
     @PostMapping("/login/otp/request")
     public OtpChallengeResponse loginOtpRequest(@RequestBody OtpRequest r) {
         return auth.requestLoginOtp(r.phone(), r.deviceId());

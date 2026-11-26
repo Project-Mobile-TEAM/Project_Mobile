@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Danh sách thư mục nội bộ được phép chia sẻ qua FileProvider (D-03, D-04);
+     tuyệt đối không mở rộng tới thư mục database Room hay kho khóa Keystore. -->
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Tệp media đang chờ upload offline được sao chép vào bộ nhớ riêng của app. -->
+    <files-path name="pending_media" path="pending_media/" />
+    <!-- Tệp media tải về bằng Bearer token để chia sẻ read-only sang app xem ngoài. -->
+    <cache-path name="media_cache" path="media_cache/" />
+    <!-- Ảnh tạm chụp trực tiếp từ camera trước khi nén và tải lên. -->
+    <cache-path name="camera" path="camera/" />
+</paths>

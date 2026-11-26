@@ -83,6 +83,7 @@ public class OtpFragment extends Fragment {
             viewModel.verifyLoginOtp(String.valueOf(binding.etCode.getText())).observe(getViewLifecycleOwner(), result -> {
                 binding.btnConfirm.setEnabled(true);
                 if (result.isSuccess()) Navigation.findNavController(binding.getRoot()).navigate(R.id.action_otp_to_main);
+                else if ("NEED_FRIEND".equals(result.errorCode)) Navigation.findNavController(binding.getRoot()).navigate(R.id.action_otp_to_friend);
                 else showError(result.errorCode);
             });
             return;

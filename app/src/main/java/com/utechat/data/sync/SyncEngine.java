@@ -11,11 +11,11 @@ import com.utechat.data.remote.api.ChatApi;
 import com.utechat.data.remote.model.ChatDtos;
 import com.utechat.data.session.SessionManager;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -25,11 +25,12 @@ import java.util.function.LongSupplier;
 import retrofit2.Response;
 
 /**
- * Động cơ đồng bộ đơn luồng logic (single-flight) bảo đảm thứ tự sự kiện và tính nhất quán con trỏ (D-06, D-07):
- * - Gộp mọi lời gọi requestSync() dồn dập bằng cặp AtomicBoolean running + resyncRequested.
- * - Tự chạy /api/sync/bootstrap khi chưa có cursor hoặc khi gặp HTTP 410 SYNC_CURSOR_EXPIRED.
- * - Chỉ cập nhật sync_state.lastSyncEventId bên trong CÙNG transaction Room với SyncEventApplier.applyBatch.
- * - Khi server trả retryAfterMs (barrier đang giữ giao dịch), đặt đúng 1 hẹn giờ không chặn luồng để kéo lại.
+ * Động cơ đồng bộ đơn luồng logic (single-flight) bảo đảm thứ tự sự kiện và tính nhất quán con trỏ (D-06, D-07, D-08):
+ * - Dùng chung syncLock giữa requestSync() (foreground/WS) và syncBlocking(sessionKey) (SyncWorker 15 phút)
+ *   để không bao giờ có 2 tiến trình cùng ghi sync_state.
+ * - Tự chạy /api/sync/bootstrap khi chưa có cursor hoặc khi gặp HTTP 410 SYNC_CURSOR_EXPIRED (tuyệt đối không bắn thông báo lúc bootstrap).
+ * - Chỉ cập nhật sync_state.lastSyncEventId bên trong CÙNG transaction Room với SyncEventApplier.applyBatchDetailed,
+ *   và chỉ phát thông báo incremental SAU KHI transaction đã commit và phiên vẫn khớp.
  */
 public class SyncEngine {
     /** Trừu tượng bộ lập lịch trễ cho phép tiêm FakeScheduler trong bài kiểm thử JVM không cần sleep. */
@@ -46,6 +47,14 @@ public class SyncEngine {
         void onCatchUpStatus(@NonNull String sessionKey, boolean caughtUp);
     }
 
+    /** Callback phát thông báo sau khi lô /api/sync đã commit thành công xuống Room (không bao giờ gọi khi bootstrap). */
+    public interface BatchNotificationCallback {
+        void onBatchCommitted(
+                @NonNull String sessionKey,
+                @NonNull String myUserId,
+                @NonNull SyncEventApplier.SyncBatchOutcome outcome);
+    }
+
     private static final int SYNC_PAGE_LIMIT = 100;
     private static final long MIN_BARRIER_RETRY_MS = 1_000L;
     private static final Gson GSON = new Gson();
@@ -60,12 +69,17 @@ public class SyncEngine {
     private final DelayScheduler scheduler;
     private final LongSupplier clockMs;
 
+    private final Object syncLock = new Object();
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final AtomicBoolean resyncRequested = new AtomicBoolean(false);
     private final MutableLiveData<Boolean> syncing = new MutableLiveData<>(false);
+    private volatile boolean lastPassSucceeded;
+    private long drainSequence = 0L;
+    @Nullable private DrainState currentDrain;
 
     private volatile boolean foregroundActive = true;
     @Nullable private volatile CatchUpListener catchUpListener;
+    @Nullable private volatile BatchNotificationCallback notificationCallback;
     @Nullable private DelayScheduler.Cancellable pendingBarrierRetry;
 
     public SyncEngine(
@@ -126,69 +140,216 @@ public class SyncEngine {
         this.catchUpListener = listener;
     }
 
-    /** Đánh dấu trạng thái foreground/kết nối: khi mất kết nối hoặc đăng xuất sẽ hủy ngay hẹn giờ barrier. */
+    /** Gắn callback nhận sự kiện tin mới/cuộc gọi nhỡ sau khi commit Room (được Injection nối ở 06-08). */
+    public void setNotificationCallback(@Nullable BatchNotificationCallback callback) {
+        this.notificationCallback = callback;
+    }
+
+    /** Đánh dấu trạng thái foreground/kết nối: khi mất kết nối hoặc đăng xuất sẽ hủy ngay hẹn giờ barrier và đánh thức waiter. */
     public synchronized void setForegroundActive(boolean active) {
         this.foregroundActive = active;
         if (!active) {
             cancelPendingBarrierRetryLocked();
+            synchronized (syncLock) {
+                syncLock.notifyAll();
+            }
         }
     }
 
-    /** Hủy mọi hẹn giờ thử lại barrier đang chờ (gọi khi disconnect hoặc đổi phiên). */
+    /** Hủy mọi hẹn giờ thử lại barrier đang chờ (gọi khi disconnect hoặc đổi phiên) và đánh thức các luồng chờ. */
     public synchronized void cancelPendingRetry() {
         cancelPendingBarrierRetryLocked();
+        synchronized (syncLock) {
+            syncLock.notifyAll();
+        }
     }
 
     /**
-     * Yêu cầu đồng bộ an toàn single-flight: nhiều tín hiệu liên tiếp được gộp lại mà không bao giờ chạy song song /sync.
+     * Yêu cầu đồng bộ không chặn an toàn single-flight:
+     * nhiều tín hiệu dồn dập được gộp chung vào cờ resyncRequested dưới syncLock mà không chạy song song /sync.
      */
     public void requestSync() {
         cancelPendingRetry();
-        resyncRequested.set(true);
-        if (running.compareAndSet(false, true)) {
-            syncing.postValue(true);
-            syncNetworkExecutor.execute(this::drainLoop);
+        DrainState started = null;
+        synchronized (syncLock) {
+            resyncRequested.set(true);
+            if (running.compareAndSet(false, true)) {
+                started = new DrainState(++drainSequence, session.sessionKey());
+                currentDrain = started;
+                syncing.postValue(true);
+            }
+        }
+        if (started != null) {
+            final DrainState drain = started;
+            try {
+                syncNetworkExecutor.execute(() -> drainLoop(drain));
+            } catch (Throwable t) {
+                finishDrainOnError(drain);
+                throw t;
+            }
         }
     }
 
-    private void drainLoop() {
-        try {
-            while (resyncRequested.getAndSet(false)) {
-                runOnePass();
+    /**
+     * Đồng bộ đồng bộ theo phiên dùng chung single-flight mutex với requestSync() (dành cho SyncWorker 15 phút — D-08):
+     * - Nếu phiên đã đổi: trả true ngay để Worker thoát sạch mà không retry.
+     * - Nếu chưa có drain nào đang chạy: chiếm quyền chạy drainLoop ngay ngoài syncLock.
+     * - Nếu đã có drain đang chạy: đặt resyncRequested = true và chờ có thể bị interrupt cho tới khi đúng drain kết thúc.
+     * - Kết quả trả về khớp đúng với expectedSessionKey, không bao giờ dùng nhầm cờ toàn cục của phiên sau.
+     */
+    public boolean syncBlocking(@NonNull String expectedSessionKey) {
+        if (!expectedSessionKey.equals(session.sessionKey())) {
+            return true;
+        }
+        cancelPendingRetry();
+
+        while (true) {
+            DrainState claimed = null;
+            DrainState joined = null;
+            synchronized (syncLock) {
+                if (!expectedSessionKey.equals(session.sessionKey())) {
+                    return true;
+                }
+                resyncRequested.set(true);
+                if (running.compareAndSet(false, true)) {
+                    claimed = new DrainState(++drainSequence, expectedSessionKey);
+                    currentDrain = claimed;
+                    syncing.postValue(true);
+                } else {
+                    joined = currentDrain;
+                }
             }
+
+            if (claimed != null) {
+                drainLoop(claimed);
+                synchronized (syncLock) {
+                    if (!expectedSessionKey.equals(session.sessionKey())) {
+                        return true;
+                    }
+                    Boolean sessionOutcome = claimed.resultBySession.get(expectedSessionKey);
+                    return sessionOutcome != null ? sessionOutcome : claimed.lastPassSucceeded;
+                }
+            }
+
+            if (joined != null) {
+                synchronized (syncLock) {
+                    while (!joined.finished) {
+                        if (!expectedSessionKey.equals(session.sessionKey())) {
+                            return true;
+                        }
+                        try {
+                            syncLock.wait();
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            return true;
+                        }
+                    }
+                    if (!expectedSessionKey.equals(session.sessionKey())) {
+                        return true;
+                    }
+                    Boolean sessionOutcome = joined.resultBySession.get(expectedSessionKey);
+                    if (sessionOutcome != null) {
+                        return sessionOutcome;
+                    }
+                }
+                // Drain vừa xong thuộc phiên khác chưa chạy lượt nào cho expectedSessionKey -> quay lại vòng để chạy lượt riêng.
+                continue;
+            }
+            return true;
+        }
+    }
+
+    /**
+     * Vòng lặp rút cạn single-flight: kiểm tra resyncRequested, hạ running và notifyAll() diễn ra NGUYÊN TỬ
+     * trong cùng khối synchronized (syncLock); toàn bộ HTTP và Room luôn chạy BÊN NGOÀI syncLock.
+     */
+    private void drainLoop(@NonNull DrainState drain) {
+        boolean normalExit = false;
+        try {
+            while (true) {
+                synchronized (syncLock) {
+                    boolean shouldRun = resyncRequested.getAndSet(false);
+                    if (!shouldRun) {
+                        drain.finished = true;
+                        if (currentDrain == drain) {
+                            currentDrain = null;
+                        }
+                        running.set(false);
+                        syncing.postValue(false);
+                        syncLock.notifyAll();
+                        normalExit = true;
+                        return;
+                    }
+                }
+
+                String passSessionKey = session.sessionKey();
+                boolean passOk = runOnePass(passSessionKey);
+                synchronized (syncLock) {
+                    lastPassSucceeded = passOk;
+                    drain.lastPassSucceeded = passOk;
+                    if (passSessionKey != null) {
+                        drain.resultBySession.put(passSessionKey, passOk);
+                    }
+                    // Đánh thức waiter sớm nếu phiên của chúng vừa bị đăng xuất/thay đổi giữa lượt sync.
+                    syncLock.notifyAll();
+                }
+            }
+        } catch (Throwable t) {
+            synchronized (syncLock) {
+                lastPassSucceeded = false;
+                drain.lastPassSucceeded = false;
+                if (drain.initiatorSessionKey != null) {
+                    drain.resultBySession.put(drain.initiatorSessionKey, false);
+                }
+            }
+            throw t;
         } finally {
+            if (!normalExit) {
+                finishDrainOnError(drain);
+            }
+        }
+    }
+
+    private void finishDrainOnError(@NonNull DrainState drain) {
+        synchronized (syncLock) {
+            lastPassSucceeded = false;
+            drain.lastPassSucceeded = false;
+            drain.finished = true;
+            if (currentDrain == drain) {
+                currentDrain = null;
+            }
             running.set(false);
             syncing.postValue(false);
-            // Nếu có requestSync() chen vào đúng sát thời điểm kết thúc, khởi chạy thêm một vòng an toàn.
-            if (resyncRequested.get() && running.compareAndSet(false, true)) {
-                syncing.postValue(true);
-                syncNetworkExecutor.execute(this::drainLoop);
-            }
+            syncLock.notifyAll();
         }
     }
 
-    private void runOnePass() {
-        String sessionKey = session.sessionKey();
+    /** Chạy 1 lượt đồng bộ (bootstrap nếu cần + kéo phân trang /api/sync); trả true nếu bắt kịp sạch hoặc phiên đã trống. */
+    private boolean runOnePass(@Nullable String capturedSessionKey) {
+        String sessionKey = capturedSessionKey != null ? capturedSessionKey : session.sessionKey();
         String myUserId = session.getUserId();
-        if (sessionKey == null || myUserId == null) {
-            return;
+        if (sessionKey == null || myUserId == null || !sessionKey.equals(session.sessionKey())) {
+            return true;
         }
 
         try {
             SyncStateEntity state = runOnDisk(() -> db.syncStateDao().get(myUserId));
             if (!sessionKey.equals(session.sessionKey())) {
-                return;
+                return true;
             }
 
             if (state == null) {
                 if (!runBootstrap(sessionKey, myUserId)) {
                     notifyCatchUp(sessionKey, false);
-                    return;
+                    return false;
                 }
                 state = runOnDisk(() -> db.syncStateDao().get(myUserId));
                 if (state == null || !sessionKey.equals(session.sessionKey())) {
-                    notifyCatchUp(sessionKey, false);
-                    return;
+                    if (sessionKey.equals(session.sessionKey())) {
+                        notifyCatchUp(sessionKey, false);
+                        return false;
+                    }
+                    return true;
                 }
             }
 
@@ -198,24 +359,27 @@ public class SyncEngine {
             while (sessionKey.equals(session.sessionKey())) {
                 Response<ChatDtos.SyncResponse> response = api.sync(cursor, SYNC_PAGE_LIMIT).execute();
                 if (!sessionKey.equals(session.sessionKey())) {
-                    return;
+                    return true;
                 }
 
                 // Hồi phục tự động khi con trỏ quá cũ (> 30 ngày) hoặc vượt sequence trên server (D-06).
                 if (response.code() == 410 && isCursorExpiredError(response)) {
                     if (rebootstrappedOnce) {
                         notifyCatchUp(sessionKey, false);
-                        return;
+                        return false;
                     }
                     rebootstrappedOnce = true;
                     if (!runBootstrap(sessionKey, myUserId)) {
                         notifyCatchUp(sessionKey, false);
-                        return;
+                        return false;
                     }
                     SyncStateEntity resetState = runOnDisk(() -> db.syncStateDao().get(myUserId));
                     if (resetState == null || !sessionKey.equals(session.sessionKey())) {
-                        notifyCatchUp(sessionKey, false);
-                        return;
+                        if (sessionKey.equals(session.sessionKey())) {
+                            notifyCatchUp(sessionKey, false);
+                            return false;
+                        }
+                        return true;
                     }
                     cursor = resetState.getLastSyncEventId();
                     continue;
@@ -223,27 +387,45 @@ public class SyncEngine {
 
                 if (!response.isSuccessful() || response.body() == null) {
                     notifyCatchUp(sessionKey, false);
-                    return;
+                    return false;
                 }
 
                 ChatDtos.SyncResponse body = response.body();
-                AtomicReference<Map<String, Long>> deliveredTargets = new AtomicReference<>(Collections.emptyMap());
+                AtomicReference<SyncEventApplier.SyncBatchOutcome> outcomeRef = new AtomicReference<>();
 
                 // Áp dụng toàn bộ lô sự kiện VÀ nâng con trỏ sync trong CÙNG một transaction Room trên DISK.
                 Boolean applied = runOnDisk(() -> session.runIfCurrent(sessionKey, () ->
                         db.runInTransaction(() -> {
-                            Map<String, Long> incoming = applier.applyBatch(myUserId, body.events);
+                            SyncEventApplier.SyncBatchOutcome outcome = applier.applyBatchDetailed(myUserId, body.events);
                             db.syncStateDao().advance(myUserId, body.nextCursor, clockMs.getAsLong());
-                            deliveredTargets.set(incoming);
+                            outcomeRef.set(outcome);
                         })
                 ));
 
                 if (!Boolean.TRUE.equals(applied)) {
-                    return;
+                    return true;
+                }
+
+                SyncEventApplier.SyncBatchOutcome committedOutcome = outcomeRef.get();
+                // Chỉ bắn thông báo / chốt cuộc gọi incremental SAU KHI transaction Room đã commit và phiên vẫn còn hiện hành (D-05, D-08).
+                BatchNotificationCallback cb = notificationCallback;
+                if (cb != null && committedOutcome != null
+                        && (!committedOutcome.newlyInsertedMessages.isEmpty()
+                        || !committedOutcome.missedCalls.isEmpty()
+                        || !committedOutcome.terminalCalls.isEmpty())
+                        && sessionKey.equals(session.sessionKey())) {
+                    try {
+                        cb.onBatchCommitted(sessionKey, myUserId, committedOutcome);
+                    } catch (RuntimeException ignored) {
+                        // Lỗi hiển thị thông báo tuyệt đối không được làm đứt vòng phân trang /api/sync.
+                    }
                 }
 
                 // Gửi biên nhận DELIVERED sau khi transaction đã commit chắc chắn xuống đĩa (D-11).
-                sendDeliveredWatermarks(sessionKey, deliveredTargets.get());
+                Map<String, Long> deliveredTargets = committedOutcome != null
+                        ? committedOutcome.highestIncomingByConversation
+                        : Collections.emptyMap();
+                sendDeliveredWatermarks(sessionKey, deliveredTargets);
 
                 cursor = body.nextCursor;
 
@@ -255,17 +437,20 @@ public class SyncEngine {
                     // Server đang có giao dịch bị barrier giữ lại: giữ trạng thái chưa catch-up và đặt đúng 1 hẹn giờ.
                     notifyCatchUp(sessionKey, false);
                     scheduleBarrierRetry(sessionKey, Math.max(MIN_BARRIER_RETRY_MS, body.retryAfterMs));
-                    return;
+                    return false;
                 }
 
                 notifyCatchUp(sessionKey, true);
-                return;
+                return true;
             }
+            return true;
         } catch (Exception ignored) {
             notifyCatchUp(sessionKey, false);
+            return false;
         }
     }
 
+    /** Chạy /api/sync/bootstrap để khởi tạo snapshot; tuyệt đối không phát thông báo (D-05). */
     private boolean runBootstrap(String sessionKey, String myUserId) throws Exception {
         Response<ChatDtos.BootstrapResponse> response = api.bootstrap().execute();
         if (!sessionKey.equals(session.sessionKey()) || !response.isSuccessful() || response.body() == null) {
@@ -355,5 +540,19 @@ public class SyncEngine {
             // 410 GONE luôn coi là hết hạn con trỏ nếu body không phải JSON chi tiết.
         }
         return true;
+    }
+
+    /** Trạng thái của một chu kỳ drain single-flight gắn với các phiên đã thực thi trong chu kỳ đó. */
+    private static final class DrainState {
+        final long id;
+        @Nullable final String initiatorSessionKey;
+        final Map<String, Boolean> resultBySession = new HashMap<>();
+        boolean finished;
+        boolean lastPassSucceeded = true;
+
+        DrainState(long id, @Nullable String initiatorSessionKey) {
+            this.id = id;
+            this.initiatorSessionKey = initiatorSessionKey;
+        }
     }
 }

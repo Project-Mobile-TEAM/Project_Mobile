@@ -41,7 +41,9 @@
 | `POST /auth/register/otp` | `phone`, `deviceId` | `challengeId`, `expiresInSeconds` | `PHONE_TAKEN` 409, `OTP_RATE_LIMIT` 429 |
 | `POST /auth/register/verify` | `challengeId`, `code` | `registrationToken` | `OTP_INVALID`, `OTP_EXPIRED`, `OTP_ATTEMPTS` |
 | `POST /auth/register/complete` | `registrationToken`, `displayName`, `password`, `deviceName` | `token`, `user` (201) | `WEAK_PASSWORD`, `VALIDATION` |
-| `POST /auth/login/password` | `phone`, `password`, `deviceId`, `deviceName` | `state` (`COMPLETE`), `token`, `user` | `BAD_CREDENTIALS` 401, `LOCKED` 423 |
+| `POST /auth/login/password` | `phone`, `password`, `deviceId`, `deviceName` | `state` (`COMPLETE`), `token`, `user`; hoặc 200 `state` = `NEED_2FA` kèm `secondFactorToken` (thiết bị lạ + tài khoản bật 2FA) | `BAD_CREDENTIALS` 401, `LOCKED` 423 |
+| `POST /auth/login/friend-step` | `friendToken`, `challengeId`, `selectedIds[3]`, `deviceName` (bỏ `challengeId` và `selectedIds` để xin bộ mới khi bộ hết hạn) | `COMPLETE` (`token`, `user`), hoặc `NEED_FRIEND` kèm `friendToken` và `friendChallenge {challengeId, expiresInSeconds, candidates[15]{id, displayName}, attemptsLeft, lastAttemptWrong}` | Bước nhận diện bạn bè (F-04, ADR-005). Có sau OTP hoặc 2FA trên thiết bị lạ khi tài khoản có từ 3 bạn và đủ 12 mồi. Sai: bộ mới, tối đa 3 lần, lần thứ 3 khoá 15 phút theo tài khoản (`LOCKED` 423); `FRIEND_CHALLENGE_EXPIRED`, `VALIDATION`, `OTP_EXPIRED` |
+| `POST /auth/login/second-factor` | `secondFactorToken`, `code` (TOTP 6 số hoặc mã dự phòng), `deviceName` | `state` (`COMPLETE`), `token`, `user` | `CODE_INVALID` 400, `OTP_EXPIRED` (token tạm quá 10 phút), `LOCKED` 423 |
 | `POST /auth/login/otp/request` | `phone`, `deviceId` | `challengeId` (luôn 200) | `OTP_RATE_LIMIT` |
 | `POST /auth/login/otp/verify` | `challengeId`, `code`, `deviceName` | `state` (`COMPLETE`), `token`, `user` | `OTP_INVALID`, `OTP_EXPIRED`, `LOCKED` 423 |
 | `POST /auth/password-reset/otp` | `phone`, `deviceId` | `challengeId` (luôn 200) | `OTP_RATE_LIMIT` |
@@ -62,6 +64,10 @@
 | `POST /me/password` | `oldPassword`, `newPassword` | 204 | Đổi mật khẩu (thu hồi token của mọi thiết bị khác) |
 | `DELETE /me` | `password` | 204 | Yêu cầu xoá tài khoản: thu hồi mọi thiết bị ngay, sau **15 ngày** không huỷ thì xoá mềm vĩnh viễn (giải phóng SĐT, xoá toàn bộ dòng liên quan trong `contacts`) |
 | `POST /me/cancel-deletion` | — | 204 | Huỷ yêu cầu xoá khi đăng nhập lại trong 15 ngày chờ |
+| `GET /account/2fa` | — | `{enabled}` | Trạng thái 2FA TOTP (ADR-004) |
+| `POST /account/2fa/setup` | `password` | `{secret, otpauthUri}` | Tạo khoá chưa xác nhận; `BAD_CREDENTIALS`, `TWO_FACTOR_ALREADY_ENABLED` 409 |
+| `POST /account/2fa/enable` | `code` | `{backupCodes[8]}` | Mã đúng thì bật; mã dự phòng chỉ hiện một lần; `CODE_INVALID`, `TWO_FACTOR_NOT_SETUP` 409, `LOCKED` 423 |
+| `POST /account/2fa/disable` | `password`, `code` | 204 | Tắt 2FA, xoá khoá và mã dự phòng; `BAD_CREDENTIALS`, `CODE_INVALID`, `TWO_FACTOR_NOT_ENABLED` 409, `LOCKED` 423 |
 | `GET /account/devices` | — | `[{id, name, platform, lastSeenAt, current}]` | Xem danh sách thiết bị đang đăng nhập |
 | `DELETE /account/devices/{id}` | — | 204 | Thu hồi thiết bị (hữu ích khi mất máy) |
 
@@ -126,7 +132,7 @@ Sự kiện và dữ liệu nghiệp vụ phải cùng commit/rollback; SyncEven
 | `DELETE /conversations/{id}/members/{userId}?successorUserId=` | — | 204 (`ADMIN`, hoặc chính mình = rời nhóm; nếu là `ADMIN` duy nhất còn thành viên khác bắt buộc truyền `successorUserId` để bàn giao trong cùng transaction, nếu không trả `409 ADMIN_HANDOVER_REQUIRED`) | `403 FORBIDDEN`, `403 NOT_A_MEMBER`, `409 ADMIN_HANDOVER_REQUIRED` |
 | `PUT /conversations/{id}/members/{userId}/role` | `role` | 204 (`ADMIN`) | `403 NOT_ADMIN` |
 | `GET /conversations/{id}/messages?before=&limit=` | — | tin cũ hơn `before` (`messageId`), mới nhất trước (phân trang lịch sử, lọc chặt `id > visibleFromMessageId`) | `403 NOT_A_MEMBER` |
-| `POST /conversations/{id}/messages` | `clientId`, `type`, `text`, `mediaUrl`, `latitude`, `longitude`, `expectedVisibleFromMessageId` (tùy chọn; bắt buộc với `GROUP`, `null` với `DIRECT`) | `MessageDto` (201 mới tạo / 200 trùng `clientId`) | `403 BLOCKED`, `403 CONTACT_REQUIRED`, `403 NOT_A_MEMBER`, `409 MEMBERSHIP_CHANGED`, `429 RATE_LIMITED` |
+| `POST /conversations/{id}/messages` | `clientId`, `type`, `text`, `mediaUrl`, `latitude`, `longitude`, `expectedVisibleFromMessageId` (tùy chọn; bắt buộc với `GROUP`, `null` với `DIRECT`) | `MessageDto` (201 mới tạo / 200 trùng `clientId`) | `400 VALIDATION`, `403 BLOCKED`, `403 CONTACT_REQUIRED`, `403 FORBIDDEN`, `403 NOT_A_MEMBER`, `409 CONFLICT`, `409 MEMBERSHIP_CHANGED`, `429 RATE_LIMITED` |
 | `POST /conversations/{id}/delivered` | `upToMessageId` | 204 | `403 NOT_A_MEMBER` |
 | `POST /conversations/{id}/read` | `upToMessageId` | 204 | `403 NOT_A_MEMBER` |
 | `GET /sync/bootstrap` | — | `{me, conversations, friends, blocked, contactRequests, syncCursor}` nhất quán trong 1 transaction `REPEATABLE READ READ ONLY` | — |
@@ -140,7 +146,18 @@ Sự kiện và dữ liệu nghiệp vụ phải cùng commit/rollback; SyncEven
 > - Gửi lời mời kết bạn qua `POST /contact-requests` vẫn luôn được phép kể cả khi tắt nhận tin từ người lạ.
 >
 > **Quy ước gửi tin từ Client:**
-> Client chỉ gửi các trường: `clientId`, `type`, `text`, `mediaUrl`, `latitude`, `longitude` và `expectedVisibleFromMessageId` với hội thoại `GROUP`. Với tin có tệp, `mediaUrl` phải là URL `/api/media/{attachmentId}` do server trả về từ `POST /media`; client không được tự tạo URL. Server lấy `attachmentId` từ URL, kiểm tra attachment thuộc người gửi, chưa gắn vào message khác và `kind` phù hợp với `type`, sau đó tự lấy metadata (`durationMs`, `sizeBytes`, `width`, `height`, `mime`) từ bản ghi `attachments`.
+> - Các loại tin nhắn được client gửi (`type`): `TEXT`, `IMAGE`, `AUDIO`, `VIDEO`, `FILE`, `LOCATION`. Riêng `SYSTEM` và `CALL` do server tự sinh, client gửi lên sẽ nhận lỗi `400 VALIDATION`.
+> - **Tin nhắn văn bản (`TEXT`):** Yêu cầu `text` có từ 1..4000 ký tự (sau khi trim, không rỗng).
+> - **Tin nhắn đa phương tiện (`IMAGE`, `AUDIO`, `VIDEO`, `FILE`):**
+>   - Bắt buộc có trường `mediaUrl` dạng `/api/media/{attachmentId}` (với `attachmentId` là UUID chuẩn 8-4-4-4-12 khớp regex `^/api/media/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$`). `text` là tùy chọn (chú thích kèm theo, tối đa 4000 ký tự).
+>   - Server khóa dòng bản ghi attachment (`FOR UPDATE`): kiểm tra `uploader_id == actorId` (nếu sai trả `403 FORBIDDEN`), kiểm tra `kind == type` (nếu không khớp trả `400 VALIDATION`), và kiểm tra ràng buộc duy nhất `uq_messages_attachment` (nếu attachment đã gắn vào message khác thì trả `409 CONFLICT`).
+>   - Server tự trích xuất metadata (`durationMs`, `sizeBytes`, `width`, `height`, `mime`, `fileName`) từ bản ghi `attachments` để gắn vào `MessageDto`.
+>   - Gửi lại cùng `(sender_id, clientId)` cho cùng một message trả về `200 OK` (idempotent replay) với dữ liệu gốc mà không gây lỗi `409 CONFLICT`.
+> - **Tin nhắn vị trí (`LOCATION`):**
+>   - Bắt buộc gửi `latitude` và `longitude` là số thực hữu hạn (finite), thỏa mãn `latitude ∈ [-90, 90]` và `longitude ∈ [-180, 180]`.
+>   - Trường `mediaUrl` bắt buộc phải là `null`. Nếu vi phạm trả về `400 VALIDATION`. `text` là tùy chọn (địa chỉ hoặc mô tả).
+> - **Kiểm tra phiên bản thành viên nhóm (`GROUP`):**
+>   - Đối với nhóm, client bắt buộc gửi `expectedVisibleFromMessageId` khớp với mốc `visible_from_message_id` hiện tại của thành viên trong hội thoại; nếu lệch trả về `409 MEMBERSHIP_CHANGED`.
 >
 > **Định nghĩa con trỏ đồng bộ (`GET /sync/bootstrap` và `GET /sync?after=<syncEventId>&limit=`):**
 > - `GET /sync/bootstrap` chạy trong 1 transaction `REPEATABLE READ READ ONLY`, trả về snapshot `{ me, conversations, friends, blocked, contactRequests, syncCursor }` nhất quán để khởi tạo thiết bị trống hoặc khôi phục sau `410 SYNC_CURSOR_EXPIRED`.
@@ -189,25 +206,43 @@ Sự kiện và dữ liệu nghiệp vụ phải cùng commit/rollback; SyncEven
 
 | Method và đường dẫn | Body chính | Trả về | Lỗi |
 |---|---|---|---|
-| `POST /media` | multipart: `clientId` (UUID của tin nhắn), `kind`, `file`, `durationMs` (tùy chọn cho `AUDIO`/`VIDEO`) | `mediaUrl`, `mime`, `sizeBytes`, `width`, `height`, `durationMs`, `fileName` (201 khi tạo mới, 200 khi gửi lại cùng khóa) | `FILE_TOO_LARGE` 413, `UNSUPPORTED_TYPE` 415, `CONFLICT` 409 khi dùng lại khóa với `kind` khác, `RATE_LIMITED` 429 |
-| `GET /media/{id}` | — (URL có bảo vệ: Header `Authorization` Bearer token) | luồng byte, hỗ trợ `Range` (phát video, tải lại) | 403 nếu không phải thành viên |
+| `POST /media` | multipart/form-data: `file`, `kind` (`IMAGE`, `AUDIO`, `VIDEO`, `FILE`), `clientId` (UUID), `durationMs` (tùy chọn cho AUDIO/VIDEO) | `MediaUploadResponse` (201 mới tạo / 200 upload lại trùng `clientId`): `{ mediaUrl, mime, sizeBytes, width, height, durationMs, fileName }` | `400 VALIDATION` (thiếu trường, sai format, durationMs > 300000), `409 CONFLICT` (tái sử dụng clientId với kind khác), `413 FILE_TOO_LARGE` (vượt giới hạn kind hoặc server), `415 UNSUPPORTED_TYPE` (magic bytes không hợp lệ), `429 RATE_LIMITED` |
+| `GET /media/{id}` | — (Xác thực duy nhất qua Header `Authorization: Bearer <token>`) | Luồng byte file (hỗ trợ HTTP Range `206 Partial Content` hoặc `200 OK`, kèm `Accept-Ranges: bytes`, `X-Content-Type-Options: nosniff`) | `401 SESSION_EXPIRED`, `403 FORBIDDEN` (không phải thành viên hoặc tin nhắn trước mốc `visible_from_message_id`), `404 NOT_FOUND`, `416 Range Not Satisfiable` |
 
-> **Phát media qua app ngoài:** App dùng `FileProvider` làm phương án duy nhất. App tải/cache file về bộ nhớ tạm bằng token rồi chia sẻ `content://` qua `FileProvider` với cờ `FLAG_GRANT_READ_URI_PERMISSION`. Không dùng query ticket và tuyệt đối không đưa JWT vào URL.
-
-> **Gửi lại khi mất kết nối:** Server dùng cặp người gửi và `clientId` để trả lại URL và metadata của tệp đã lưu. Khi đã có `mediaUrl`, app dùng lại URL đó với cùng `clientId` để gửi tin. `durationMs` ở bước tải lên là gợi ý tùy chọn, được server kiểm tra trước khi lưu.
+> **Bảo mật và lưu trữ Media:**
+> 1. **Giới hạn dung lượng theo loại:**
+>    - `IMAGE`: Dung lượng $\le 10\text{ MB}$. Magic bytes hợp lệ: JPEG (`FF D8 FF`), PNG (`89 50 4E 47`), WebP (`RIFF....WEBP`). Server tự đọc `width`, `height`. Từ chối SVG/HTML (`415 UNSUPPORTED_TYPE`).
+>    - `AUDIO`: Dung lượng $\le 10\text{ MB}$, thời lượng $\le 300\text{ giây}$ (300,000 ms). Hỗ trợ AAC / MP4 / M4A (kiểm tra `ftyp` box và parse box `mvhd` hoặc ADTS AAC header).
+>    - `VIDEO`: Dung lượng $\le 50\text{ MB}$. Hỗ trợ MP4 (`ftyp`), MOV, WebM.
+>    - `FILE`: Dung lượng $\le 25\text{ MB}$. Hỗ trợ PDF (`%PDF-`), ZIP/OOXML (Office docx/xlsx/pptx; cấm tệp chứa `AndroidManifest.xml` / APK), UTF-8 plain text (không chứa byte NUL). Nghiêm cấm tuyệt đối file thực thi PE (`MZ`), ELF, script shell/batch, HTML/SVG (`415 UNSUPPORTED_TYPE`).
+> 2. **Chống Path Traversal & Giới hạn tần suất:**
+>    - Server lưu file theo đường dẫn cô lập: `MEDIA_STORAGE_DIR/<yyyy>/<MM>/<uuid>.<ext>`. Tuyệt đối không dùng tên file gốc từ client để tạo đường dẫn trên ổ đĩa.
+>    - Giới hạn tải lên: tối đa 20 file / phút / user (`429 RATE_LIMITED`).
+> 3. **Cơ chế Idempotency khi upload (D-04):**
+>    - Client gửi `clientId` (UUID) trong multipart request. Lần đầu upload trả `201 Created`. Nếu mạng chập chờn client gửi lại cùng `(uploader_id, clientId)` với cùng `kind`, server trả về ngay kết quả cũ `200 OK` (idempotent). Nếu tái sử dụng `clientId` cũ cho một `kind` khác, server trả `409 CONFLICT`.
+> 4. **Kiểm soát quyền truy cập tải file (`GET /media/{id}`):**
+>    - **Bearer-only:** Chỉ chấp nhận token trong header `Authorization: Bearer <token>`. Tuyệt đối không cho phép query ticket hoặc JWT trong query string của URL nhằm tránh lộ token trong access log hay lịch sử duyệt web.
+>    - **Kiểm tra thành viên:** Người yêu cầu phải là uploader (nếu file chưa gắn message), hoặc là thành viên hiện tại của hội thoại chứa message đó (`left_at IS NULL`) VÀ tin nhắn phải được gửi sau mốc gia nhập của họ (`message.id > visible_from_message_id`). Nếu vi phạm trả về `403 FORBIDDEN`.
+> 5. **Hỗ trợ HTTP Range:**
+>    - Phục vụ phát video/audio tua đoạn (streaming) hoặc resume tải file khi mạng gián đoạn.
+>    - Range hợp lệ trả về `206 Partial Content` với header `Content-Range: bytes <start>-<end>/<total>` và `Content-Length: <end - start + 1>`.
+>    - Range không hợp lệ (sai cú pháp, nhiều khoảng multi-range, hoặc `start >= total`) trả về `416 Range Not Satisfiable` với `Content-Range: bytes */<total>`.
+> 6. **Phát media qua app ngoài:** App dùng `FileProvider` làm phương án duy nhất. App tải/cache file về bộ nhớ tạm bằng Bearer token rồi chia sẻ `content://` qua `FileProvider` với cờ `FLAG_GRANT_READ_URI_PERMISSION`.
 
 ### 2.6 Cuộc gọi thoại WebRTC 1-1
 
 | Method và đường dẫn | Body chính | Trả về | Điều kiện kiểm tra |
 |---|---|---|---|
-| `POST /calls` | `conversationId`, `media` (`VOICE`) | `201` với `callId`, `state` (`RINGING`), `expiresAt`, `iceServers[]` | Chỉ hỗ trợ hội thoại 1-1. Ưu tiên `403 BLOCKED` trước `403 CONTACT_REQUIRED`. Trả `409 CALL_BUSY` khi một bên đang đổ chuông hoặc đang gọi. |
-| `POST /calls/{id}/accept` | — | `200` với `callId`, `state` (`ACTIVE`), `iceServers[]` | Thiết bị nhận đầu tiên được khóa vào phiên gọi. Gọi lại từ đúng thiết bị đã nhận trả cùng trạng thái. Yêu cầu nhận mới khi quá hạn hoặc sai trạng thái trả `409 INVALID_STATE`. |
-| `POST /calls/{id}/reject` | — | `204` | Kết thúc cuộc gọi đang đổ chuông với `REJECTED/REJECT`. Lặp trên cuộc gọi đã kết thúc trả `204`. |
-| `POST /calls/{id}/end` | — | `204` | Kết thúc cuộc gọi hợp lệ với `ENDED/HANGUP`. Lặp trên cuộc gọi đã kết thúc trả `204`. |
+| `POST /calls` | `conversationId`, `media` (`VOICE`) | `201 Created`: `{ callId, state: "RINGING", expiresAt, iceServers[] }` | Ưu tiên kiểm tra: (1) `400 CALL_UNSUPPORTED` nếu là GROUP; (2) `403 BLOCKED` nếu một trong hai bên bị chặn; (3) `403 CONTACT_REQUIRED` nếu chưa là bạn bè `ACCEPTED`; (4) `429 RATE_LIMITED` nếu vượt 5 cuộc gọi/phút; (5) `409 CALL_BUSY` nếu người gọi hoặc người nhận đang có cuộc gọi khác ở trạng thái `RINGING` hoặc `ACTIVE` (không tạo row `calls`, không đổ chuông). Nếu hợp lệ, tạo cuộc gọi với hạn chót chuông `expiresAt = now() + 45s`, phát `call.incoming` qua WebSocket |
+| `POST /calls/{id}/accept` | — | `200 OK`: `{ callId, state: "ACTIVE", iceServers[] }` | Nguyên tử chuyển `RINGING -> ACTIVE`, khóa cố định `callee_device_id_hash` từ token của thiết bị nhận máy. Phát sự kiện `call.accepted` cho người gọi và `call.handled_elsewhere` cho các thiết bị khác của người nhận. Gọi lại từ chính thiết bị đó trả `200 OK` (idempotent); nếu `now() >= expiresAt`, cuộc gọi không ở `RINGING`, hoặc gọi từ thiết bị khác trả `409 INVALID_STATE` |
+| `POST /calls/{id}/reject` | — | `204 No Content` | Nguyên tử chuyển `RINGING -> REJECTED`, đặt `end_reason = 'REJECT'`, phát `call.ended` (kèm syncEventId `CALL_UPDATED`) cho người gọi, `call.handled_elsewhere` cho các thiết bị khác của người nhận, và tự động tạo 1 tin nhắn loại `CALL` hiển thị trong đoạn chat. Gọi lại khi cuộc gọi đã ở `REJECTED` trả `204` (idempotent); nếu đang `ACTIVE` hoặc đã kết thúc ở trạng thái khác (`MISSED`/`ENDED`/`FAILED`) trả `409 INVALID_STATE` |
+| `POST /calls/{id}/end` | — | `204 No Content` | Nguyên tử chuyển `RINGING` hoặc `ACTIVE` sang `ENDED`, đặt `end_reason = 'HANGUP'`, phát `call.ended` cho bên kia và tạo 1 tin nhắn `CALL` (nếu chưa có). Khi cuộc gọi đang `ACTIVE`, chỉ 2 thiết bị khớp `caller_device_id_hash` hoặc `callee_device_id_hash` mới được kết thúc (thiết bị thứ 3 nhận `403 FORBIDDEN`). Gọi lại khi đã kết thúc trả `204` (idempotent) |
 
-`iceServers` gồm STUN và TURN coturn với credential có thời hạn (HMAC). V1 chỉ hỗ trợ cuộc gọi thoại (`VOICE`), không hỗ trợ video call. Lỗi: `CALL_UNSUPPORTED` 400 (nhóm), `CONTACT_REQUIRED` 403 (chưa kết bạn), `BLOCKED` 403, `CALL_BUSY` 409.
-
-Server áp dụng `expiresAt` cho thao tác nhận, từ chối và kết thúc khi đang đổ chuông. Sau 45 giây, server chuyển cuộc gọi chưa được trả lời sang `MISSED/TIMEOUT`. Sau khi nhận máy, hai thiết bị đã khóa gia hạn riêng bằng `call.keepalive`. Khi một mốc 60 giây hết hạn, server chuyển sang `FAILED/OFFLINE`. Mỗi cuộc gọi đã lưu sinh đúng một tin `CALL` khi kết thúc. `CALL_BUSY` được trả về trước khi tạo bản ghi.
+> **Quy tắc thời hạn chuông và liveness heartbeat:**
+> - **Hạn chót chuông 45 giây:** Server background sweeper tự động hủy các cuộc gọi ở trạng thái `RINGING` có `now() >= expires_at`, chuyển sang `MISSED` với `end_reason = 'TIMEOUT'`, phát `call.ended` và chèn 1 tin nhắn `CALL`.
+> - **Khóa báo hiệu 2 thiết bị:** Sau khi cuộc gọi chuyển sang `ACTIVE`, server chỉ cho phép chuyển tiếp các gói tin báo hiệu WebRTC (`call.offer`, `call.answer`, `call.ice`) giữa đúng 2 thiết bị mang `caller_device_id_hash` và `callee_device_id_hash`. Mọi gói tin từ thiết bị khác sẽ bị bỏ qua.
+> - **Duy trì cuộc gọi:** Trong khi đàm thoại (`ACTIVE`), 2 thiết bị định kỳ gửi `call.keepalive` mỗi 15 giây. Server gia hạn liveness deadline 60 giây (`caller_alive_until`, `callee_alive_until`). Nếu một bên rớt mạng quá 60s, cuộc gọi tự động kết thúc với trạng thái `FAILED` và lý do `OFFLINE`.
+> - **Tính duy nhất của tin nhắn CALL:** Sử dụng partial unique index `uq_messages_call_id` trên `messages(call_id)` để đảm bảo mỗi cuộc gọi kết thúc chỉ sinh ra đúng 1 tin nhắn lịch sử duy nhất.
 
 ### 2.7 Môi trường demo
 
@@ -244,10 +279,10 @@ Trường `syncEventId` trỏ trực tiếp tới `sync_events.id`. Client cập
 | `contact_request.new` | Có | thông tin lời mời kết bạn | Có người gửi lời mời kết bạn mới |
 | `contact_request.updated` | Có | thông tin lời mời và trạng thái mới | Lời mời kết bạn được chấp nhận/từ chối/hủy |
 | `contact.updated` | Có | `{contactUserId, isFriend, blocked, removed, user?}` | Thay đổi quan hệ bạn bè, hủy kết bạn, chặn/bỏ chặn |
-| `call.incoming` | Có | `callId`, `conversationId`, `caller`, `media` (`VOICE`), `expiresAt` | Có người gọi đến. `expiresAt` là hạn đổ chuông do server quyết định. |
-| `call.accepted`, `call.ended` | Có | `callId`, `state`, `endReason` | Thay đổi trạng thái cuộc gọi; được ghi vào `sync_events` với `eventType = CALL_UPDATED` |
-| `call.offer`, `call.answer`, `call.ice` | Không | `callId`, `sdp` hoặc `candidate` | Báo hiệu WebRTC từ phía bên kia |
-| `call.handled_elsewhere` | Có | `callId` | Thiết bị khác của người nhận đã nhận/từ chối cuộc gọi; được ghi vào `sync_events` với `eventType = CALL_UPDATED` |
+| `call.incoming` | Có | `callId`, `conversationId`, `caller`, `media` (`VOICE`), `expiresAt` | Có người gọi đến (sau 45s thì tắt) |
+| `call.accepted`, `call.ended` | Có | `callId`, `conversationId`, `state`, `endReason`, `media`, `wsType`, `caller` *(kèm theo khi `MISSED`)* | Thay đổi trạng thái cuộc gọi; được ghi vào `sync_events` với `eventType = CALL_UPDATED` |
+| `call.offer`, `call.answer`, `call.ice` | Không | `callId`, `sdp` hoặc `candidate` | Báo hiệu WebRTC từ phía bên kia (chỉ chuyển tiếp giữa 2 thiết bị khớp `caller_device_id_hash` và `callee_device_id_hash`) |
+| `call.handled_elsewhere` | Có | `callId`, `conversationId`, `state`, `endReason`, `media`, `wsType`, `handledByDeviceIdHash` | Thiết bị khác của người nhận đã nhận/từ chối cuộc gọi; được ghi vào `sync_events` với `eventType = CALL_UPDATED` |
 | `auth.revoked` | Có | — | Thiết bị bị thu hồi, sau đó server đóng kết nối |
 
 ### App gửi lên server
@@ -255,8 +290,8 @@ Trường `syncEventId` trỏ trực tiếp tới `sync_events.id`. Client cập
 | `type` | `payload` | Ghi chú |
 |---|---|---|
 | `typing.start`, `typing.stop` | `conversationId` | Giới hạn 1 lần mỗi 3 giây cho `start` |
-| `call.offer`, `call.answer`, `call.ice` | `callId`, `sdp` hoặc `candidate` | Báo hiệu giữa hai thiết bị đã khóa của cuộc gọi `ACTIVE` còn hiệu lực. |
-| `call.keepalive` | `callId` | Mỗi thiết bị đã khóa gửi mỗi 15 giây khi ICE kết nối. Server gia hạn riêng thiết bị gửi lên 60 giây. Gói này không tạo `sync_events`. |
+| `call.offer`, `call.answer`, `call.ice` | `callId`, `sdp` hoặc `candidate` | Báo hiệu WebRTC cuộc gọi thoại (bị khóa cố định theo 2 thiết bị sau khi accept) |
+| `call.keepalive` | `callId` | Gửi định kỳ mỗi 15 giây khi ICE đang đàm thoại ACTIVE để gia hạn liveness deadline 60s (không ghi sync_events) |
 | `ping` | — | Giữ kết nối |
 
 ## 4. Giới hạn tần suất và chống Brute-force
@@ -280,12 +315,12 @@ Bảng `auth_throttles` kiểm soát theo `(scope_type, scope_key_hash, purpose)
 
 ## 5. Danh mục mã lỗi chính
 
-`VALIDATION`, `PHONE_TAKEN`, `PHONE_INVALID`, `BAD_CREDENTIALS`, `LOCKED`, `WEAK_PASSWORD`, `OTP_INVALID`, `OTP_EXPIRED`, `OTP_ATTEMPTS`, `OTP_RATE_LIMIT`, `SESSION_EXPIRED`, `NOT_FOUND`, `FORBIDDEN`, `NOT_A_MEMBER`, `NOT_ADMIN`, `GROUP_FULL`, `ADMIN_HANDOVER_REQUIRED`, `MEMBERSHIP_CHANGED`, `SYNC_CURSOR_EXPIRED`, `BLOCKED`, `CONTACT_REQUIRED`, `REQUEST_ALREADY_PENDING`, `ALREADY_FRIENDS`, `INVALID_STATE`, `FILE_TOO_LARGE`, `UNSUPPORTED_TYPE`, `CALL_BUSY`, `CALL_NOT_FOUND`, `CALL_UNSUPPORTED`, `SELF`, `RATE_LIMITED`, `INTERNAL`.
+`VALIDATION`, `PHONE_TAKEN`, `PHONE_INVALID`, `BAD_CREDENTIALS`, `LOCKED`, `WEAK_PASSWORD`, `OTP_INVALID`, `OTP_EXPIRED`, `OTP_ATTEMPTS`, `OTP_RATE_LIMIT`, `CODE_INVALID`, `FRIEND_CHALLENGE_EXPIRED`, `TWO_FACTOR_ALREADY_ENABLED`, `TWO_FACTOR_NOT_SETUP`, `TWO_FACTOR_NOT_ENABLED`, `SESSION_EXPIRED`, `NOT_FOUND`, `FORBIDDEN`, `NOT_A_MEMBER`, `NOT_ADMIN`, `GROUP_FULL`, `ADMIN_HANDOVER_REQUIRED`, `MEMBERSHIP_CHANGED`, `SYNC_CURSOR_EXPIRED`, `BLOCKED`, `CONTACT_REQUIRED`, `REQUEST_ALREADY_PENDING`, `ALREADY_FRIENDS`, `CONFLICT`, `INVALID_STATE`, `FILE_TOO_LARGE`, `UNSUPPORTED_TYPE`, `CALL_BUSY`, `CALL_NOT_FOUND`, `CALL_UNSUPPORTED`, `SELF`, `RATE_LIMITED`, `INTERNAL`.
 
 ## 6. Chính sách thông báo (Notification)
 
 - V1 **không dùng Firebase Cloud Messaging (FCM)**. FCM chỉ ghi nhận như hướng mở rộng tương lai cho V2.
-- `NotificationChannel` (`messages`) được sử dụng để phát thông báo khi ứng dụng đang hoạt động (foregound/background) hoặc kết nối WebSocket còn duy trì.
+- Ứng dụng đăng ký đúng **2 `NotificationChannel`**: `messages` (tin nhắn mới) và `calls` (cuộc gọi đến và cuộc gọi nhỡ), được sử dụng khi ứng dụng đang hoạt động (foreground/background) hoặc kết nối WebSocket còn duy trì.
 - Khi ứng dụng ở nền và WebSocket bị ngắt, `WorkManager` định kỳ (15 phút) gọi `GET /api/sync?after=<syncEventId>` để kiểm tra tin mới theo cơ chế **best-effort** (không cam kết nhận tức thời).
 - Khi ứng dụng bị người dùng hoặc hệ thống **force-stop hoàn toàn**, hệ điều hành Android đình chỉ toàn bộ tiến trình nền, do đó không cam kết nhận được thông báo ngay lập tức cho đến khi ứng dụng được mở lại.
 

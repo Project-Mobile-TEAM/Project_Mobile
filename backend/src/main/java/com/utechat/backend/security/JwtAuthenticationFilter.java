@@ -25,9 +25,9 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * Không phải @Component: SecurityConfig tự thêm vào chuỗi lọc để không bị đăng ký hai lần.
  */
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
-    /** Các tên query parameter nhạy cảm tuyệt đối cấm xuất hiện trên URL /ws. */
+    /** Các tên query parameter nhạy cảm tuyệt đối cấm xuất hiện trên URL /ws và /api/media/**. */
     public static final Set<String> FORBIDDEN_WS_QUERY_KEYS = Set.of(
-            "token", "jwt", "access_token", "bearer", "authorization");
+            "token", "jwt", "access_token", "bearer", "authorization", "ticket");
 
     private final JwtService jwt;
     private final JdbcTemplate jdbc;
@@ -40,9 +40,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
-        // Chặn sớm mọi yêu cầu Upgrade /ws mang JWT trong URL query (kể cả có hay không có header Bearer),
-        // tuyệt đối không ghi log query string.
-        if ("/ws".equals(request.getServletPath()) && containsForbiddenQueryKey(request.getQueryString())) {
+        // Chặn sớm mọi yêu cầu /ws hoặc /api/media/** mang JWT/ticket trong URL query (kể cả có hay không có header Bearer),
+        // tuyệt đối không ghi log query string (DEPLOYMENT_SECURITY.md, D-01).
+        String path = request.getServletPath();
+        if (path == null || path.isEmpty()) {
+            path = request.getRequestURI();
+        }
+        boolean tokenGuardedPath = "/ws".equals(path) || (path != null && path.startsWith("/api/media"));
+        boolean hasForbiddenQuery = containsForbiddenQueryKey(request.getQueryString())
+                || ("GET".equalsIgnoreCase(request.getMethod()) && containsForbiddenParameterName(request));
+        if (tokenGuardedPath && hasForbiddenQuery) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
             response.getWriter().write("{\"error\":{\"code\":\"VALIDATION\",\"message\":\"Token must not be placed in URL\"}}");
@@ -63,6 +70,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             }
         }
         chain.doFilter(request, response);
+    }
+
+    private static boolean containsForbiddenParameterName(HttpServletRequest request) {
+        var names = request.getParameterNames();
+        while (names != null && names.hasMoreElements()) {
+            String name = names.nextElement();
+            if (name != null && FORBIDDEN_WS_QUERY_KEYS.contains(name.trim().toLowerCase(Locale.ROOT))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Kiểm tra chuỗi query thô có chứa khóa nhạy cảm hay không (không phân biệt hoa thường, không log). */

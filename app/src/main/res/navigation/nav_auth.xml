@@ -10,6 +10,8 @@
         <action android:id="@+id/action_login_to_register" app:destination="@id/registerFragment" />
         <!-- Bấm "Quên mật khẩu?" sang bước nhập số điện thoại để đặt lại. -->
         <action android:id="@+id/action_login_to_forgot" app:destination="@id/forgotPasswordFragment" />
+        <!-- Thiết bị lạ + 2FA + tài khoản có từ 3 bạn: sang bước nhận diện bạn bè (F-04). -->
+        <action android:id="@+id/action_login_to_friend" app:destination="@id/friendStepFragment" />
     </fragment>
     <fragment android:id="@+id/registerFragment" android:name="com.utechat.ui.auth.RegisterFragment">
         <!-- Gửi OTP thành công thì sang bước nhập mã. -->
@@ -28,6 +30,13 @@
         <action android:id="@+id/action_otp_to_reset" app:destination="@id/resetPasswordFragment" />
         <!-- Luồng đăng nhập bằng OTP: mã đúng là vào app; xóa luồng Auth khỏi back stack. -->
         <action android:id="@+id/action_otp_to_main" app:destination="@id/nav_chat"
+            app:popUpTo="@id/nav_auth" app:popUpToInclusive="true" />
+        <!-- Đăng nhập OTP trên thiết bị lạ + tài khoản có từ 3 bạn: sang bước nhận diện bạn bè (F-04). -->
+        <action android:id="@+id/action_otp_to_friend" app:destination="@id/friendStepFragment" />
+    </fragment>
+    <fragment android:id="@+id/friendStepFragment" android:name="com.utechat.ui.auth.FriendStepFragment">
+        <!-- Chọn đúng 3 bạn là vào app; xóa luồng Auth khỏi back stack. -->
+        <action android:id="@+id/action_friend_to_main" app:destination="@id/nav_chat"
             app:popUpTo="@id/nav_auth" app:popUpToInclusive="true" />
     </fragment>
     <fragment android:id="@+id/resetPasswordFragment" android:name="com.utechat.ui.auth.ResetPasswordFragment">

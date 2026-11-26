@@ -11,6 +11,8 @@ public interface AuthApi {
     @POST("api/auth/register/verify") Call<RegistrationTokenResponse> registerVerify(@Body VerifyRequest body);
     @POST("api/auth/register/complete") Call<AuthSuccessResponse> registerComplete(@Body RegisterCompleteRequest body);
     @POST("api/auth/login/password") Call<AuthSuccessResponse> loginPassword(@Body PasswordLoginRequest body);
+    @POST("api/auth/login/second-factor") Call<AuthSuccessResponse> loginSecondFactor(@Body SecondFactorRequest body);
+    @POST("api/auth/login/friend-step") Call<AuthSuccessResponse> loginFriendStep(@Body FriendStepRequest body);
     @POST("api/auth/login/otp/request") Call<OtpChallengeResponse> loginOtpRequest(@Body PhoneDeviceRequest body);
     @POST("api/auth/login/otp/verify") Call<AuthSuccessResponse> loginOtpVerify(@Body OtpLoginVerifyRequest body);
     @POST("api/auth/password-reset/otp") Call<OtpChallengeResponse> resetOtp(@Body PhoneDeviceRequest body);
@@ -25,6 +27,10 @@ public interface AuthApi {
     @HTTP(method = "DELETE", path = "api/me", hasBody = true) Call<Void> deleteMe(@Body DeleteAccountRequest body);
     @POST("api/me/cancel-deletion") Call<Void> cancelDeletion();
     @POST("api/me/password") Call<Void> changePassword(@Body ChangePasswordRequest body);
+    @GET("api/account/2fa") Call<TwoFactorStatusResponse> twoFactorStatus();
+    @POST("api/account/2fa/setup") Call<TwoFactorSetupResponse> twoFactorSetup(@Body TwoFactorSetupRequest body);
+    @POST("api/account/2fa/enable") Call<BackupCodesResponse> twoFactorEnable(@Body TwoFactorEnableRequest body);
+    @POST("api/account/2fa/disable") Call<Void> twoFactorDisable(@Body TwoFactorDisableRequest body);
     @GET("api/account/devices") Call<List<DeviceDto>> devices();
     @DELETE("api/account/devices/{id}") Call<Void> revokeDevice(@Path("id") String id);
 }

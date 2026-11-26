@@ -245,4 +245,75 @@ public class RealAuthRepositoryTest {
         assertNull(repo.getCurrentUser().getValue());
         verify(dao,never()).insert(any());
     }
+
+    /** Thiết bị lạ + 2FA: mật khẩu đúng chưa cấp token; chỉ mã đúng ở bước hai mới lưu phiên. */
+    @SuppressWarnings("unchecked")
+    @Test public void passwordLoginNeeding2faSavesSessionOnlyAfterTheCode() {
+        Call<com.utechat.data.remote.model.AuthDtos.AuthSuccessResponse> login=mock(Call.class), second=mock(Call.class);
+        when(api.loginPassword(any())).thenReturn(login);
+        var need=new com.utechat.data.remote.model.AuthDtos.AuthSuccessResponse();
+        need.state="NEED_2FA"; need.secondFactorToken="temp-token";
+        var first=repo.login("+84901111111","fixture");
+        enqueued(login).onResponse(login,Response.success(need));
+        assertEquals("NEED_2FA",first.getValue().errorCode);
+        verify(session,never()).saveAuthenticated(anyString(),anyString(),anyBoolean());
+
+        ArgumentCaptor<com.utechat.data.remote.model.AuthDtos.SecondFactorRequest> sent=ArgumentCaptor.forClass(com.utechat.data.remote.model.AuthDtos.SecondFactorRequest.class);
+        when(api.loginSecondFactor(sent.capture())).thenReturn(second);
+        var done=repo.verifySecondFactor("123456");
+        var dto=new com.utechat.data.remote.model.AuthDtos.AuthSuccessResponse();
+        dto.state="COMPLETE"; dto.token="jwt"; dto.user=new UserDto(); dto.user.id="u1"; dto.user.displayName="A";
+        enqueued(second).onResponse(second,Response.success(dto));
+        assertTrue(done.getValue().isSuccess());
+        verify(session).saveAuthenticated("jwt","u1",false);
+        assertEquals("temp-token",tokenOf(sent.getValue()));
+        // Token tạm chỉ dùng một lần: gọi lại mà không đăng nhập lại mật khẩu thì báo hết hạn, không gọi mạng.
+        assertEquals("OTP_EXPIRED",repo.verifySecondFactor("123456").getValue().errorCode);
+        verify(api,times(1)).loginSecondFactor(any());
+    }
+
+    private static com.utechat.data.remote.model.AuthDtos.AuthSuccessResponse needFriend(String attemptsToken, boolean wrong, int left) {
+        var r=new com.utechat.data.remote.model.AuthDtos.AuthSuccessResponse();
+        r.state="NEED_FRIEND"; r.friendToken=attemptsToken;
+        r.friendChallenge=new com.utechat.data.remote.model.AuthDtos.FriendChallengeDto();
+        r.friendChallenge.challengeId="c"+left; r.friendChallenge.expiresInSeconds=120; r.friendChallenge.attemptsLeft=left;
+        r.friendChallenge.lastAttemptWrong=wrong; r.friendChallenge.candidates=new java.util.ArrayList<>();
+        var c=new com.utechat.data.remote.model.AuthDtos.FriendCandidateDto(); c.id="u9"; c.displayName="Bạn"; r.friendChallenge.candidates.add(c);
+        return r;
+    }
+
+    /** OTP trên thiết bị lạ: NEED_FRIEND giữ bộ 15 người; chọn sai nhận bộ mới; chọn đúng mới lưu phiên. */
+    @SuppressWarnings("unchecked")
+    @Test public void otpLoginNeedingFriendStepSavesSessionOnlyAfterCorrectPick() {
+        Call<com.utechat.data.remote.model.AuthDtos.AuthSuccessResponse> otp=mock(Call.class), pick1=mock(Call.class), pick2=mock(Call.class);
+        when(api.loginOtpVerify(any())).thenReturn(otp);
+        var first=repo.verifyLoginOtp("ch","123456");
+        enqueued(otp).onResponse(otp,Response.success(needFriend("ft",false,3)));
+        assertEquals("NEED_FRIEND",first.getValue().errorCode);
+        assertEquals("c3",repo.getPendingFriendChallenge().challengeId);
+        verify(session,never()).saveAuthenticated(anyString(),anyString(),anyBoolean());
+
+        when(api.loginFriendStep(any())).thenReturn(pick1);
+        var wrong=repo.submitFriendChoice(java.util.List.of("a","b","c"));
+        enqueued(pick1).onResponse(pick1,Response.success(needFriend("ft",true,2)));
+        assertEquals("FRIEND_WRONG",wrong.getValue().errorCode);
+        assertTrue(repo.getPendingFriendChallenge().lastAttemptWrong);
+        assertEquals("c2",repo.getPendingFriendChallenge().challengeId);
+        verify(session,never()).saveAuthenticated(anyString(),anyString(),anyBoolean());
+
+        when(api.loginFriendStep(any())).thenReturn(pick2);
+        var right=repo.submitFriendChoice(java.util.List.of("a","b","c"));
+        var dto=new com.utechat.data.remote.model.AuthDtos.AuthSuccessResponse();
+        dto.state="COMPLETE"; dto.token="jwt"; dto.user=new UserDto(); dto.user.id="u1"; dto.user.displayName="A";
+        enqueued(pick2).onResponse(pick2,Response.success(dto));
+        assertTrue(right.getValue().isSuccess());
+        verify(session).saveAuthenticated("jwt","u1",false);
+        assertNull(repo.getPendingFriendChallenge());
+        assertEquals("OTP_EXPIRED",repo.submitFriendChoice(java.util.List.of("a","b","c")).getValue().errorCode);
+    }
+
+    private static String tokenOf(com.utechat.data.remote.model.AuthDtos.SecondFactorRequest r) {
+        try { var f=r.getClass().getDeclaredField("secondFactorToken"); f.setAccessible(true); return (String) f.get(r); }
+        catch (ReflectiveOperationException e) { throw new AssertionError(e); }
+    }
 }

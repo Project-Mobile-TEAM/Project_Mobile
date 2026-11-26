@@ -1,5 +1,7 @@
 package com.utechat.data.remote.model;
 
+import java.util.List;
+
 /** DTO Gson phản chiếu JSON của backend (API_CONTRACT 2.1 và 2.2), tách khỏi Entity Room. Gson bỏ qua trường null. */
 public final class AuthDtos {
     private AuthDtos() { }
@@ -48,6 +50,31 @@ public final class AuthDtos {
         public ChangePasswordRequest(String oldPassword, String newPassword) { this.oldPassword = oldPassword; this.newPassword = newPassword; }
     }
 
+    public static final class SecondFactorRequest {
+        final String secondFactorToken; final String code; final String deviceName;
+        public SecondFactorRequest(String token, String code, String deviceName) {
+            this.secondFactorToken = token; this.code = code; this.deviceName = deviceName;
+        }
+    }
+    public static final class FriendStepRequest {
+        final String friendToken; final String challengeId; final List<String> selectedIds; final String deviceName;
+        public FriendStepRequest(String friendToken, String challengeId, List<String> selectedIds, String deviceName) {
+            this.friendToken = friendToken; this.challengeId = challengeId; this.selectedIds = selectedIds; this.deviceName = deviceName;
+        }
+    }
+    public static final class TwoFactorSetupRequest {
+        final String password;
+        public TwoFactorSetupRequest(String password) { this.password = password; }
+    }
+    public static final class TwoFactorEnableRequest {
+        final String code;
+        public TwoFactorEnableRequest(String code) { this.code = code; }
+    }
+    public static final class TwoFactorDisableRequest {
+        final String password; final String code;
+        public TwoFactorDisableRequest(String password, String code) { this.password = password; this.code = code; }
+    }
+
     // ---- Phản hồi
     public static final class DeleteAccountRequest {
         public final String password;
@@ -57,7 +84,19 @@ public final class AuthDtos {
     public static final class OtpChallengeResponse { public String challengeId; public int expiresInSeconds; public String demoOtp; }
     public static final class RegistrationTokenResponse { public String registrationToken; }
     public static final class ResetTokenResponse { public String resetToken; }
-    public static final class AuthSuccessResponse { public String state; public String token; public UserDto user; }
+    // state = COMPLETE (có token, user) hoặc NEED_2FA (chỉ có secondFactorToken).
+    public static final class AuthSuccessResponse {
+        public String state; public String token; public UserDto user; public String secondFactorToken;
+        public String friendToken; public FriendChallengeDto friendChallenge; // state NEED_FRIEND (F-04)
+    }
+    public static final class FriendCandidateDto { public String id; public String displayName; }
+    public static final class FriendChallengeDto {
+        public String challengeId; public int expiresInSeconds; public List<FriendCandidateDto> candidates;
+        public int attemptsLeft; public boolean lastAttemptWrong;
+    }
+    public static final class TwoFactorStatusResponse { public boolean enabled; }
+    public static final class TwoFactorSetupResponse { public String secret; public String otpauthUri; }
+    public static final class BackupCodesResponse { public List<String> backupCodes; }
     public static final class UserDto {
         public String id; public String phone; public String displayName; public String avatarUrl;
         public boolean discoverable; public boolean allowMessagesFromNonContacts;

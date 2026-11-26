@@ -96,6 +96,9 @@
                     <include android:id="@+id/row_password" layout="@layout/item_setting_row" />
                     <View android:layout_width="match_parent" android:layout_height="1dp"
                         android:layout_marginStart="76dp" android:background="@color/ute_stroke" />
+                    <include android:id="@+id/row_two_factor" layout="@layout/item_setting_row" />
+                    <View android:layout_width="match_parent" android:layout_height="1dp"
+                        android:layout_marginStart="76dp" android:background="@color/ute_stroke" />
                     <include android:id="@+id/row_devices" layout="@layout/item_setting_row" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>

@@ -29,4 +29,21 @@ public final class ChatNavigation {
         args.putLong("targetMessageLocalId", targetMessageLocalId);
         navController.navigate(R.id.chatRoomFragment, args);
     }
+
+    /**
+     * Mở phòng chat an toàn từ thông báo bất kể người dùng đang đứng ở màn nào (Danh bạ, Hồ sơ, Thiết bị, Phòng chat khác...):
+     * quay về chatListFragment trước (hoặc chuyển sang nav_chat) rồi mới mở chatRoomFragment, tránh IllegalArgumentException.
+     */
+    public static void openConversationFromNotification(
+            @NonNull NavController navController, @NonNull String conversationId) {
+        androidx.navigation.NavDestination current = navController.getCurrentDestination();
+        if (current == null || current.getId() != R.id.chatListFragment) {
+            boolean popped = navController.popBackStack(R.id.chatListFragment, false);
+            if (!popped) {
+                navController.navigate(R.id.nav_chat);
+                navController.popBackStack(R.id.chatListFragment, false);
+            }
+        }
+        openConversation(navController, conversationId, -1L);
+    }
 }

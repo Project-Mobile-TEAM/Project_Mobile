@@ -3,13 +3,16 @@ package com.utechat.data.repository.fake;
 import androidx.annotation.Nullable;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
+import com.google.gson.JsonObject;
 import com.utechat.data.local.MessageText;
 import com.utechat.data.local.dao.ConversationListItem;
 import com.utechat.data.local.dao.MessageDao;
+import com.utechat.data.local.entity.AttachmentTransferEntity;
 import com.utechat.data.local.entity.ConversationEntity;
 import com.utechat.data.local.entity.ConversationMemberEntity;
 import com.utechat.data.local.entity.MessageEntity;
 import com.utechat.data.local.entity.UserEntity;
+import com.utechat.data.media.MediaPreparationHelper;
 import com.utechat.data.repository.ChatRepository;
 import com.utechat.data.repository.ChatResult;
 import com.utechat.data.sync.WsConnectionState;
@@ -33,6 +36,9 @@ public class FakeChatRepository implements ChatRepository {
     private final Map<String, MutableLiveData<ConversationEntity>> conversationByIdStreams = new HashMap<>();
     private final MutableLiveData<List<ConversationListItem>> summariesStream = new MutableLiveData<>(Collections.emptyList());
     private final MutableLiveData<Map<String, UserEntity>> allUsersStream = new MutableLiveData<>(Collections.emptyMap());
+    private final MutableLiveData<Map<String, AttachmentTransferEntity>> transfersStream =
+            new MutableLiveData<>(Collections.emptyMap());
+    private final Map<String, AttachmentTransferEntity> transfersMap = new LinkedHashMap<>();
     private final MutableLiveData<WsConnectionState> wsState = new MutableLiveData<>(WsConnectionState.CONNECTED);
     private final Map<String, UserEntity> usersById = new LinkedHashMap<>();
 
@@ -295,10 +301,110 @@ public class FakeChatRepository implements ChatRepository {
     }
 
     @Override
+    public LiveData<Map<String, AttachmentTransferEntity>> observeTransfersMap() {
+        return transfersStream;
+    }
+
+    @Override
     public void enqueueTextMessage(String conversationId, String text) {
         if (text != null && !text.trim().isEmpty() && isMember(conversationId, DemoData.ALICE)) {
             sendMessage(conversationId, DemoData.ALICE, text.trim());
         }
+    }
+
+    @Override
+    public void enqueueMediaMessage(
+            String conversationId, MediaPreparationHelper.PreparedMedia prepared, @Nullable String caption) {
+        if (prepared == null || !isMember(conversationId, DemoData.ALICE)) {
+            return;
+        }
+        String clientId = prepared.clientId != null && !prepared.clientId.trim().isEmpty()
+                ? prepared.clientId : UUID.randomUUID().toString();
+        long now = System.currentTimeMillis();
+        JsonObject meta = new JsonObject();
+        meta.addProperty("localPath", prepared.localPath);
+        meta.addProperty("fileName", prepared.fileName);
+        meta.addProperty("mime", prepared.mime);
+        meta.addProperty("sizeBytes", prepared.sizeBytes);
+        if (prepared.durationMs != null) meta.addProperty("durationMs", prepared.durationMs);
+        if (prepared.width != null) meta.addProperty("width", prepared.width);
+        if (prepared.height != null) meta.addProperty("height", prepared.height);
+
+        MessageEntity message = new MessageEntity();
+        message.setLocalId(nextId);
+        message.setServerId(nextId++);
+        message.setClientId(clientId);
+        message.setConversationId(conversationId);
+        message.setSenderId(DemoData.ALICE);
+        message.setType(prepared.kind);
+        message.setText(caption != null && !caption.trim().isEmpty() ? caption.trim() : null);
+        message.setNormalizedText(message.getText() != null ? MessageText.normalize(message.getText()) : null);
+        message.setAttachmentJson(meta.toString());
+        message.setCreatedAt(now);
+        message.setStatus("SENT");
+
+        AttachmentTransferEntity transfer = new AttachmentTransferEntity();
+        transfer.setClientId(clientId);
+        transfer.setDirection("UPLOAD");
+        transfer.setLocalUri(prepared.localPath);
+        transfer.setLocalPath(prepared.localPath);
+        transfer.setKind(prepared.kind);
+        transfer.setMime(prepared.mime);
+        transfer.setSizeBytes(prepared.sizeBytes);
+        transfer.setFileName(prepared.fileName);
+        transfer.setDurationMs(prepared.durationMs);
+        transfer.setWidth(prepared.width);
+        transfer.setHeight(prepared.height);
+        transfer.setState("COMPLETED");
+        transfer.setProgress(100);
+        transfer.setUpdatedAt(now);
+        transfersMap.put(clientId, transfer);
+        transfersStream.setValue(Collections.unmodifiableMap(new LinkedHashMap<>(transfersMap)));
+
+        appendFakeMessage(conversationId, message);
+    }
+
+    @Override
+    public void enqueueLocationMessage(String conversationId, double latitude, double longitude) {
+        if (!isMember(conversationId, DemoData.ALICE)) {
+            return;
+        }
+        JsonObject meta = new JsonObject();
+        meta.addProperty("latitude", latitude);
+        meta.addProperty("longitude", longitude);
+
+        MessageEntity message = new MessageEntity();
+        message.setLocalId(nextId);
+        message.setServerId(nextId++);
+        message.setClientId(UUID.randomUUID().toString());
+        message.setConversationId(conversationId);
+        message.setSenderId(DemoData.ALICE);
+        message.setType("LOCATION");
+        message.setAttachmentJson(meta.toString());
+        message.setCreatedAt(System.currentTimeMillis());
+        message.setStatus("SENT");
+
+        appendFakeMessage(conversationId, message);
+    }
+
+    private void appendFakeMessage(String conversationId, MessageEntity message) {
+        MutableLiveData<List<MessageEntity>> stream = messages.get(conversationId);
+        if (stream == null) return;
+        List<MessageEntity> copy = new ArrayList<>(stream.getValue() != null ? stream.getValue() : Collections.emptyList());
+        copy.add(message);
+        stream.setValue(copy);
+        for (ConversationEntity conversation : conversations) {
+            if (conversation.getId().equals(conversationId)) {
+                conversation.setLastMessageId(message.getServerId());
+                conversation.setLastMessageAt(message.getCreatedAt());
+                MutableLiveData<ConversationEntity> single = conversationByIdStreams.get(conversationId);
+                if (single != null) single.setValue(conversation);
+            }
+        }
+        for (Map.Entry<String, MutableLiveData<List<ConversationEntity>>> entry : conversationStreams.entrySet()) {
+            entry.getValue().setValue(visibleConversations(entry.getKey()));
+        }
+        refreshSummaries();
     }
 
     @Override

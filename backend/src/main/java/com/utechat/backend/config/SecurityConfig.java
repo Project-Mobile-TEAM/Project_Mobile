@@ -2,6 +2,7 @@ package com.utechat.backend.config;
 
 import com.utechat.backend.security.JwtAuthenticationFilter;
 import com.utechat.backend.security.JwtService;
+import jakarta.servlet.DispatcherType;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.MediaType;
@@ -21,6 +22,9 @@ public class SecurityConfig {
         http.csrf(csrf -> csrf.disable()) // Không dùng cookie nên CSRF không áp dụng.
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(a -> a
+                // Cho phép bước hoàn tất Servlet ASYNC nội bộ (StreamingResponseBody của /api/media/{id});
+                // mọi request từ client vẫn phải qua xác thực JWT trên DispatcherType.REQUEST.
+                .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()
                 .requestMatchers("/api/health/**").permitAll()
                 .requestMatchers("/api/auth/logout").authenticated() // Đăng xuất cần biết thiết bị nào.
                 .requestMatchers("/api/auth/**").permitAll()

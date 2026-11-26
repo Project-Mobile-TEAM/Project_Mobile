@@ -8,15 +8,18 @@ import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.Transformations;
 import androidx.work.WorkManager;
 import com.google.gson.Gson;
+import com.google.gson.JsonObject;
 import com.utechat.data.MainThreadExecutor;
 import com.utechat.data.local.AppDatabase;
 import com.utechat.data.local.MessageText;
 import com.utechat.data.local.dao.ConversationListItem;
 import com.utechat.data.local.dao.MessageDao;
+import com.utechat.data.local.entity.AttachmentTransferEntity;
 import com.utechat.data.local.entity.ConversationEntity;
 import com.utechat.data.local.entity.ConversationMemberEntity;
 import com.utechat.data.local.entity.MessageEntity;
 import com.utechat.data.local.entity.UserEntity;
+import com.utechat.data.media.MediaPreparationHelper;
 import com.utechat.data.remote.api.ChatApi;
 import com.utechat.data.remote.model.ChatDtos;
 import com.utechat.data.repository.ChatRepository;
@@ -28,6 +31,7 @@ import com.utechat.data.sync.SyncEventApplier;
 import com.utechat.data.sync.TypingTracker;
 import com.utechat.data.sync.WsConnectionState;
 import com.utechat.data.worker.SendMessageWorker;
+import java.io.File;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -460,6 +464,21 @@ public class RealChatRepository implements ChatRepository {
     }
 
     @Override
+    public LiveData<Map<String, AttachmentTransferEntity>> observeTransfersMap() {
+        return Transformations.map(db.transferDao().observeAll(), list -> {
+            Map<String, AttachmentTransferEntity> map = new LinkedHashMap<>();
+            if (list != null) {
+                for (AttachmentTransferEntity item : list) {
+                    if (item != null && item.getClientId() != null) {
+                        map.put(item.getClientId(), item);
+                    }
+                }
+            }
+            return Collections.unmodifiableMap(map);
+        });
+    }
+
+    @Override
     public void enqueueTextMessage(String conversationId, String text) {
         if (conversationId == null || text == null || text.trim().isEmpty()) {
             return;
@@ -515,6 +534,165 @@ public class RealChatRepository implements ChatRepository {
     }
 
     @Override
+    public void enqueueMediaMessage(
+            String conversationId, MediaPreparationHelper.PreparedMedia prepared, @Nullable String caption) {
+        if (conversationId == null || prepared == null) {
+            return;
+        }
+        String sessionKey = session.sessionKey();
+        String meId = session.getUserId();
+        if (sessionKey == null || meId == null) {
+            deletePendingFileQuietly(prepared.localPath);
+            return;
+        }
+        String cleanCaption = (caption != null && !caption.trim().isEmpty()) ? caption.trim() : null;
+        String resolvedClientId = (prepared.clientId != null && !prepared.clientId.trim().isEmpty())
+                ? prepared.clientId.trim()
+                : UUID.randomUUID().toString();
+
+        diskExecutor.execute(() -> {
+            final String[] queuedClientId = new String[1];
+            session.runIfCurrent(sessionKey, () -> db.runInTransaction(() -> {
+                ConversationEntity conv = db.conversationDao().getConversationSync(conversationId);
+                Long queuedCutoff = null;
+                if (conv != null && "GROUP".equals(conv.getType())) {
+                    ConversationMemberEntity myMember = db.conversationDao().getMemberSync(conversationId, meId);
+                    if (myMember == null || myMember.getLeft()) {
+                        return;
+                    }
+                    queuedCutoff = myMember.getVisibleFromMessageId() != null ? myMember.getVisibleFromMessageId() : 0L;
+                }
+
+                long now = System.currentTimeMillis();
+                JsonObject meta = new JsonObject();
+                meta.addProperty("localPath", prepared.localPath);
+                meta.addProperty("fileName", prepared.fileName);
+                meta.addProperty("mime", prepared.mime);
+                meta.addProperty("sizeBytes", prepared.sizeBytes);
+                if (prepared.durationMs != null) meta.addProperty("durationMs", prepared.durationMs);
+                if (prepared.width != null) meta.addProperty("width", prepared.width);
+                if (prepared.height != null) meta.addProperty("height", prepared.height);
+
+                MessageEntity msg = new MessageEntity();
+                msg.setClientId(resolvedClientId);
+                msg.setServerId(null);
+                msg.setConversationId(conversationId);
+                msg.setSenderId(meId);
+                msg.setType(prepared.kind);
+                msg.setText(cleanCaption);
+                msg.setNormalizedText(cleanCaption != null ? MessageText.normalize(cleanCaption) : null);
+                msg.setAttachmentJson(meta.toString());
+                msg.setCreatedAt(now);
+                msg.setStatus("SENDING");
+                msg.setErrorCode(null);
+                msg.setQueuedVisibleFromMessageId(queuedCutoff);
+                db.messageDao().insert(msg);
+
+                // Ghi nguyên tử bản ghi AttachmentTransferEntity trạng thái QUEUED cùng với MessageEntity (D-04).
+                AttachmentTransferEntity transfer = new AttachmentTransferEntity();
+                transfer.setClientId(resolvedClientId);
+                transfer.setDirection("UPLOAD");
+                transfer.setLocalUri(prepared.localPath);
+                transfer.setLocalPath(prepared.localPath);
+                transfer.setState("QUEUED");
+                transfer.setProgress(0);
+                transfer.setKind(prepared.kind);
+                transfer.setMime(prepared.mime);
+                transfer.setSizeBytes(prepared.sizeBytes);
+                transfer.setFileName(prepared.fileName);
+                transfer.setDurationMs(prepared.durationMs);
+                transfer.setWidth(prepared.width);
+                transfer.setHeight(prepared.height);
+                transfer.setErrorCode(null);
+                transfer.setMediaUrl(null);
+                transfer.setUpdatedAt(now);
+                db.transferDao().insert(transfer);
+
+                if (conv != null && now >= conv.getLastMessageAt()) {
+                    conv.setLastMessageAt(now);
+                    db.conversationDao().insert(conv);
+                }
+                queuedClientId[0] = resolvedClientId;
+            }));
+
+            if (queuedClientId[0] == null) {
+                // Phiên đã đổi hoặc người dùng vừa rời nhóm trước khi ghi Room -> xóa tệp tạm tránh rò rỉ đĩa.
+                deletePendingFileQuietly(prepared.localPath);
+            } else if (workManager != null && sessionKey.equals(session.sessionKey())) {
+                SendMessageWorker.enqueue(workManager, queuedClientId[0], sessionKey);
+            }
+        });
+    }
+
+    private static void deletePendingFileQuietly(@Nullable String localPath) {
+        if (localPath == null || localPath.trim().isEmpty()) {
+            return;
+        }
+        File file = new File(localPath);
+        if (file.isFile() && !file.delete()) {
+            file.deleteOnExit();
+        }
+    }
+
+    @Override
+    public void enqueueLocationMessage(String conversationId, double latitude, double longitude) {
+        if (conversationId == null || !Double.isFinite(latitude) || !Double.isFinite(longitude)) {
+            return;
+        }
+        String sessionKey = session.sessionKey();
+        String meId = session.getUserId();
+        if (sessionKey == null || meId == null) {
+            return;
+        }
+
+        diskExecutor.execute(() -> {
+            final String[] queuedClientId = new String[1];
+            session.runIfCurrent(sessionKey, () -> db.runInTransaction(() -> {
+                ConversationEntity conv = db.conversationDao().getConversationSync(conversationId);
+                Long queuedCutoff = null;
+                if (conv != null && "GROUP".equals(conv.getType())) {
+                    ConversationMemberEntity myMember = db.conversationDao().getMemberSync(conversationId, meId);
+                    if (myMember == null || myMember.getLeft()) {
+                        return;
+                    }
+                    queuedCutoff = myMember.getVisibleFromMessageId() != null ? myMember.getVisibleFromMessageId() : 0L;
+                }
+
+                String clientId = UUID.randomUUID().toString();
+                long now = System.currentTimeMillis();
+                JsonObject meta = new JsonObject();
+                meta.addProperty("latitude", latitude);
+                meta.addProperty("longitude", longitude);
+
+                MessageEntity msg = new MessageEntity();
+                msg.setClientId(clientId);
+                msg.setServerId(null);
+                msg.setConversationId(conversationId);
+                msg.setSenderId(meId);
+                msg.setType("LOCATION");
+                msg.setText(null);
+                msg.setNormalizedText(null);
+                msg.setAttachmentJson(meta.toString());
+                msg.setCreatedAt(now);
+                msg.setStatus("SENDING");
+                msg.setErrorCode(null);
+                msg.setQueuedVisibleFromMessageId(queuedCutoff);
+                db.messageDao().insert(msg);
+
+                if (conv != null && now >= conv.getLastMessageAt()) {
+                    conv.setLastMessageAt(now);
+                    db.conversationDao().insert(conv);
+                }
+                queuedClientId[0] = clientId;
+            }));
+
+            if (queuedClientId[0] != null && workManager != null && sessionKey.equals(session.sessionKey())) {
+                SendMessageWorker.enqueue(workManager, queuedClientId[0], sessionKey);
+            }
+        });
+    }
+
+    @Override
     public void retryFailedMessage(String clientId) {
         if (clientId == null || clientId.trim().isEmpty()) return;
         String sessionKey = session.sessionKey();
@@ -542,7 +720,23 @@ public class RealChatRepository implements ChatRepository {
                     newCutoff = myMember.getVisibleFromMessageId() != null ? myMember.getVisibleFromMessageId() : 0L;
                 }
                 int updated = db.messageDao().resetForRetry(clientId, newCutoff);
-                readyToEnqueue[0] = updated > 0;
+                if (updated > 0) {
+                    // Đặt lại trạng thái transfer về UPLOADED (nếu đã có mediaUrl) hoặc QUEUED trước khi xếp lại hàng đợi (D-04).
+                    var transferDao = db.transferDao();
+                    if (transferDao != null) {
+                        AttachmentTransferEntity transfer = transferDao.findByClientIdSync(clientId);
+                        if (transfer != null) {
+                            boolean uploaded = transfer.getMediaUrl() != null && !transfer.getMediaUrl().trim().isEmpty();
+                            transferDao.updateState(
+                                    clientId,
+                                    uploaded ? "UPLOADED" : "QUEUED",
+                                    uploaded ? 100 : 0,
+                                    null,
+                                    System.currentTimeMillis());
+                        }
+                    }
+                    readyToEnqueue[0] = true;
+                }
             }));
 
             if (readyToEnqueue[0] && workManager != null && sessionKey.equals(session.sessionKey())) {
@@ -557,9 +751,25 @@ public class RealChatRepository implements ChatRepository {
         String sessionKey = session.sessionKey();
         if (sessionKey == null) return;
 
-        // Chỉ xóa bản ghi FAILED cục bộ (serverId IS NULL); TUYỆT ĐỐI không gọi cancelAllWorkByTag để tránh đứt chuỗi gửi.
-        diskExecutor.execute(() -> session.runIfCurrent(sessionKey, () ->
-                db.messageDao().deleteFailedLocal(clientId)));
+        // Chỉ xóa bản ghi FAILED cục bộ (serverId IS NULL) kèm tệp tạm pending_media và dòng transfer; không hủy chuỗi gửi chung.
+        diskExecutor.execute(() -> {
+            final String[] localPathToDelete = new String[1];
+            session.runIfCurrent(sessionKey, () -> db.runInTransaction(() -> {
+                var transferDao = db.transferDao();
+                AttachmentTransferEntity transfer = transferDao != null ? transferDao.findByClientIdSync(clientId) : null;
+                int deleted = db.messageDao().deleteFailedLocal(clientId);
+                if (deleted > 0 && transfer != null) {
+                    localPathToDelete[0] = transfer.getLocalPath();
+                    transferDao.deleteByClientId(clientId);
+                }
+            }));
+            if (localPathToDelete[0] != null && !localPathToDelete[0].trim().isEmpty()) {
+                File f = new File(localPathToDelete[0]);
+                if (f.isFile() && !f.delete()) {
+                    f.deleteOnExit();
+                }
+            }
+        });
     }
 
     @Override

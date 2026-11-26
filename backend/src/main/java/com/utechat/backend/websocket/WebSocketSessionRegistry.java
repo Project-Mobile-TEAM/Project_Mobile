@@ -107,7 +107,7 @@ public class WebSocketSessionRegistry {
         }
     }
 
-    /** Gửi khung JSON tới đúng thiết bị cụ thể (ví dụ gửi auth.revoked trước khi đóng 4401). */
+    /** Gửi khung JSON tới đúng thiết bị cụ thể (ví dụ gửi auth.revoked hoặc chuyển tiếp offer/answer/ice). */
     public void sendToDevice(UUID userId, String deviceIdHash, String jsonFrame) {
         ConcurrentHashMap<String, CopyOnWriteArraySet<ManagedWsSession>> devices = byUser.get(userId);
         if (devices == null || deviceIdHash == null) {
@@ -119,6 +119,22 @@ public class WebSocketSessionRegistry {
         }
         for (ManagedWsSession session : set) {
             sendSafe(session, jsonFrame);
+        }
+    }
+
+    /** Gửi khung JSON tới mọi thiết bị khác của người dùng ngoại trừ thiết bị đã xử lý (ví dụ call.handled_elsewhere). */
+    public void sendToUserExceptDevice(UUID userId, String excludedDeviceHash, String jsonFrame) {
+        ConcurrentHashMap<String, CopyOnWriteArraySet<ManagedWsSession>> devices = byUser.get(userId);
+        if (devices == null) {
+            return;
+        }
+        for (Map.Entry<String, CopyOnWriteArraySet<ManagedWsSession>> entry : devices.entrySet()) {
+            if (excludedDeviceHash != null && entry.getKey().equals(excludedDeviceHash)) {
+                continue;
+            }
+            for (ManagedWsSession session : entry.getValue()) {
+                sendSafe(session, jsonFrame);
+            }
         }
     }
 

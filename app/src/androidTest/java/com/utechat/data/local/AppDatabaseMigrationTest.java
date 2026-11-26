@@ -1,14 +1,17 @@
 package com.utechat.data.local;
 
 import android.content.Context;
+import android.database.Cursor;
 import androidx.room.Room;
 import androidx.room.testing.MigrationTestHelper;
 import androidx.sqlite.db.SupportSQLiteDatabase;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
+import com.utechat.data.local.entity.AttachmentTransferEntity;
 import com.utechat.data.local.entity.ConversationMemberEntity;
 import com.utechat.data.local.entity.MessageEntity;
+import com.utechat.data.local.entity.MessageTranslationEntity;
 import java.io.IOException;
 import java.util.List;
 import org.junit.Rule;
@@ -17,12 +20,16 @@ import org.junit.runner.RunWith;
 import static org.junit.Assert.*;
 
 /**
- * Kiểm thử nâng cấp lược đồ Room từ phiên bản 1 lên phiên bản 2 bằng MigrationTestHelper thật:
- * bảo đảm giữ nguyên toàn bộ dữ liệu cũ, các cột mới mặc định null và FTS4 vẫn tìm kiếm hoạt động.
+ * Kiểm thử nâng cấp lược đồ Room bằng MigrationTestHelper thật (ADR-020):
+ * - v1 -> v2 (MIGRATION_1_2) khớp schema 2.json
+ * - v2 -> v3 (MIGRATION_2_3) bổ sung 11 cột attachment_transfer, giữ nguyên dữ liệu cũ, message_translation và FTS4
+ * - v1 -> v2 -> v3 end-to-end không mất dữ liệu và không cần fallbackToDestructiveMigration.
  */
 @RunWith(AndroidJUnit4.class)
 public class AppDatabaseMigrationTest {
-    private static final String TEST_DB = "migration-v1-v2-test.db";
+    private static final String TEST_DB_V1_V2 = "migration-v1-v2-test.db";
+    private static final String TEST_DB_V2_V3 = "migration-v2-v3-test.db";
+    private static final String TEST_DB_V1_V3 = "migration-v1-v3-test.db";
 
     @Rule
     public MigrationTestHelper helper = new MigrationTestHelper(
@@ -32,56 +39,180 @@ public class AppDatabaseMigrationTest {
 
     @Test
     public void migrate1To2PreservesDataDefaultsNewColumnsAndKeepsFts() throws IOException {
-        // Bước 1: Tạo cơ sở dữ liệu phiên bản 1 theo 1.json và chèn dữ liệu mẫu v1.
-        try (SupportSQLiteDatabase dbV1 = helper.createDatabase(TEST_DB, 1)) {
-            dbV1.execSQL("INSERT INTO user_cache (id, phone, displayName, avatarUrl, allowMessagesFromNonContacts) "
-                    + "VALUES ('u-alice', '+84901111111', 'Alice Nguyễn', NULL, 1)");
-            dbV1.execSQL("INSERT INTO conversation (id, type, title, avatarUrl, lastMessageId, lastMessageAt, unreadCount, muted) "
-                    + "VALUES ('conv-1', 'GROUP', 'Nhóm Đồ Án', NULL, 100, 1731300000000, 0, 0)");
-            dbV1.execSQL("INSERT INTO member (conversationId, userId, role, lastDeliveredId, lastReadId, left) "
-                    + "VALUES ('conv-1', 'u-alice', 'ADMIN', 100, 99, 0)");
-            dbV1.execSQL("INSERT INTO message (localId, serverId, clientId, conversationId, senderId, type, text, normalized_text, attachmentJson, createdAt, status) "
-                    + "VALUES (1, 100, 'client-v1-1', 'conv-1', 'u-alice', 'TEXT', 'Chào bạn Đặng', 'chao ban dang', NULL, 1731300000000, 'SENT')");
-
-            // Kiểm tra trigger FTS4 trên v1 đã tự động đánh chỉ mục tin nhắn vừa chèn.
-            try (android.database.Cursor ftsCursor = dbV1.query(
-                    "SELECT docid FROM message_fts WHERE message_fts MATCH '\"chao\"* \"dang\"*'")) {
-                assertEquals(1, ftsCursor.getCount());
-            }
-        }
-
-        // Bước 2: Chạy MIGRATION_1_2 và để MigrationTestHelper xác thực khớp 100% với schema 2.json.
-        SupportSQLiteDatabase migrated = helper.runMigrationsAndValidate(TEST_DB, 2, true, AppDatabase.MIGRATION_1_2);
-        migrated.close();
-
-        // Bước 3: Mở AppDatabase v2 đầy đủ qua Room để kiểm tra dữ liệu cũ, cột mới mặc định null và FTS4.
         Context context = ApplicationProvider.getApplicationContext();
-        AppDatabase dbV2 = Room.databaseBuilder(context, AppDatabase.class, TEST_DB)
-                .addMigrations(AppDatabase.MIGRATION_1_2)
-                .build();
+        context.deleteDatabase(TEST_DB_V1_V2);
         try {
-            assertNotNull(dbV2.userDao().findById("u-alice"));
-            assertEquals("Alice Nguyễn", dbV2.userDao().findById("u-alice").getDisplayName());
+            // Bước 1: Tạo cơ sở dữ liệu phiên bản 1 theo 1.json và chèn dữ liệu mẫu v1.
+            try (SupportSQLiteDatabase dbV1 = helper.createDatabase(TEST_DB_V1_V2, 1)) {
+                dbV1.execSQL("INSERT INTO user_cache (id, phone, displayName, avatarUrl, allowMessagesFromNonContacts) "
+                        + "VALUES ('u-alice', '+84901111111', 'Alice Nguyễn', NULL, 1)");
+                dbV1.execSQL("INSERT INTO conversation (id, type, title, avatarUrl, lastMessageId, lastMessageAt, unreadCount, muted) "
+                        + "VALUES ('conv-1', 'GROUP', 'Nhóm Đồ Án', NULL, 100, 1731300000000, 0, 0)");
+                dbV1.execSQL("INSERT INTO member (conversationId, userId, role, lastDeliveredId, lastReadId, left) "
+                        + "VALUES ('conv-1', 'u-alice', 'ADMIN', 100, 99, 0)");
+                dbV1.execSQL("INSERT INTO message (localId, serverId, clientId, conversationId, senderId, type, text, normalized_text, attachmentJson, createdAt, status) "
+                        + "VALUES (1, 100, 'client-v1-1', 'conv-1', 'u-alice', 'TEXT', 'Chào bạn Đặng', 'chao ban dang', NULL, 1731300000000, 'SENT')");
 
-            ConversationMemberEntity member = dbV2.conversationDao().getMemberSync("conv-1", "u-alice");
-            assertNotNull(member);
-            assertEquals("ADMIN", member.getRole());
-            assertNull(member.getVisibleFromMessageId());
+                try (Cursor ftsCursor = dbV1.query(
+                        "SELECT docid FROM message_fts WHERE message_fts MATCH '\"chao\"* \"dang\"*'")) {
+                    assertEquals(1, ftsCursor.getCount());
+                }
+            }
 
-            MessageEntity migratedMsg = dbV2.messageDao().findByClientId("client-v1-1");
-            assertNotNull(migratedMsg);
-            assertEquals(Long.valueOf(100L), migratedMsg.getServerId());
-            assertNull(migratedMsg.getErrorCode());
-            assertNull(migratedMsg.getQueuedVisibleFromMessageId());
-
-            // Tìm kiếm FTS4 không dấu tiếng Việt phải tiếp tục khớp tin nhắn đã có trước khi nâng cấp.
-            String safeQuery = MessageText.safeMatchQuery("chao dang");
-            List<MessageEntity> hits = dbV2.messageDao().searchInConversationVisible("conv-1", "u-alice", safeQuery);
-            assertEquals(1, hits.size());
-            assertEquals("client-v1-1", hits.get(0).getClientId());
+            // Bước 2: Chạy MIGRATION_1_2 và xác thực khớp 100% với schema 2.json cùng dữ liệu bảo toàn.
+            try (SupportSQLiteDatabase migrated = helper.runMigrationsAndValidate(
+                    TEST_DB_V1_V2, 2, true, AppDatabase.MIGRATION_1_2)) {
+                try (Cursor memberCursor = migrated.query(
+                        "SELECT role, visibleFromMessageId FROM member WHERE conversationId = 'conv-1' AND userId = 'u-alice'")) {
+                    assertTrue(memberCursor.moveToFirst());
+                    assertEquals("ADMIN", memberCursor.getString(0));
+                    assertTrue(memberCursor.isNull(1));
+                }
+                try (Cursor msgCursor = migrated.query(
+                        "SELECT serverId, errorCode, queuedVisibleFromMessageId FROM message WHERE clientId = 'client-v1-1'")) {
+                    assertTrue(msgCursor.moveToFirst());
+                    assertEquals(100L, msgCursor.getLong(0));
+                    assertTrue(msgCursor.isNull(1));
+                    assertTrue(msgCursor.isNull(2));
+                }
+                try (Cursor ftsCursor = migrated.query(
+                        "SELECT docid FROM message_fts WHERE message_fts MATCH '\"chao\"* \"dang\"*'")) {
+                    assertEquals(1, ftsCursor.getCount());
+                }
+            }
         } finally {
-            dbV2.close();
-            context.deleteDatabase(TEST_DB);
+            context.deleteDatabase(TEST_DB_V1_V2);
+        }
+    }
+
+    @Test
+    public void migrate2To3PreservesDataAndAddsTransferColumns() throws IOException {
+        Context context = ApplicationProvider.getApplicationContext();
+        context.deleteDatabase(TEST_DB_V2_V3);
+        try {
+            // Bước 1: Tạo cơ sở dữ liệu phiên bản 2 theo 2.json và chèn dữ liệu mẫu v2.
+            try (SupportSQLiteDatabase dbV2 = helper.createDatabase(TEST_DB_V2_V3, 2)) {
+                dbV2.execSQL("INSERT INTO user_cache (id, phone, displayName, avatarUrl, allowMessagesFromNonContacts) "
+                        + "VALUES ('u-bob', '+84902222222', 'Trần Bình', NULL, 1)");
+                dbV2.execSQL("INSERT INTO conversation (id, type, title, avatarUrl, lastMessageId, lastMessageAt, unreadCount, muted) "
+                        + "VALUES ('conv-2', 'DIRECT', NULL, NULL, 200, 1731400000000, 0, 0)");
+                dbV2.execSQL("INSERT INTO member (conversationId, userId, role, lastDeliveredId, lastReadId, left, visibleFromMessageId) "
+                        + "VALUES ('conv-2', 'u-bob', 'MEMBER', 200, 200, 0, 0)");
+                dbV2.execSQL("INSERT INTO message (localId, serverId, clientId, conversationId, senderId, type, text, normalized_text, attachmentJson, createdAt, status, errorCode, queuedVisibleFromMessageId) "
+                        + "VALUES (1, 200, 'client-v2-1', 'conv-2', 'u-bob', 'TEXT', 'Hẹn gặp tại thư viện', 'hen gap tai thu vien', NULL, 1731400000000, 'SENT', NULL, NULL)");
+                dbV2.execSQL("INSERT INTO attachment_transfer (clientId, localUri, state, progress, mediaUrl) "
+                        + "VALUES ('tx-v2-1', 'content://media/external/images/42', 'PENDING', 25, NULL)");
+                dbV2.execSQL("INSERT INTO message_translation (messageKey, targetLang, translatedText) "
+                        + "VALUES ('client-v2-1', 'en', 'See you at the library')");
+            }
+
+            // Bước 2: Chạy MIGRATION_2_3 và xác thực khớp 100% với schema 3.json.
+            SupportSQLiteDatabase migrated = helper.runMigrationsAndValidate(
+                    TEST_DB_V2_V3, 3, true, AppDatabase.MIGRATION_2_3);
+            migrated.close();
+
+            // Bước 3: Mở AppDatabase v3 đầy đủ qua Room để kiểm tra giá trị mặc định của 11 cột mới và dữ liệu cũ.
+            AppDatabase dbV3 = Room.databaseBuilder(context, AppDatabase.class, TEST_DB_V2_V3)
+                    .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3)
+                    .build();
+            try {
+                AttachmentTransferEntity transfer = dbV3.transferDao().findByClientIdSync("tx-v2-1");
+                assertNotNull(transfer);
+                assertEquals("content://media/external/images/42", transfer.getLocalUri());
+                assertEquals("PENDING", transfer.getState());
+                assertEquals(25, transfer.getProgress());
+                assertNull(transfer.getMediaUrl());
+                assertEquals("UPLOAD", transfer.getDirection());
+                assertEquals(0L, transfer.getUpdatedAt());
+                assertNull(transfer.getLocalPath());
+                assertNull(transfer.getKind());
+                assertNull(transfer.getMime());
+                assertNull(transfer.getSizeBytes());
+                assertNull(transfer.getFileName());
+                assertNull(transfer.getDurationMs());
+                assertNull(transfer.getWidth());
+                assertNull(transfer.getHeight());
+                assertNull(transfer.getErrorCode());
+
+                MessageTranslationEntity translation = dbV3.translationDao().findSync("client-v2-1", "en");
+                assertNotNull(translation);
+                assertEquals("See you at the library", translation.getTranslatedText());
+
+                MessageEntity migratedMsg = dbV3.messageDao().findByClientId("client-v2-1");
+                assertNotNull(migratedMsg);
+                assertEquals(Long.valueOf(200L), migratedMsg.getServerId());
+
+                // FTS4 tiếng Việt không dấu phải hoạt động bình thường sau khi nâng cấp lên v3.
+                List<MessageEntity> hits = dbV3.messageDao().searchInConversationVisible(
+                        "conv-2", "u-bob", MessageText.safeMatchQuery("thu vien"));
+                assertEquals(1, hits.size());
+                assertEquals("client-v2-1", hits.get(0).getClientId());
+            } finally {
+                dbV3.close();
+            }
+        } finally {
+            context.deleteDatabase(TEST_DB_V2_V3);
+        }
+    }
+
+    @Test
+    public void migrate1To3EndToEnd() throws IOException {
+        Context context = ApplicationProvider.getApplicationContext();
+        context.deleteDatabase(TEST_DB_V1_V3);
+        try {
+            // Bước 1: Tạo cơ sở dữ liệu từ phiên bản 1 theo 1.json.
+            try (SupportSQLiteDatabase dbV1 = helper.createDatabase(TEST_DB_V1_V3, 1)) {
+                dbV1.execSQL("INSERT INTO user_cache (id, phone, displayName, avatarUrl, allowMessagesFromNonContacts) "
+                        + "VALUES ('u-alice', '+84901111111', 'Alice Nguyễn', NULL, 1)");
+                dbV1.execSQL("INSERT INTO conversation (id, type, title, avatarUrl, lastMessageId, lastMessageAt, unreadCount, muted) "
+                        + "VALUES ('conv-1', 'GROUP', 'Nhóm Đồ Án', NULL, 100, 1731300000000, 0, 0)");
+                dbV1.execSQL("INSERT INTO member (conversationId, userId, role, lastDeliveredId, lastReadId, left) "
+                        + "VALUES ('conv-1', 'u-alice', 'ADMIN', 100, 99, 0)");
+                dbV1.execSQL("INSERT INTO message (localId, serverId, clientId, conversationId, senderId, type, text, normalized_text, attachmentJson, createdAt, status) "
+                        + "VALUES (1, 100, 'client-v1-1', 'conv-1', 'u-alice', 'TEXT', 'Chào bạn Đặng', 'chao ban dang', NULL, 1731300000000, 'SENT')");
+                dbV1.execSQL("INSERT INTO attachment_transfer (clientId, localUri, state, progress, mediaUrl) "
+                        + "VALUES ('tx-v1-1', 'content://legacy/1', 'UPLOADED', 100, '/api/media/legacy-1')");
+            }
+
+            // Bước 2: Chạy nối tiếp MIGRATION_1_2 -> MIGRATION_2_3 và xác thực schema 3.json.
+            SupportSQLiteDatabase migrated = helper.runMigrationsAndValidate(
+                    TEST_DB_V1_V3, 3, true, AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3);
+            migrated.close();
+
+            // Bước 3: Mở AppDatabase v3 đầy đủ qua Room và kiểm chứng toàn bộ dữ liệu lịch sử.
+            AppDatabase dbV3 = Room.databaseBuilder(context, AppDatabase.class, TEST_DB_V1_V3)
+                    .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3)
+                    .build();
+            try {
+                assertNotNull(dbV3.userDao().findById("u-alice"));
+                assertEquals("Alice Nguyễn", dbV3.userDao().findById("u-alice").getDisplayName());
+
+                ConversationMemberEntity member = dbV3.conversationDao().getMemberSync("conv-1", "u-alice");
+                assertNotNull(member);
+                assertEquals("ADMIN", member.getRole());
+                assertNull(member.getVisibleFromMessageId());
+
+                MessageEntity migratedMsg = dbV3.messageDao().findByClientId("client-v1-1");
+                assertNotNull(migratedMsg);
+                assertEquals(Long.valueOf(100L), migratedMsg.getServerId());
+                assertNull(migratedMsg.getErrorCode());
+                assertNull(migratedMsg.getQueuedVisibleFromMessageId());
+
+                AttachmentTransferEntity transfer = dbV3.transferDao().findByClientIdSync("tx-v1-1");
+                assertNotNull(transfer);
+                assertEquals("UPLOAD", transfer.getDirection());
+                assertEquals("/api/media/legacy-1", transfer.getMediaUrl());
+                assertEquals(0L, transfer.getUpdatedAt());
+
+                List<MessageEntity> hits = dbV3.messageDao().searchInConversationVisible(
+                        "conv-1", "u-alice", MessageText.safeMatchQuery("chao dang"));
+                assertEquals(1, hits.size());
+                assertEquals("client-v1-1", hits.get(0).getClientId());
+            } finally {
+                dbV3.close();
+            }
+        } finally {
+            context.deleteDatabase(TEST_DB_V1_V3);
         }
     }
 }
