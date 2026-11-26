@@ -38,10 +38,11 @@ public class AuthService {
     private final OtpService otp;
     private final ThrottleService throttle;
     private final AccountService account;
+    private final TwoFactorService twoFactor;
     private final ObjectProvider<WebSocketSessionRegistry> wsRegistryProvider;
 
     public AuthService(JdbcTemplate jdbc, PasswordEncoder encoder, JwtService jwt, OtpService otp,
-            ThrottleService throttle, AccountService account,
+            ThrottleService throttle, AccountService account, TwoFactorService twoFactor,
             ObjectProvider<WebSocketSessionRegistry> wsRegistryProvider) {
         this.jdbc = jdbc;
         this.encoder = encoder;
@@ -49,6 +50,7 @@ public class AuthService {
         this.otp = otp;
         this.throttle = throttle;
         this.account = account;
+        this.twoFactor = twoFactor;
         this.wsRegistryProvider = wsRegistryProvider;
         this.dummyHash = encoder.encode("not-a-real-password"); // Băm hợp lệ thật, tạo một lần lúc khởi động.
     }
@@ -102,7 +104,30 @@ public class AuthService {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "BAD_CREDENTIALS", "Wrong phone or password");
         }
         throttle.reset("PASSWORD_LOGIN", phone, deviceHash);
-        return success((UUID) rows.get(0)[0], deviceHash, deviceName);
+        UUID userId = (UUID) rows.get(0)[0];
+        // 2FA chỉ áp dụng cho đăng nhập mật khẩu trên thiết bị lạ (ADR-004); thiết bị tin cậy và đăng nhập bằng OTP vào thẳng.
+        if (twoFactor.isEnabled(userId) && !isTrustedDevice(userId, deviceHash)) {
+            UUID sid = openSession(userId, deviceHash, "PASSWORD");
+            String token = jwt.issueTempToken(JwtService.TWO_FACTOR, sid, phone, userId, deviceHash);
+            return new AuthSuccessResponse("NEED_2FA", null, null, token);
+        }
+        return success(userId, deviceHash, deviceName);
+    }
+
+    /** Bước hai của đăng nhập mật khẩu: mã TOTP hoặc mã dự phòng; sai thì đếm lần, token tạm chỉ bị tiêu thụ khi mã đúng. */
+    public AuthSuccessResponse loginSecondFactor(String secondFactorToken, String code, String deviceName) {
+        Claims claims = parseTemp(secondFactorToken, JwtService.TWO_FACTOR);
+        UUID userId = UUID.fromString(claims.get("uid", String.class));
+        String phone = claims.get("phone", String.class), deviceHash = claims.get("did", String.class);
+        if (!userId.equals(findActiveUserId(phone))) throw new ApiException(HttpStatus.BAD_REQUEST, "OTP_EXPIRED", "Token invalid or expired");
+        twoFactor.requireValidCode(userId, phone, deviceHash, code);
+        consumeSession(claims);
+        return success(userId, deviceHash, deviceName);
+    }
+
+    private boolean isTrustedDevice(UUID userId, String deviceHash) {
+        return Boolean.TRUE.equals(jdbc.queryForObject("SELECT EXISTS (SELECT 1 FROM user_devices WHERE user_id = ? "
+                + "AND device_id_hash = ? AND trusted AND revoked_at IS NULL)", Boolean.class, userId, deviceHash));
     }
 
     /** Luôn trả 200 để không lộ số có tài khoản; số lạ nhận challengeId giả không bao giờ xác minh được. */
@@ -207,7 +232,7 @@ public class AuthService {
                 // GREATEST: đăng nhập lại ngay sau khi đăng xuất không được làm token cũ sống lại.
                 + "token_valid_after = GREATEST(user_devices.token_valid_after, EXCLUDED.token_valid_after)",
                 userId, deviceHash, name.length() > 100 ? name.substring(0, 100) : name, Timestamp.from(Instant.now().minusSeconds(2)));
-        return new AuthSuccessResponse("COMPLETE", jwt.issueAccessToken(userId, deviceHash), account.getProfile(userId));
+        return new AuthSuccessResponse("COMPLETE", jwt.issueAccessToken(userId, deviceHash), account.getProfile(userId), null);
     }
 
     /**

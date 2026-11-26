@@ -46,6 +46,7 @@ public class AuthViewModel extends ViewModel {
     // Cố ý KHÔNG lưu vào SavedStateHandle: demoCode chỉ để hiển thị, flowToken (registrationToken hoặc resetToken) là thông tin xác thực dùng một lần.
     private String demoCode;
     private String flowToken;
+    private boolean awaitingSecondFactor; // Đã đúng mật khẩu, đang chờ mã 2FA (token tạm nằm ở repository).
 
     public AuthViewModel(SavedStateHandle state, AuthRepository repository) {
         this.state = state;
@@ -74,8 +75,21 @@ public class AuthViewModel extends ViewModel {
         return Math.max(0, RESEND_MILLIS - (SystemClock.elapsedRealtime() - sentAt));
     }
 
+    public boolean isAwaitingSecondFactor() { return awaitingSecondFactor; }
+
     public LiveData<AuthResult<UserEntity>> login(String phoneE164, String password) {
-        return repository.login(phoneE164, password);
+        return Transformations.map(repository.login(phoneE164, password), result -> {
+            awaitingSecondFactor = "NEED_2FA".equals(result.errorCode);
+            return result;
+        });
+    }
+
+    /** Bước hai của đăng nhập mật khẩu: mã TOTP hoặc mã dự phòng. Mã hết hạn thì phải nhập lại mật khẩu. */
+    public LiveData<AuthResult<UserEntity>> verifySecondFactor(String code) {
+        return Transformations.map(repository.verifySecondFactor(code), result -> {
+            if (result.isSuccess() || "OTP_EXPIRED".equals(result.errorCode)) awaitingSecondFactor = false;
+            return result;
+        });
     }
 
     /** Bắt đầu đăng ký: gửi OTP tới số mới. */

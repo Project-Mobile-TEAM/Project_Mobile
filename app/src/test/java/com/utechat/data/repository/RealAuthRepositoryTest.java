@@ -245,4 +245,35 @@ public class RealAuthRepositoryTest {
         assertNull(repo.getCurrentUser().getValue());
         verify(dao,never()).insert(any());
     }
+
+    /** Thiết bị lạ + 2FA: mật khẩu đúng chưa cấp token; chỉ mã đúng ở bước hai mới lưu phiên. */
+    @SuppressWarnings("unchecked")
+    @Test public void passwordLoginNeeding2faSavesSessionOnlyAfterTheCode() {
+        Call<com.utechat.data.remote.model.AuthDtos.AuthSuccessResponse> login=mock(Call.class), second=mock(Call.class);
+        when(api.loginPassword(any())).thenReturn(login);
+        var need=new com.utechat.data.remote.model.AuthDtos.AuthSuccessResponse();
+        need.state="NEED_2FA"; need.secondFactorToken="temp-token";
+        var first=repo.login("+84901111111","fixture");
+        enqueued(login).onResponse(login,Response.success(need));
+        assertEquals("NEED_2FA",first.getValue().errorCode);
+        verify(session,never()).saveAuthenticated(anyString(),anyString(),anyBoolean());
+
+        ArgumentCaptor<com.utechat.data.remote.model.AuthDtos.SecondFactorRequest> sent=ArgumentCaptor.forClass(com.utechat.data.remote.model.AuthDtos.SecondFactorRequest.class);
+        when(api.loginSecondFactor(sent.capture())).thenReturn(second);
+        var done=repo.verifySecondFactor("123456");
+        var dto=new com.utechat.data.remote.model.AuthDtos.AuthSuccessResponse();
+        dto.state="COMPLETE"; dto.token="jwt"; dto.user=new UserDto(); dto.user.id="u1"; dto.user.displayName="A";
+        enqueued(second).onResponse(second,Response.success(dto));
+        assertTrue(done.getValue().isSuccess());
+        verify(session).saveAuthenticated("jwt","u1",false);
+        assertEquals("temp-token",tokenOf(sent.getValue()));
+        // Token tạm chỉ dùng một lần: gọi lại mà không đăng nhập lại mật khẩu thì báo hết hạn, không gọi mạng.
+        assertEquals("OTP_EXPIRED",repo.verifySecondFactor("123456").getValue().errorCode);
+        verify(api,times(1)).loginSecondFactor(any());
+    }
+
+    private static String tokenOf(com.utechat.data.remote.model.AuthDtos.SecondFactorRequest r) {
+        try { var f=r.getClass().getDeclaredField("secondFactorToken"); f.setAccessible(true); return (String) f.get(r); }
+        catch (ReflectiveOperationException e) { throw new AssertionError(e); }
+    }
 }

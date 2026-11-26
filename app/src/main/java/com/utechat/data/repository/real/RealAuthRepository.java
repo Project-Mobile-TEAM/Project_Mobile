@@ -13,6 +13,7 @@ import com.utechat.data.repository.AuthRepository;
 import com.utechat.data.repository.AuthResult;
 import com.utechat.data.repository.DeviceInfo;
 import com.utechat.data.repository.OtpChallenge;
+import com.utechat.data.repository.TwoFactorSetup;
 import com.utechat.data.repository.UserProfile;
 import com.utechat.data.session.SessionManager;
 import java.time.Instant;
@@ -34,6 +35,8 @@ public class RealAuthRepository implements AuthRepository {
     private final Executor main; // Cho test điều khiển hàng đợi; ứng dụng dùng main Looper thật.
     private final java.util.function.Consumer<String> onDepartingSession; // Hủy hàng đợi/WS đúng phiên cũ ngay khi chuyển phiên.
     private String trackedSessionKey;
+    // Token tạm của bước 2FA: chỉ ở bộ nhớ (không ghi đĩa, không vào SavedState), mất khi tiến trình chết.
+    private String pendingSecondFactorToken;
     private final MutableLiveData<UserEntity> current = new MutableLiveData<>(null);
     private final MutableLiveData<UserProfile> profile = new MutableLiveData<>(null);
 
@@ -82,8 +85,23 @@ public class RealAuthRepository implements AuthRepository {
 
     // ---------- đăng nhập / đăng xuất ----------
     @Override public LiveData<AuthResult<UserEntity>> login(String phoneE164, String password) {
-        return call(api.loginPassword(new PasswordLoginRequest(phoneE164, password, session.getDeviceId(), Build.MODEL)),
-                this::onAuthenticated);
+        pendingSecondFactorToken = null;
+        return call(api.loginPassword(new PasswordLoginRequest(phoneE164, password, session.getDeviceId(), Build.MODEL)), r -> {
+            if ("NEED_2FA".equals(r.state)) {
+                pendingSecondFactorToken = r.secondFactorToken;
+                throw new CodedError("NEED_2FA");
+            }
+            return onAuthenticated(r);
+        });
+    }
+
+    @Override public LiveData<AuthResult<UserEntity>> verifySecondFactor(String code) {
+        String token = pendingSecondFactorToken;
+        if (token == null) return new MutableLiveData<>(AuthResult.error("OTP_EXPIRED")); // Mất token (tiến trình chết): nhập lại mật khẩu.
+        return call(api.loginSecondFactor(new SecondFactorRequest(token, code, Build.MODEL)), r -> {
+            pendingSecondFactorToken = null;
+            return onAuthenticated(r);
+        });
     }
 
     @Override public LiveData<AuthResult<OtpChallenge>> requestLoginOtp(String phoneE164) {
@@ -195,6 +213,19 @@ public class RealAuthRepository implements AuthRepository {
         return call(api.changePassword(new ChangePasswordRequest(oldPassword, newPassword)), v -> true);
     }
 
+    @Override public LiveData<AuthResult<Boolean>> getTwoFactorEnabled() {
+        return call(api.twoFactorStatus(), r -> r.enabled);
+    }
+    @Override public LiveData<AuthResult<TwoFactorSetup>> setupTwoFactor(String password) {
+        return call(api.twoFactorSetup(new TwoFactorSetupRequest(password)), r -> new TwoFactorSetup(r.secret, r.otpauthUri));
+    }
+    @Override public LiveData<AuthResult<List<String>>> enableTwoFactor(String code) {
+        return call(api.twoFactorEnable(new TwoFactorEnableRequest(code)), r -> r.backupCodes);
+    }
+    @Override public LiveData<AuthResult<Boolean>> disableTwoFactor(String password, String code) {
+        return call(api.twoFactorDisable(new TwoFactorDisableRequest(password, code)), v -> true);
+    }
+
     @Override public LiveData<AuthResult<List<DeviceInfo>>> getDevices() {
         return call(api.devices(), list -> {
             List<DeviceInfo> out = new ArrayList<>();
@@ -242,7 +273,10 @@ public class RealAuthRepository implements AuthRepository {
             @Override public void onResponse(Call<T> c, Response<T> r) {
                 synchronized (session) {
                     if (!version.equals(session.versionKey())) return;
-                    out.setValue(r.isSuccessful() ? AuthResult.ok(map.apply(r.body())) : AuthResult.error(errorCode(r)));
+                    AuthResult<R> result;
+                    if (!r.isSuccessful()) result = AuthResult.error(errorCode(r));
+                    else try { result = AuthResult.ok(map.apply(r.body())); } catch (CodedError e) { result = AuthResult.error(e.code); }
+                    out.setValue(result);
                 }
             }
             @Override public void onFailure(Call<T> c, Throwable t) {
@@ -252,6 +286,12 @@ public class RealAuthRepository implements AuthRepository {
             }
         });
         return out;
+    }
+
+    /** Cho bộ map của call() báo một mã lỗi nghiệp vụ dù server trả 200 (ví dụ NEED_2FA). */
+    private static final class CodedError extends RuntimeException {
+        final String code;
+        CodedError(String code) { super(code, null, false, false); this.code = code; }
     }
 
     private static String errorCode(Response<?> r) {

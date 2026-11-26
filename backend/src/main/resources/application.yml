@@ -50,6 +50,9 @@ jwt:
 app:
   # Chế độ demo: trả OTP trong response (ADR-002); chỉ bật ở profile dev.
   demo-mode: false
+  totp:
+    # Khoá mã hoá bí mật TOTP (AES-GCM); để trống thì suy ra từ JWT_SECRET (chỉ chấp nhận ở dev).
+    encryption-key: ${TOTP_ENCRYPTION_KEY:}
   otp:
     # Giãn cách tối thiểu giữa hai lần gửi OTP cho cùng một số (F-01: 60 giây).
     cooldown-seconds: 60

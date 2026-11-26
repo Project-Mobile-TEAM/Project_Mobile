@@ -53,12 +53,14 @@ public class ProfileFragment extends Fragment {
 
         SettingRow.base(binding.rowPassword, R.drawable.ic_lock, getString(R.string.profile_password_title));
         SettingRow.chevron(binding.rowPassword, null, v -> go(R.id.action_profile_to_password));
+        SettingRow.base(binding.rowTwoFactor, R.drawable.ic_shield, getString(R.string.profile_two_factor_title));
+        SettingRow.chevron(binding.rowTwoFactor, null, v -> go(R.id.action_profile_to_two_factor));
         SettingRow.base(binding.rowDevices, R.drawable.ic_phone, getString(R.string.profile_devices_title));
         SettingRow.chevron(binding.rowDevices, null, v -> go(R.id.action_profile_to_devices));
 
         for (com.utechat.databinding.ItemSettingRowBinding row : new com.utechat.databinding.ItemSettingRowBinding[]{
                 binding.rowStrangers, binding.rowDiscoverable, binding.rowLanguage, binding.rowTheme,
-                binding.rowNotifications, binding.rowPassword, binding.rowDevices}) {
+                binding.rowNotifications, binding.rowPassword, binding.rowTwoFactor, binding.rowDevices}) {
             SettingRow.compact(row);
         }
         binding.cardMe.setOnClickListener(v -> go(R.id.action_profile_to_edit));

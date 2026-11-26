@@ -25,6 +25,7 @@ public class LoginFragment extends Fragment {
         viewModel = AuthViewModel.of(this);
         PhoneField.attach(binding.tilPhone, binding.etPhone);
         binding.btnLogin.setOnClickListener(v -> submit());
+        showSecondFactor(viewModel.isAwaitingSecondFactor()); // Khôi phục bước nhập mã sau khi xoay màn hình.
         binding.btnGoRegister.setOnClickListener(v ->
                 Navigation.findNavController(v).navigate(R.id.action_login_to_register));
         binding.btnForgot.setOnClickListener(v ->
@@ -43,7 +44,36 @@ public class LoginFragment extends Fragment {
         });
     }
 
+    /** Bật/tắt bước nhập mã 2FA: khoá ô số điện thoại và mật khẩu, hiện ô mã, nút đổi thành "Xác nhận". */
+    private void showSecondFactor(boolean on) {
+        binding.tilPhone.setEnabled(!on);
+        binding.tilPassword.setEnabled(!on);
+        binding.tvSecondFactorHint.setVisibility(on ? View.VISIBLE : View.GONE);
+        binding.tilCode.setVisibility(on ? View.VISIBLE : View.GONE);
+        binding.btnLogin.setText(on ? R.string.auth_two_factor_confirm : R.string.auth_login);
+        if (!on) binding.etCode.setText("");
+    }
+
+    private void submitCode() {
+        String code = String.valueOf(binding.etCode.getText()).trim();
+        binding.tilCode.setError(code.isEmpty() ? getString(R.string.auth_error_code_invalid) : null);
+        if (code.isEmpty()) return;
+        binding.btnLogin.setEnabled(false);
+        viewModel.verifySecondFactor(code).observe(getViewLifecycleOwner(), result -> {
+            binding.btnLogin.setEnabled(true);
+            if (result.isSuccess()) {
+                Navigation.findNavController(binding.getRoot()).navigate(R.id.action_login_to_main);
+            } else if ("OTP_EXPIRED".equals(result.errorCode)) {
+                showSecondFactor(false); // Token tạm hết hạn hoặc đã mất: nhập lại mật khẩu.
+                binding.tilPassword.setError(getString(R.string.auth_error_otp_expired));
+            } else {
+                binding.tilCode.setError(getString(AuthErrors.message(result.errorCode)));
+            }
+        });
+    }
+
     private void submit() {
+        if (viewModel.isAwaitingSecondFactor()) { submitCode(); return; }
         // Chuẩn hoá về E.164 trước khi gửi; mật khẩu giữ nguyên, không cắt khoảng trắng và không ghi log.
         String phone = AuthValidator.toE164(String.valueOf(binding.etPhone.getText()));
         String password = String.valueOf(binding.etPassword.getText());
@@ -55,7 +85,9 @@ public class LoginFragment extends Fragment {
         // shortcut: LiveData theo từng lần gọi; khi Real gọi mạng thật cần giữ kết quả trong ViewModel để sống qua xoay màn hình.
         viewModel.login(phone, password).observe(getViewLifecycleOwner(), result -> {
             binding.btnLogin.setEnabled(true);
-            if (!result.isSuccess()) {
+            if ("NEED_2FA".equals(result.errorCode)) {
+                showSecondFactor(true);
+            } else if (!result.isSuccess()) {
                 // Sai thông tin hiện lỗi chung (không nói số có tồn tại hay không); bị khoá hay mất mạng thì báo đúng.
                 binding.tilPassword.setError(getString(AuthErrors.message(result.errorCode)));
             } else {

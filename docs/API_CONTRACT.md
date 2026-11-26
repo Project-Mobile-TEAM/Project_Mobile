@@ -41,7 +41,8 @@
 | `POST /auth/register/otp` | `phone`, `deviceId` | `challengeId`, `expiresInSeconds` | `PHONE_TAKEN` 409, `OTP_RATE_LIMIT` 429 |
 | `POST /auth/register/verify` | `challengeId`, `code` | `registrationToken` | `OTP_INVALID`, `OTP_EXPIRED`, `OTP_ATTEMPTS` |
 | `POST /auth/register/complete` | `registrationToken`, `displayName`, `password`, `deviceName` | `token`, `user` (201) | `WEAK_PASSWORD`, `VALIDATION` |
-| `POST /auth/login/password` | `phone`, `password`, `deviceId`, `deviceName` | `state` (`COMPLETE`), `token`, `user` | `BAD_CREDENTIALS` 401, `LOCKED` 423 |
+| `POST /auth/login/password` | `phone`, `password`, `deviceId`, `deviceName` | `state` (`COMPLETE`), `token`, `user`; hoặc 200 `state` = `NEED_2FA` kèm `secondFactorToken` (thiết bị lạ + tài khoản bật 2FA) | `BAD_CREDENTIALS` 401, `LOCKED` 423 |
+| `POST /auth/login/second-factor` | `secondFactorToken`, `code` (TOTP 6 số hoặc mã dự phòng), `deviceName` | `state` (`COMPLETE`), `token`, `user` | `CODE_INVALID` 400, `OTP_EXPIRED` (token tạm quá 10 phút), `LOCKED` 423 |
 | `POST /auth/login/otp/request` | `phone`, `deviceId` | `challengeId` (luôn 200) | `OTP_RATE_LIMIT` |
 | `POST /auth/login/otp/verify` | `challengeId`, `code`, `deviceName` | `state` (`COMPLETE`), `token`, `user` | `OTP_INVALID`, `OTP_EXPIRED`, `LOCKED` 423 |
 | `POST /auth/password-reset/otp` | `phone`, `deviceId` | `challengeId` (luôn 200) | `OTP_RATE_LIMIT` |
@@ -62,6 +63,10 @@
 | `POST /me/password` | `oldPassword`, `newPassword` | 204 | Đổi mật khẩu (thu hồi token của mọi thiết bị khác) |
 | `DELETE /me` | `password` | 204 | Yêu cầu xoá tài khoản: thu hồi mọi thiết bị ngay, sau **15 ngày** không huỷ thì xoá mềm vĩnh viễn (giải phóng SĐT, xoá toàn bộ dòng liên quan trong `contacts`) |
 | `POST /me/cancel-deletion` | — | 204 | Huỷ yêu cầu xoá khi đăng nhập lại trong 15 ngày chờ |
+| `GET /account/2fa` | — | `{enabled}` | Trạng thái 2FA TOTP (ADR-004) |
+| `POST /account/2fa/setup` | `password` | `{secret, otpauthUri}` | Tạo khoá chưa xác nhận; `BAD_CREDENTIALS`, `TWO_FACTOR_ALREADY_ENABLED` 409 |
+| `POST /account/2fa/enable` | `code` | `{backupCodes[8]}` | Mã đúng thì bật; mã dự phòng chỉ hiện một lần; `CODE_INVALID`, `TWO_FACTOR_NOT_SETUP` 409, `LOCKED` 423 |
+| `POST /account/2fa/disable` | `password`, `code` | 204 | Tắt 2FA, xoá khoá và mã dự phòng; `BAD_CREDENTIALS`, `CODE_INVALID`, `TWO_FACTOR_NOT_ENABLED` 409, `LOCKED` 423 |
 | `GET /account/devices` | — | `[{id, name, platform, lastSeenAt, current}]` | Xem danh sách thiết bị đang đăng nhập |
 | `DELETE /account/devices/{id}` | — | 204 | Thu hồi thiết bị (hữu ích khi mất máy) |
 
@@ -309,7 +314,7 @@ Bảng `auth_throttles` kiểm soát theo `(scope_type, scope_key_hash, purpose)
 
 ## 5. Danh mục mã lỗi chính
 
-`VALIDATION`, `PHONE_TAKEN`, `PHONE_INVALID`, `BAD_CREDENTIALS`, `LOCKED`, `WEAK_PASSWORD`, `OTP_INVALID`, `OTP_EXPIRED`, `OTP_ATTEMPTS`, `OTP_RATE_LIMIT`, `SESSION_EXPIRED`, `NOT_FOUND`, `FORBIDDEN`, `NOT_A_MEMBER`, `NOT_ADMIN`, `GROUP_FULL`, `ADMIN_HANDOVER_REQUIRED`, `MEMBERSHIP_CHANGED`, `SYNC_CURSOR_EXPIRED`, `BLOCKED`, `CONTACT_REQUIRED`, `REQUEST_ALREADY_PENDING`, `ALREADY_FRIENDS`, `CONFLICT`, `INVALID_STATE`, `FILE_TOO_LARGE`, `UNSUPPORTED_TYPE`, `CALL_BUSY`, `CALL_NOT_FOUND`, `CALL_UNSUPPORTED`, `SELF`, `RATE_LIMITED`, `INTERNAL`.
+`VALIDATION`, `PHONE_TAKEN`, `PHONE_INVALID`, `BAD_CREDENTIALS`, `LOCKED`, `WEAK_PASSWORD`, `OTP_INVALID`, `OTP_EXPIRED`, `OTP_ATTEMPTS`, `OTP_RATE_LIMIT`, `CODE_INVALID`, `TWO_FACTOR_ALREADY_ENABLED`, `TWO_FACTOR_NOT_SETUP`, `TWO_FACTOR_NOT_ENABLED`, `SESSION_EXPIRED`, `NOT_FOUND`, `FORBIDDEN`, `NOT_A_MEMBER`, `NOT_ADMIN`, `GROUP_FULL`, `ADMIN_HANDOVER_REQUIRED`, `MEMBERSHIP_CHANGED`, `SYNC_CURSOR_EXPIRED`, `BLOCKED`, `CONTACT_REQUIRED`, `REQUEST_ALREADY_PENDING`, `ALREADY_FRIENDS`, `CONFLICT`, `INVALID_STATE`, `FILE_TOO_LARGE`, `UNSUPPORTED_TYPE`, `CALL_BUSY`, `CALL_NOT_FOUND`, `CALL_UNSUPPORTED`, `SELF`, `RATE_LIMITED`, `INTERNAL`.
 
 ## 6. Chính sách thông báo (Notification)
 

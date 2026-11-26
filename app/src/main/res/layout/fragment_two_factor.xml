@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Bật/tắt 2FA: một màn, năm khối chỉ hiện một khối tuỳ bước (xem TwoFactorViewModel.Step). -->
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:background="?attr/colorSurface">
+
+    <com.google.android.material.appbar.MaterialToolbar android:id="@+id/toolbar"
+        android:layout_width="0dp" android:layout_height="?attr/actionBarSize"
+        app:layout_constraintTop_toTopOf="parent" app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:navigationIcon="@drawable/ic_arrow_back" app:navigationContentDescription="@string/auth_back"
+        app:title="@string/profile_two_factor_title" />
+    <View android:id="@+id/divider" android:layout_width="0dp" android:layout_height="1dp"
+        android:background="@color/ute_border" app:layout_constraintTop_toBottomOf="@id/toolbar"
+        app:layout_constraintStart_toStartOf="parent" app:layout_constraintEnd_toEndOf="parent" />
+
+    <ScrollView android:layout_width="0dp" android:layout_height="0dp"
+        app:layout_constraintTop_toBottomOf="@id/divider" app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent" app:layout_constraintEnd_toEndOf="parent">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="vertical" android:padding="16dp">
+
+            <ProgressBar android:id="@+id/progress" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal" android:indeterminate="true" />
+
+            <LinearLayout android:id="@+id/sec_error" android:visibility="gone"
+                android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:text="@string/auth_error_network" android:textAppearance="?attr/textAppearanceBodyMedium" />
+                <com.google.android.material.button.MaterialButton android:id="@+id/btn_retry"
+                    style="@style/Widget.UTEChat.PrimaryButton" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp" android:text="@string/profile_two_factor_retry" />
+            </LinearLayout>
+
+            <LinearLayout android:id="@+id/sec_off" android:visibility="gone"
+                android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:text="@string/profile_two_factor_off_desc" android:textAppearance="?attr/textAppearanceBodyMedium" />
+                <com.google.android.material.textfield.TextInputLayout android:id="@+id/til_setup_password"
+                    style="@style/Widget.UTEChat.InputLayout" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp" android:hint="@string/profile_current_password"
+                    app:endIconMode="password_toggle" app:endIconDrawable="@drawable/ic_password_toggle">
+                    <com.google.android.material.textfield.TextInputEditText android:id="@+id/et_setup_password"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:inputType="textPassword" android:autofillHints="password" />
+                </com.google.android.material.textfield.TextInputLayout>
+                <com.google.android.material.button.MaterialButton android:id="@+id/btn_setup"
+                    style="@style/Widget.UTEChat.PrimaryButton" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp" android:text="@string/profile_two_factor_enable" />
+            </LinearLayout>
+
+            <LinearLayout android:id="@+id/sec_setup" android:visibility="gone"
+                android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:text="@string/profile_two_factor_setup_desc" android:textAppearance="?attr/textAppearanceBodyMedium" />
+                <TextView android:id="@+id/tv_secret" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp" android:textIsSelectable="true" android:fontFamily="monospace"
+                    android:textSize="18sp" android:textStyle="bold" android:textColor="?attr/colorOnSurface" />
+                <com.google.android.material.button.MaterialButton android:id="@+id/btn_open_app"
+                    style="@style/Widget.Material3.Button.OutlinedButton" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp" android:text="@string/profile_two_factor_open_app" />
+                <com.google.android.material.textfield.TextInputLayout android:id="@+id/til_enable_code"
+                    style="@style/Widget.UTEChat.InputLayout" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp" android:hint="@string/auth_two_factor_code">
+                    <com.google.android.material.textfield.TextInputEditText android:id="@+id/et_enable_code"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:inputType="number" android:maxLength="6" android:importantForAutofill="no" />
+                </com.google.android.material.textfield.TextInputLayout>
+                <com.google.android.material.button.MaterialButton android:id="@+id/btn_enable"
+                    style="@style/Widget.UTEChat.PrimaryButton" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp" android:text="@string/auth_two_factor_confirm" />
+            </LinearLayout>
+
+            <LinearLayout android:id="@+id/sec_codes" android:visibility="gone"
+                android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:text="@string/profile_two_factor_codes_desc" android:textAppearance="?attr/textAppearanceBodyMedium" />
+                <TextView android:id="@+id/tv_codes" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp" android:textIsSelectable="true" android:fontFamily="monospace"
+                    android:textSize="18sp" android:textStyle="bold" android:textColor="?attr/colorOnSurface" />
+                <com.google.android.material.button.MaterialButton android:id="@+id/btn_copy_codes"
+                    style="@style/Widget.Material3.Button.OutlinedButton" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp" android:text="@string/profile_two_factor_copy" />
+                <com.google.android.material.button.MaterialButton android:id="@+id/btn_codes_done"
+                    style="@style/Widget.UTEChat.PrimaryButton" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp" android:text="@string/profile_two_factor_saved" />
+            </LinearLayout>
+
+            <LinearLayout android:id="@+id/sec_on" android:visibility="gone"
+                android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:text="@string/profile_two_factor_on_desc" android:textAppearance="?attr/textAppearanceBodyMedium" />
+                <com.google.android.material.textfield.TextInputLayout android:id="@+id/til_disable_password"
+                    style="@style/Widget.UTEChat.InputLayout" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp" android:hint="@string/profile_current_password"
+                    app:endIconMode="password_toggle" app:endIconDrawable="@drawable/ic_password_toggle">
+                    <com.google.android.material.textfield.TextInputEditText android:id="@+id/et_disable_password"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:inputType="textPassword" android:autofillHints="password" />
+                </com.google.android.material.textfield.TextInputLayout>
+                <com.google.android.material.textfield.TextInputLayout android:id="@+id/til_disable_code"
+                    style="@style/Widget.UTEChat.InputLayout" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp" android:hint="@string/auth_two_factor_code">
+                    <com.google.android.material.textfield.TextInputEditText android:id="@+id/et_disable_code"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:inputType="textCapCharacters|textNoSuggestions" android:maxLength="12" android:importantForAutofill="no" />
+                </com.google.android.material.textfield.TextInputLayout>
+                <com.google.android.material.button.MaterialButton android:id="@+id/btn_disable"
+                    style="@style/Widget.UTEChat.PrimaryButton" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp" android:text="@string/profile_two_factor_disable" />
+            </LinearLayout>
+        </LinearLayout>
+    </ScrollView>
+</androidx.constraintlayout.widget.ConstraintLayout>

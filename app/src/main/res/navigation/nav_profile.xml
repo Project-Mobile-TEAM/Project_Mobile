@@ -8,10 +8,12 @@
         <action android:id="@+id/action_profile_to_password" app:destination="@id/changePasswordFragment" />
         <action android:id="@+id/action_profile_to_language" app:destination="@id/languageFragment" />
         <action android:id="@+id/action_profile_to_theme" app:destination="@id/themeFragment" />
+        <action android:id="@+id/action_profile_to_two_factor" app:destination="@id/twoFactorFragment" />
         <action android:id="@+id/action_profile_to_devices" app:destination="@id/devicesFragment" />
     </fragment>
     <fragment android:id="@+id/editProfileFragment" android:name="com.utechat.ui.profile.EditProfileFragment" />
     <fragment android:id="@+id/changePasswordFragment" android:name="com.utechat.ui.profile.ChangePasswordFragment" />
+    <fragment android:id="@+id/twoFactorFragment" android:name="com.utechat.ui.profile.TwoFactorFragment" />
     <fragment android:id="@+id/languageFragment" android:name="com.utechat.ui.profile.LanguageFragment" />
     <fragment android:id="@+id/themeFragment" android:name="com.utechat.ui.profile.ThemeFragment" />
     <fragment android:id="@+id/devicesFragment" android:name="com.utechat.ui.profile.DevicesFragment" />

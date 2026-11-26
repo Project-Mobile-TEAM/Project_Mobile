@@ -266,6 +266,82 @@ class AuthApiTest {
         assertEquals("PHONE_INVALID", code(doPost("/api/auth/register/otp", Map.of("phone", "0912345678", "deviceId", "device-0015"), null, 400)));
     }
 
+    // ---------- 2FA TOTP (ADR-004) ----------
+    private static String totp(String secret, long stepOffset) { return com.utechat.backend.util.Totp.code(secret, com.utechat.backend.util.Totp.stepNow() + stepOffset); }
+
+    /** Bật 2FA cho tài khoản vừa đăng ký trên thiết bị token; trả secret và 8 mã dự phòng. */
+    private Map.Entry<String, java.util.List<String>> enable2fa(String token, String password) throws Exception {
+        String secret = doPost("/api/account/2fa/setup", Map.of("password", password), token, 200).get("secret").asText();
+        JsonNode enabled = doPost("/api/account/2fa/enable", Map.of("code", totp(secret, 0)), token, 200);
+        java.util.List<String> codes = new java.util.ArrayList<>();
+        enabled.get("backupCodes").forEach(n -> codes.add(n.asText()));
+        return Map.entry(secret, codes);
+    }
+
+    @Test void twoFactorSetupNeedsPasswordAndEnableNeedsAValidCode() throws Exception {
+        String t = register("+84911000030", "device-0030", "abcd1234");
+        assertFalse(doGet("/api/account/2fa", t, 200).get("enabled").asBoolean());
+        assertEquals("BAD_CREDENTIALS", code(doPost("/api/account/2fa/setup", Map.of("password", "sai-mat-khau"), t, 400)));
+        JsonNode setup = doPost("/api/account/2fa/setup", Map.of("password", "abcd1234"), t, 200);
+        assertTrue(setup.get("otpauthUri").asText().startsWith("otpauth://totp/UTEChat:%2B84911000030?secret="));
+        assertEquals("CODE_INVALID", code(doPost("/api/account/2fa/enable", Map.of("code", "000000"), t, 400)));
+        assertFalse(doGet("/api/account/2fa", t, 200).get("enabled").asBoolean()); // Chưa nhập đúng mã thì chưa bật.
+        assertEquals(8, enable2fa(t, "abcd1234").getValue().size());
+        assertTrue(doGet("/api/account/2fa", t, 200).get("enabled").asBoolean());
+        assertEquals("TWO_FACTOR_ALREADY_ENABLED", code(doPost("/api/account/2fa/setup", Map.of("password", "abcd1234"), t, 409)));
+    }
+
+    @Test void newDeviceNeedsSecondFactorButTrustedDeviceAndOtpLoginDoNot() throws Exception {
+        String phone = "+84911000031";
+        String t = register(phone, "device-0031", "abcd1234");
+        String secret = enable2fa(t, "abcd1234").getKey();
+        // Thiết bị tin cậy (đã đăng ký) vào thẳng.
+        login(phone, "abcd1234", "device-0031");
+        // Thiết bị lạ: chưa có token, chỉ có token tạm; token tạm không dùng làm access token được.
+        JsonNode need = doPost("/api/auth/login/password", Map.of("phone", phone, "password", "abcd1234", "deviceId", "device-0131", "deviceName", "M"), null, 200);
+        assertEquals("NEED_2FA", need.get("state").asText());
+        assertNull(need.get("token"));
+        String temp = need.get("secondFactorToken").asText();
+        doGet("/api/me", temp, 401);
+        // Mã sai bị từ chối và không đốt token tạm; mã đúng thì đăng nhập; dùng lại cùng mã (replay) bị chặn.
+        assertEquals("CODE_INVALID", code(doPost("/api/auth/login/second-factor", Map.of("secondFactorToken", temp, "code", "123456", "deviceName", "M"), null, 400)));
+        String good = totp(secret, 1);
+        String token = doPost("/api/auth/login/second-factor", Map.of("secondFactorToken", temp, "code", good, "deviceName", "M"), null, 200).get("token").asText();
+        doGet("/api/me", token, 200);
+        assertEquals("CODE_INVALID", code(doPost("/api/auth/login/second-factor", Map.of("secondFactorToken", temp, "code", good, "deviceName", "M"), null, 400)));
+        // Thiết bị đó giờ đã tin cậy nên lần sau vào thẳng.
+        login(phone, "abcd1234", "device-0131");
+        // Đăng nhập bằng OTP vẫn đủ trên thiết bị lạ dù đã bật 2FA (đã chốt).
+        JsonNode ch = doPost("/api/auth/login/otp/request", Map.of("phone", phone, "deviceId", "device-0231"), null, 200);
+        doPost("/api/auth/login/otp/verify", Map.of("challengeId", ch.get("challengeId").asText(), "code", ch.get("demoOtp").asText(), "deviceName", "O"), null, 200);
+    }
+
+    @Test void backupCodeWorksOnceAndWrongCodesLockTheDevice() throws Exception {
+        String phone = "+84911000032";
+        String t = register(phone, "device-0032", "abcd1234");
+        String backup = enable2fa(t, "abcd1234").getValue().get(0);
+        java.util.function.Function<String, String> newTemp = device -> {
+            try {
+                return doPost("/api/auth/login/password", Map.of("phone", phone, "password", "abcd1234", "deviceId", device, "deviceName", "M"), null, 200).get("secondFactorToken").asText();
+            } catch (Exception e) { throw new RuntimeException(e); }
+        };
+        doPost("/api/auth/login/second-factor", Map.of("secondFactorToken", newTemp.apply("device-0132"), "code", backup, "deviceName", "M"), null, 200);
+        assertEquals("CODE_INVALID", code(doPost("/api/auth/login/second-factor", Map.of("secondFactorToken", newTemp.apply("device-0232"), "code", backup, "deviceName", "M"), null, 400)));
+        String temp = newTemp.apply("device-0332");
+        for (int i = 0; i < 5; i++) doPost("/api/auth/login/second-factor", Map.of("secondFactorToken", temp, "code", "000000", "deviceName", "M"), null, 400);
+        assertEquals("LOCKED", code(doPost("/api/auth/login/second-factor", Map.of("secondFactorToken", temp, "code", "000000", "deviceName", "M"), null, 423)));
+    }
+
+    @Test void disableNeedsPasswordAndCodeThenLoginIsPlainAgain() throws Exception {
+        String phone = "+84911000033";
+        String t = register(phone, "device-0033", "abcd1234");
+        String secret = enable2fa(t, "abcd1234").getKey();
+        assertEquals("BAD_CREDENTIALS", code(doPost("/api/account/2fa/disable", Map.of("password", "x", "code", totp(secret, 1)), t, 400)));
+        doPost("/api/account/2fa/disable", Map.of("password", "abcd1234", "code", totp(secret, 1)), t, 204);
+        assertFalse(doGet("/api/account/2fa", t, 200).get("enabled").asBoolean());
+        login(phone, "abcd1234", "device-0133"); // Thiết bị lạ vào thẳng khi 2FA đã tắt.
+    }
+
     // ---------- giới hạn gửi OTP (đúng cấu hình sản xuất: 60 giây) ----------
     @Test void otpCooldownAndHourlyLimit() {
         OtpService strict = new OtpService(jdbc, (p, c) -> { }, false, 60);

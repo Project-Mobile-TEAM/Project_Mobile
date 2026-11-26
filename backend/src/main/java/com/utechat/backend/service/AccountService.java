@@ -203,7 +203,7 @@ public class AccountService {
 
     private static Timestamp now() { return Timestamp.from(Instant.now()); }
 
-    private void requirePassword(UUID userId, String password) {
+    void requirePassword(UUID userId, String password) {
         List<String> hash = jdbc.query("SELECT password_hash FROM users WHERE id = ? AND status = 'ACTIVE'",
                 (rs, i) -> rs.getString(1), userId);
         if (password == null || hash.isEmpty() || !encoder.matches(password, hash.get(0))) {
