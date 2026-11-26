@@ -6,18 +6,20 @@ Hành trình xây dựng ứng dụng chat di động UTEChat cho nhóm 5 ngư�
 
 - Nhóm trưởng đảm nhiệm **Phase 1** tạo lập CSDL Supabase 13 bảng V1 làm nguồn chân lý duy nhất.
 - **Phase 2** thiết lập khung ứng dụng Walking Skeleton và "khóa chết" 6 điểm nóng gây conflict (Single Activity, Nested Nav Graphs, Split Resource Strings, Modular Retrofit APIs, Pre-wired Room Entities, chuẩn hóa thư viện nền tảng).
-- **Phase 3 đến Phase 6** phân chia độc lập tương ứng cho 4 thành viên thực hiện các lát cắt dọc tính năng theo thứ tự phụ thuộc chặt chẽ: Auth $\rightarrow$ Contacts $\rightarrow$ Core Messaging $\rightarrow$ Media & Creative Features.
-- **Phase 7** cả nhóm phối hợp kiểm thử toàn diện, tối ưu và đóng gói bài nộp đạt điểm tuyệt đối 100/100 theo rubric.
+- **Phase 3 đến Phase 6** phân chia độc lập tương ứng cho 4 thành viên thực hiện các lát cắt dọc tính năng theo thứ tự phụ thuộc chặt chẽ: Auth $\rightarrow$ Contacts $\rightarrow$ Core Messaging $\rightarrow$ Media & Creative Features (kèm 2FA TOTP & Friend-step).
+- **Phase 7** bổ sung các thao tác tương tác tin nhắn nâng cao: gỡ tin nhắn 24 giờ, xóa tin nhắn ở phía bạn, bày tỏ cảm xúc 6 emoji và tải/gỡ bộ nhãn dán để gửi sticker.
+- **Phase 8** cả nhóm phối hợp kiểm thử toàn diện, tối ưu và đóng gói bài nộp đạt điểm tuyệt đối 100/100 theo rubric.
 
 ## Phases
 
 - [x] **Phase 1: Database & Supabase Infrastructure** - Thiết lập CSDL PostgreSQL trên Supabase với đúng 13 bảng V1, khóa ngoại, RLS default deny, indexes và dữ liệu seed mẫu (Nhóm trưởng)
 - [x] **Phase 2: Foundation & Anti-Conflict Architecture** - Khung app Android MVVM, backend kết nối Supabase, thông luồng /api/health và khóa 6 điểm nóng gây conflict (completed 2026-11-11)
-- [ ] **Phase 3: Authentication & Profile Management** - Đăng ký SĐT E.164, OTP demo, đăng nhập 2 chế độ (chống brute-force bằng auth_throttles: PHONE_DEVICE, PHONE), quản lý hồ sơ và quyền riêng tư (allowMessagesFromNonContacts), soft delete tài khoản, đa ngôn ngữ & DayNight (Thành viên 2)
-- [ ] **Phase 4: Contacts & Friendships** - Quản lý danh bạ bạn bè, tìm kiếm SĐT chính xác, gửi/nhận/chấp nhận/từ chối lời mời kết bạn (contact_requests), quản lý bạn bè và danh sách chặn (contacts) (Thành viên 3)
-- [ ] **Phase 5: Realtime & Offline-First Core Messaging** - Nhắn tin 1-1 (kiểm tra allow_messages_from_non_contacts) và nhóm qua REST + WebSocket thuần JSON mang syncEventId, hàng đợi Room WorkManager, đồng bộ sự kiện qua syncEventId và tìm kiếm FTS4 tiếng Việt không dấu (Thành viên 4)
-- [ ] **Phase 6: Media Attachments & Creative Features** - Gửi ảnh/voice/video/file qua FileProvider, gọi thoại 1-1 WebRTC giữa bạn bè ACCEPTED qua coturn (sáng tạo chính) và dịch tin nhắn ML Kit on-device (sáng tạo dự phòng) (Thành viên 5)
-- [ ] **Phase 7: Testing, Quality & Release Packaging** - Bộ unit test JVM pass 100%, kiểm thử Room in-memory, tối ưu R8 và đóng gói hồ sơ nộp bài (Cả nhóm)
+- [x] **Phase 3: Authentication & Profile Management** - Đăng ký SĐT E.164, OTP demo, đăng nhập 2 chế độ (chống brute-force bằng auth_throttles: PHONE_DEVICE, PHONE), 2FA TOTP + nhận diện bạn bè, quản lý hồ sơ và quyền riêng tư, soft delete tài khoản, đa ngôn ngữ & DayNight (Thành viên 2)
+- [x] **Phase 4: Contacts & Friendships** - Quản lý danh bạ bạn bè, tìm kiếm SĐT chính xác, gửi/nhận/chấp nhận/từ chối lời mời kết bạn (contact_requests), quản lý bạn bè và danh sách chặn (contacts) (Thành viên 3)
+- [x] **Phase 5: Realtime & Offline-First Core Messaging** - Nhắn tin 1-1 (kiểm tra allow_messages_from_non_contacts) và nhóm qua REST + WebSocket thuần JSON mang syncEventId, hàng đợi Room WorkManager, đồng bộ sự kiện qua syncEventId và tìm kiếm FTS4 tiếng Việt không dấu (Thành viên 4)
+- [x] **Phase 6: Media Attachments & Creative Features** - Gửi ảnh/voice/video/file qua FileProvider, gọi thoại 1-1 WebRTC giữa bạn bè ACCEPTED qua coturn (sáng tạo chính) và dịch tin nhắn ML Kit on-device (sáng tạo dự phòng) (Thành viên 5, completed 2026-11-27)
+- [ ] **Phase 7: Message Actions, Reactions & Stickers** - Gỡ tin nhắn trong vòng 24 giờ, xóa tin nhắn ở phía bạn, bày tỏ cảm xúc 6 emoji và tải/gỡ bộ nhãn dán để gửi sticker (kể cả qua hàng đợi offline)
+- [ ] **Phase 8: Testing, Quality & Release Packaging** - Bộ unit test JVM pass 100%, kiểm thử Room in-memory, tối ưu R8 và đóng gói hồ sơ nộp bài (Cả nhóm)
 
 ---
 
@@ -198,10 +200,26 @@ Plans:
 - [ ] 06-09-PLAN.md — `ZoomableImageView`, `ImageViewerFragment`, `VideoPlayerFragment` (`Media3` + `FileProvider`), `VoiceBubblePlayer`, `ChatRoomFragment`/`MessageAdapter` (media/location/call/dịch inline) & cổng kiểm thử toàn phase
 **UI hint**: yes
 
-### Phase 7: Testing, Quality & Release Packaging
+### Phase 7: Message Actions, Reactions & Stickers
+
+**Goal**: Bổ sung trọn vẹn 4 tính năng tương tác tin nhắn nâng cao trên nền tảng Phase 5–6: gỡ tin nhắn trong vòng 24 giờ, xóa tin nhắn ở phía bạn, bày tỏ cảm xúc bằng 6 emoji cố định và tải/gỡ bộ nhãn dán để gửi sticker (kể cả qua hàng đợi offline).
+**Depends on**: Phase 6
+**Requirements**: REQ-message-actions-recall-delete, REQ-message-reactions, REQ-message-stickers
+**Phụ trách**: Cả nhóm / phân công từ `main` (`6eb9629`)
+**Success Criteria** (what must be TRUE):
+
+  1. Người gửi có thể gỡ tin nhắn của chính mình trong vòng 24 giờ (tính trên server, chặn `SYSTEM`/`CALL`, chặn khi đã rời nhóm hoặc bị chặn); tin đã gỡ giữ vị trí với dòng "Tin nhắn đã được gỡ", cập nhật preview danh sách chat, loại khỏi FTS4/bản dịch và vô hiệu hóa tải lại tệp media của tin đã gỡ.
+  2. Người dùng có thể xóa tin nhắn ở phía mình (kể cả trong chế độ chỉ đọc/bị chặn), đồng bộ ẩn tin trên các thiết bị của tài khoản đó và tự động lùi preview danh sách chat về tin gần nhất chưa xóa.
+  3. Người dùng có thể bày tỏ tối đa 1 cảm xúc từ 6 emoji cố định (`❤️`, `😂`, `👍`, `😮`, `😢`, `😡`) trên mỗi tin (đổi khi chọn emoji khác, bỏ khi chạm lại emoji đang dùng), chạm cụm cảm xúc xem danh sách người thả và đồng bộ realtime giữa các thiết bị.
+  4. Backend cung cấp 2 bộ nhãn dán mẫu (tài khoản mới cài sẵn 1 bộ mặc định, bộ thứ 2 trong cửa hàng để tải/gỡ đồng bộ theo tài khoản); ảnh sticker lưu cache xem offline, sticker đã gửi vẫn hiện trong lịch sử sau khi gỡ bộ, hiển thị bong bóng sticker riêng và gửi được qua hàng đợi `SendMessageWorker` khi mất mạng.
+
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 8: Testing, Quality & Release Packaging
 
 **Goal**: Toàn nhóm phối hợp kiểm thử kim tự tháp, hoàn thiện chất lượng mã nguồn, chạy toàn bộ Unit Test và đóng gói hồ sơ nộp bài đạt chuẩn 100 điểm rubric.
-**Depends on**: Phase 2, 3, 4, 5, 6
+**Depends on**: Phase 2, 3, 4, 5, 6, 7
 **Requirements**: REQ-testing-quality
 **Phụ trách**: Cả nhóm (Nhóm trưởng chủ trì nghiệm thu)
 **Success Criteria** (what must be TRUE):
