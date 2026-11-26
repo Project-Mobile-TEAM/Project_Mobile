@@ -213,7 +213,30 @@ Plans:
   3. Người dùng có thể bày tỏ tối đa 1 cảm xúc từ 6 emoji cố định (`❤️`, `😂`, `👍`, `😮`, `😢`, `😡`) trên mỗi tin (đổi khi chọn emoji khác, bỏ khi chạm lại emoji đang dùng), chạm cụm cảm xúc xem danh sách người thả và đồng bộ realtime giữa các thiết bị.
   4. Backend cung cấp 2 bộ nhãn dán mẫu (tài khoản mới cài sẵn 1 bộ mặc định, bộ thứ 2 trong cửa hàng để tải/gỡ đồng bộ theo tài khoản); ảnh sticker lưu cache xem offline, sticker đã gửi vẫn hiện trong lịch sử sau khi gỡ bộ, hiển thị bong bóng sticker riêng và gửi được qua hàng đợi `SendMessageWorker` khi mất mạng.
 
-**Plans**: TBD
+**Plans**: 6 plans
+
+Plans:
+**Wave 1**
+
+- [ ] 07-01-PLAN.md — Gate `D-13` đồng bộ `API_CONTRACT.md`/`FLOWS.md`/`ERD.md`, migration `V9` (5 bảng RLS + `attachments.revoked_at`) & Backend Recall 24h, Delete for Me, Reactions 6 emoji, thu hồi media, preview hội thoại & Sync/WS
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 07-02-PLAN.md — Backend 2 bộ nhãn dán mẫu (`ute_daily` mặc định + `ute_campus` cửa hàng, 12 PNG), REST Sticker Packs (install/uninstall theo tài khoản) & gửi tin `type=STICKER`
+- [ ] 07-03-PLAN.md — Gate Room v4 (`MIGRATION_3_4` + `4.json`), bảng `message_reactions`/`sticker_packs`/`stickers`, mở rộng `MessageEntity`/`ConversationEntity`/`MessageDao`/`ConversationDao`, DTOs & Retrofit APIs
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 07-04-PLAN.md — Android `SyncEventApplier` (`message.recalled`/`deleted_for_me`/`reaction_updated`), `NotificationHelper` loại bỏ thông báo tin đã gỡ, `SendMessageWorker` gửi `STICKER` offline, `StickerCacheManager`, `StickerRepository`/`ChatRepository` & `Injection`
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 07-05-PLAN.md — UI hợp nhất `MessageActionBottomSheet` (thay `showTranslationMenu`), `ReactionDetailsBottomSheet`, `StickerTrayView`, `StickerStoreDialog`, `MessageAdapter` (`TYPE_STICKER_OUT=6`/`IN=7`, chips cảm xúc, trạng thái đã gỡ), `ChatRoomFragment`/`ViewModel`, `ConversationListAdapter` & `strings_chat.xml` EN/VI
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [ ] 07-06-PLAN.md — `ChatViewModelTest` Phase 7, `Phase7MessageActionsUiTest` & cổng kiểm thử tự động toàn Phase 7 (Backend Maven + Android JVM + Lint + AndroidTest compile)
+
 **UI hint**: yes
 
 ### Phase 8: Testing, Quality & Release Packaging
