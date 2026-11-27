@@ -43,7 +43,43 @@ public final class MessagingDtos {
             String mediaUrl,
             Double latitude,
             Double longitude,
-            Long expectedVisibleFromMessageId) {
+            Long expectedVisibleFromMessageId,
+            String stickerId) {
+        /** Giữ chữ ký của các luồng gửi tin hiện hành. */
+        public SendMessageRequest(String clientId, String type, String text, String mediaUrl,
+                                  Double latitude, Double longitude, Long expectedVisibleFromMessageId) {
+            this(clientId, type, text, mediaUrl, latitude, longitude, expectedVisibleFromMessageId, null);
+        }
+    }
+
+    /** Metadata để hiển thị nhãn dán đã gửi ngay cả khi bộ nhãn dán đã gỡ. */
+    public record StickerSummaryDto(
+            String id, String packId, String code, String label, String imageUrl, Integer width, Integer height) {
+    }
+
+    /** Một người dùng có tối đa một biểu cảm trên từng tin nhắn. */
+    public record ReactionDto(String userId, String emoji, String createdAt) {
+    }
+
+    /** Giá trị null thể hiện thao tác bỏ biểu cảm. */
+    public record ReactionRequest(String emoji) {
+    }
+
+    /** Kết quả máy chủ sau khi đổi hoặc bỏ biểu cảm. */
+    public record ReactionUpdateResponse(long messageId, String emoji, String action, List<ReactionDto> reactions) {
+    }
+
+    /** Khung đồng bộ chỉ mang định danh và mốc gỡ, tránh phát lại nội dung đã gỡ. */
+    public record MessageRecalledPayload(long messageId, String conversationId, String recalledAt, String recalledBy) {
+    }
+
+    /** Sự kiện riêng chỉ gửi về tài khoản đã xóa tin. */
+    public record MessageDeletedForMePayload(long messageId, String conversationId, String deletedAt) {
+    }
+
+    /** Sự kiện đổi biểu cảm, giữ emoji null khi người dùng đã bỏ biểu cảm. */
+    public record MessageReactionUpdatedPayload(
+            long messageId, String conversationId, String userId, String emoji, String createdAt) {
     }
 
     /** Yêu cầu nâng mốc biên nhận DELIVERED hoặc READ lên tới upToMessageId. */
@@ -94,7 +130,25 @@ public final class MessagingDtos {
             CallSummaryDto call,
             Double latitude,
             Double longitude,
-            String createdAt) {
+            String createdAt,
+            String recalledAt,
+            StickerSummaryDto sticker,
+            List<ReactionDto> reactions) {
+        /** Giữ các điểm dựng DTO trước Phase 7. */
+        public MessageDto(long id, String clientId, String conversationId, String senderId, String type, String text,
+                          String mediaUrl, String mime, Long sizeBytes, String fileName, Integer durationMs,
+                          Integer width, Integer height, String systemEvent, String systemParams, CallSummaryDto call,
+                          Double latitude, Double longitude, String createdAt) {
+            this(id, clientId, conversationId, senderId, type, text, mediaUrl, mime, sizeBytes, fileName, durationMs,
+                    width, height, systemEvent, systemParams, call, latitude, longitude, createdAt, null, null, null);
+        }
+
+        /** Gắn biểu cảm tải theo lô sau khi truy vấn trang lịch sử. */
+        public MessageDto withReactions(List<ReactionDto> values) {
+            return new MessageDto(id, clientId, conversationId, senderId, type, text, mediaUrl, mime, sizeBytes,
+                    fileName, durationMs, width, height, systemEvent, systemParams, call, latitude, longitude,
+                    createdAt, recalledAt, sticker, values);
+        }
     }
 
     /** DTO hội thoại trả về cho danh sách, chi tiết, bootstrap và sự kiện CONVERSATION_UPDATED. */

@@ -109,6 +109,10 @@ public class SyncEventRealtimeDispatcher {
         }
         return switch (eventType) {
             case "MESSAGE_CREATED" -> "message.new";
+            // Báo thiết bị kéo thay đổi tin nhắn qua con trỏ đồng bộ hiện hành.
+            case "MESSAGE_RECALLED" -> "message.recalled";
+            case "MESSAGE_DELETED_FOR_ME" -> "message.deleted";
+            case "MESSAGE_REACTION_UPDATED" -> "message.reaction";
             case "RECEIPT_UPDATED" -> "message.status";
             case "CONVERSATION_UPDATED" -> "conversation.updated";
             case "CONTACT_REQUEST_CREATED" -> "contact_request.new";

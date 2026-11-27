@@ -3,6 +3,7 @@ package com.utechat.backend.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.utechat.backend.dto.AuthDtos.UserDto;
 import com.utechat.backend.dto.MessagingDtos.BootstrapContactDto;
 import com.utechat.backend.dto.MessagingDtos.BootstrapContactRequestDto;
@@ -159,19 +160,36 @@ public class SyncService {
                     Map.of("minAvailableCursor", minAvailableCursor));
         }
 
-        // Lấy limit + 1 dòng để xác định chính xác hasMore mà không cần câu COUNT phụ.
+        // Chọn trang trước, sau đó đối chiếu với trạng thái tin hiện tại để không phát lại nội dung đã xóa/gỡ.
         List<RawSyncEvent> rawRows = jdbc.query(
-                "SELECT id, event_type, entity_type, entity_id, payload_json::text AS payload_text, created_at "
-                        + "FROM public.sync_events "
-                        + "WHERE user_id = ? AND id > ? AND barrier_xid <= CAST(? AS xid8) "
-                        + "ORDER BY id ASC LIMIT ?",
+                """
+                WITH page AS (
+                    SELECT id, user_id, event_type, entity_type, entity_id, payload_json, created_at
+                      FROM public.sync_events
+                     WHERE user_id = ? AND id > ? AND barrier_xid <= CAST(? AS xid8)
+                     ORDER BY id ASC LIMIT ?
+                )
+                SELECT p.id, p.event_type, p.entity_type, p.entity_id, p.payload_json::text AS payload_text,
+                       p.created_at, m.recalled_at, (d.message_id IS NOT NULL) AS deleted_for_viewer
+                  FROM page p
+                  LEFT JOIN public.messages m ON m.id = CASE
+                      WHEN p.event_type = 'MESSAGE_CREATED' AND jsonb_typeof(p.payload_json->'id') = 'number'
+                          THEN (p.payload_json->>'id')::bigint
+                      WHEN p.event_type = 'CONVERSATION_UPDATED' AND jsonb_typeof(p.payload_json#>'{lastMessage,id}') = 'number'
+                          THEN (p.payload_json#>>'{lastMessage,id}')::bigint
+                  END
+                  LEFT JOIN public.message_deletions d ON d.message_id = m.id AND d.user_id = p.user_id
+                 ORDER BY p.id ASC
+                """,
                 (rs, i) -> new RawSyncEvent(
                         rs.getLong("id"),
                         rs.getString("event_type"),
                         rs.getString("entity_type"),
                         rs.getString("entity_id"),
                         rs.getString("payload_text"),
-                        toIso(rs.getTimestamp("created_at"))),
+                        toIso(rs.getTimestamp("created_at")),
+                        toIso(rs.getTimestamp("recalled_at")),
+                        rs.getBoolean("deleted_for_viewer")),
                 actorId, after, safeXmin, limit + 1);
 
         boolean hasMore = rawRows.size() > limit;
@@ -179,16 +197,20 @@ public class SyncService {
         List<SyncEventDto> events = new ArrayList<>(pageSize);
         for (int i = 0; i < pageSize; i++) {
             RawSyncEvent row = rawRows.get(i);
+            if (row.deletedForViewer && "MESSAGE_CREATED".equals(row.eventType)) {
+                continue;
+            }
             events.add(new SyncEventDto(
                     row.id,
                     row.eventType,
                     row.entityType,
                     row.entityId,
-                    parsePayload(row.payloadText),
+                    visiblePayload(row),
                     row.createdAt));
         }
 
-        long nextCursor = events.isEmpty() ? after : events.get(events.size() - 1).id();
+        // Tiến con trỏ qua cả sự kiện cũ đã ẩn để lần kéo sau không lặp trang.
+        long nextCursor = pageSize == 0 ? after : rawRows.get(pageSize - 1).id();
 
         // Trong cùng snapshot, kiểm tra xem còn sự kiện nào đã commit nhưng bị barrier_xid > safeXmin giữ lại không.
         Boolean hasBarrierHeld = jdbc.queryForObject(
@@ -198,6 +220,29 @@ public class SyncService {
         Long retryAfterMs = Boolean.TRUE.equals(hasBarrierHeld) ? BARRIER_RETRY_AFTER_MS : null;
 
         return new SyncResponse(events, nextCursor, hasMore, retryAfterMs);
+    }
+
+    /** Bỏ nội dung của snapshot cũ khi tin đã gỡ hoặc đã bị xóa phía người xem. */
+    private JsonNode visiblePayload(RawSyncEvent row) {
+        JsonNode payload = parsePayload(row.payloadText);
+        if ("CONVERSATION_UPDATED".equals(row.eventType) && payload instanceof ObjectNode conversation) {
+            if (row.deletedForViewer) {
+                conversation.remove(List.of("lastMessage", "lastMessageId"));
+            } else if (row.recalledAt != null && conversation.get("lastMessage") instanceof ObjectNode message) {
+                redactMessage(message, row.recalledAt);
+            }
+        } else if ("MESSAGE_CREATED".equals(row.eventType) && row.recalledAt != null
+                && payload instanceof ObjectNode message) {
+            redactMessage(message, row.recalledAt);
+        }
+        return payload;
+    }
+
+    private void redactMessage(ObjectNode message, String recalledAt) {
+        // Giữ nguyên ID, tác giả và mốc gửi để thiết bị đặt đúng vị trí trên dòng thời gian.
+        message.remove(List.of("text", "mediaUrl", "mime", "sizeBytes", "fileName", "durationMs", "width",
+                "height", "latitude", "longitude", "sticker", "reactions"));
+        message.put("recalledAt", recalledAt);
     }
 
     private JsonNode parsePayload(String payloadText) {
@@ -221,6 +266,8 @@ public class SyncService {
             String entityType,
             String entityId,
             String payloadText,
-            String createdAt) {
+            String createdAt,
+            String recalledAt,
+            boolean deletedForViewer) {
     }
 }
