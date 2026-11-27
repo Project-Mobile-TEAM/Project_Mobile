@@ -1,12 +1,21 @@
 package com.utechat.data.remote.api;
 
 import androidx.annotation.NonNull;
+import com.google.gson.JsonObject;
 import com.utechat.BuildConfig;
+import com.utechat.data.remote.model.ChatDtos;
+import java.io.IOException;
+import java.lang.annotation.Annotation;
+import java.lang.reflect.Type;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 import okhttp3.HttpUrl;
+import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
+import okhttp3.RequestBody;
 import okhttp3.logging.HttpLoggingInterceptor;
+import okio.BufferedSink;
+import retrofit2.Converter;
 import retrofit2.Retrofit;
 import retrofit2.converter.gson.GsonConverterFactory;
 
@@ -16,7 +25,40 @@ public final class ApiClient {
     private static final Pattern STRICT_MEDIA_PATH = Pattern.compile(
             "^/api/media/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
 
+    // Danh mục chỉ cung cấp đường dẫn cùng origin có tên bộ và tệp hợp lệ.
+    private static final Pattern STRICT_STICKER_PATH = Pattern.compile(
+            "^/api/stickers/assets/[a-z0-9_-]{1,50}/[a-z0-9_-]{1,50}\\.(png|webp)$");
+
     private ApiClient() { }
+
+    private static final class ReactionConverter extends Converter.Factory {
+        private static final MediaType JSON = MediaType.get("application/json; charset=UTF-8");
+
+        @Override
+        public Converter<ChatDtos.ReactionRequest, RequestBody> requestBodyConverter(
+                Type type, Annotation[] parameterAnnotations, Annotation[] methodAnnotations, Retrofit retrofit) {
+            if (type != ChatDtos.ReactionRequest.class) {
+                return null;
+            }
+            return reaction -> {
+                // JSON null tường minh để PUT bỏ cảm xúc không trở thành body rỗng.
+                JsonObject payload = new JsonObject();
+                payload.addProperty("emoji", reaction.emoji);
+                RequestBody body = RequestBody.create(payload.toString(), JSON);
+                return new RequestBody() {
+                    @Override public MediaType contentType() { return body.contentType(); }
+                    @Override public long contentLength() throws IOException { return body.contentLength(); }
+
+                    // PUT này đổi trạng thái khi lặp cùng emoji, nên OkHttp chỉ được gửi body một lần.
+                    @Override public boolean isOneShot() { return true; }
+
+                    @Override public void writeTo(@NonNull BufferedSink sink) throws IOException {
+                        body.writeTo(sink);
+                    }
+                };
+            };
+        }
+    }
 
     private static class Holder {
         // BASIC chỉ log URL/status; BODY có thể làm lộ password, OTP hay nội dung tin nhắn. Release luôn tắt hoàn toàn.
@@ -28,6 +70,7 @@ public final class ApiClient {
                 .client(new OkHttpClient.Builder().connectTimeout(15, TimeUnit.SECONDS)
                         .readTimeout(15, TimeUnit.SECONDS).callTimeout(20, TimeUnit.SECONDS)
                         .addInterceptor(new AuthInterceptor()).addInterceptor(LOGGING).build())
+                .addConverterFactory(new ReactionConverter())
                 .addConverterFactory(GsonConverterFactory.create()).build();
 
         // OkHttpClient chuyên dụng cho upload/download/streaming media (Glide, Media3, WorkManager):
@@ -93,5 +136,20 @@ public final class ApiClient {
             throw new IllegalArgumentException("Resolved media URL does not match backend origin");
         }
         return resolved;
+    }
+
+    /** Ghép đường dẫn nhãn dán hợp lệ với backend, loại URL ngoài và đường dẫn bị sửa. */
+    @NonNull
+    public static String resolveBackendStickerUrl(@NonNull String baseUrl, @NonNull String relativeStickerUrl) {
+        if (relativeStickerUrl == null || !STRICT_STICKER_PATH.matcher(relativeStickerUrl).matches()) {
+            throw new IllegalArgumentException("Invalid relative sticker URL");
+        }
+        HttpUrl base = baseUrl == null ? null : HttpUrl.parse(baseUrl);
+        HttpUrl resolved = base == null ? null : base.resolve(relativeStickerUrl);
+        if (resolved == null || !base.scheme().equals(resolved.scheme())
+                || !base.host().equals(resolved.host()) || base.port() != resolved.port()) {
+            throw new IllegalArgumentException("Resolved sticker URL does not match backend origin");
+        }
+        return resolved.toString();
     }
 }

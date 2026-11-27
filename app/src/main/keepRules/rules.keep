@@ -7,6 +7,6 @@
 # Giữ nguyên các lớp ML Kit Translate để tải mô hình và dịch EN <-> VI ổn định trên bản Release.
 -keep class com.google.mlkit.** { *; }
 
-# Giữ nguyên Glide AppGlideModule (tích hợp OkHttp Bearer) và toàn bộ DTO Gson mạng tránh R8 đổi tên trường JSON.
+# Giữ Glide AppGlideModule và tên trường JSON của DTO mạng, gồm cảm xúc và nhãn dán Phase 7.
 -keep class com.utechat.data.media.UteChatGlideModule { *; }
 -keep class com.utechat.data.remote.model.** { *; }

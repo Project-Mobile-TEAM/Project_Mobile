@@ -74,6 +74,7 @@ public final class ChatDtos {
         @Nullable public final Double latitude;
         @Nullable public final Double longitude;
         @Nullable public final Long expectedVisibleFromMessageId;
+        @Nullable public final String stickerId;
 
         public SendMessageRequest(
                 String clientId,
@@ -83,6 +84,19 @@ public final class ChatDtos {
                 @Nullable Double latitude,
                 @Nullable Double longitude,
                 @Nullable Long expectedVisibleFromMessageId) {
+            this(clientId, type, text, mediaUrl, latitude, longitude, expectedVisibleFromMessageId, null);
+        }
+
+        // Chỉ tin STICKER mang UUID nhãn dán, giữ nguyên cách tạo yêu cầu của các loại tin hiện có.
+        public SendMessageRequest(
+                String clientId,
+                String type,
+                @Nullable String text,
+                @Nullable String mediaUrl,
+                @Nullable Double latitude,
+                @Nullable Double longitude,
+                @Nullable Long expectedVisibleFromMessageId,
+                @Nullable String stickerId) {
             this.clientId = clientId;
             this.type = type;
             this.text = text;
@@ -90,6 +104,16 @@ public final class ChatDtos {
             this.latitude = latitude;
             this.longitude = longitude;
             this.expectedVisibleFromMessageId = expectedVisibleFromMessageId;
+            this.stickerId = stickerId;
+        }
+    }
+
+    /** Gửi emoji để chọn hoặc đổi cảm xúc, hoặc null để bỏ cảm xúc hiện tại. */
+    public static final class ReactionRequest {
+        @Nullable public final String emoji;
+
+        public ReactionRequest(@Nullable String emoji) {
+            this.emoji = emoji;
         }
     }
 
@@ -133,6 +157,59 @@ public final class ChatDtos {
         @Nullable public Double latitude;
         @Nullable public Double longitude;
         @Nullable public String createdAt;
+        @Nullable public String recalledAt;
+        @Nullable public StickerSummaryDto sticker;
+        @Nullable public List<ReactionDto> reactions;
+    }
+
+    /** Metadata nhãn dán đi kèm tin nhắn, kể cả sau khi gỡ bộ khỏi khay. */
+    public static final class StickerSummaryDto {
+        public String id;
+        public String packId;
+        public String code;
+        public String label;
+        public String imageUrl;
+        @Nullable public Integer width;
+        @Nullable public Integer height;
+    }
+
+    /** Cảm xúc đã lưu của một người trong ảnh chụp tin nhắn. */
+    public static final class ReactionDto {
+        public String userId;
+        public String emoji;
+        public String createdAt;
+    }
+
+    /** Kết quả sau thao tác, kèm danh sách cảm xúc hiện tại của tin. */
+    public static final class ReactionUpdateResponse {
+        public long messageId;
+        @Nullable public String emoji;
+        public String action;
+        public List<ReactionDto> reactions;
+    }
+
+    /** Giữ ID và vị trí tin tại chỗ khi nhận MESSAGE_RECALLED. */
+    public static final class MessageRecalledPayload {
+        public long messageId;
+        public String conversationId;
+        public String recalledAt;
+        public String recalledBy;
+    }
+
+    /** Sự kiện xóa tin riêng cho các thiết bị của người thực hiện. */
+    public static final class MessageDeletedForMePayload {
+        public long messageId;
+        public String conversationId;
+        public String deletedAt;
+    }
+
+    /** Thay đổi của một người, emoji null hoặc vắng nghĩa là đã bỏ cảm xúc. */
+    public static final class MessageReactionUpdatedPayload {
+        public long messageId;
+        public String conversationId;
+        public String userId;
+        @Nullable public String emoji;
+        public String createdAt;
     }
 
     /** DTO thành viên hội thoại kèm mốc cô lập lịch sử nhóm và mốc biên nhận. */
