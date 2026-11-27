@@ -19,7 +19,7 @@ Hành trình xây dựng ứng dụng chat di động UTEChat cho nhóm 5 ngư�
 - [x] **Phase 5: Realtime & Offline-First Core Messaging** - Nhắn tin 1-1 (kiểm tra allow_messages_from_non_contacts) và nhóm qua REST + WebSocket thuần JSON mang syncEventId, hàng đợi Room WorkManager, đồng bộ sự kiện qua syncEventId và tìm kiếm FTS4 tiếng Việt không dấu (Thành viên 4)
 - [x] **Phase 6: Media Attachments & Creative Features** - Gửi ảnh/voice/video/file qua FileProvider, gọi thoại 1-1 WebRTC giữa bạn bè ACCEPTED qua coturn (sáng tạo chính) và dịch tin nhắn ML Kit on-device (sáng tạo dự phòng) (Thành viên 5, completed 2026-11-27)
 - [x] **Phase 7: Message Actions, Reactions & Stickers** - Gỡ tin nhắn trong vòng 24 giờ, xóa tin nhắn ở phía bạn, bày tỏ cảm xúc 6 emoji và tải/gỡ bộ nhãn dán để gửi sticker (kể cả qua hàng đợi offline)
-- [ ] **Phase 8: Testing, Quality & Release Packaging** - Kiểm thử chức năng theo từng phase trên Android Studio (chia đều việc kiểm thử của TV5 cho 4 bạn còn lại; TV5 tổng hợp kết quả, ảnh chụp màn hình và hoàn thiện hồ sơ báo cáo) (Cả nhóm)
+- [ ] **Phase 8: Testing, Quality & Release Packaging** - Kiểm thử toàn bộ chức năng theo từng phase trên Android Studio (4 thành viên TV1–TV4 test đầy đủ kể cả phần Phase 6 của TV5; phần việc cho TV5 phân công riêng sau) (Cả nhóm)
 
 ---
 
@@ -254,16 +254,12 @@ Plans:
   3. Giao diện người dùng tuân thủ Material Design 3 rõ ràng, hỗ trợ đầy đủ tiếng Việt và tiếng Anh, xoay ngang/dọc mượt mà.
   4. Đóng gói đầy đủ hồ sơ nộp bài theo đúng Tiêu chí 1 của Rubric: Mã nguồn có thư mục `.git`, báo cáo Word, bộ ảnh chụp màn hình đầy đủ các luồng, và file APK cài đặt hoàn chỉnh.
 
-**Plans**: 5 plans
+**Plans**: 4 plans
 
 Plans:
-**Wave 1** *(4 thành viên TV1–TV4 test song song trên Android Studio; phần Phase 6 của TV5 được chia đều 4 mảng)*
+**Wave 1** *(4 thành viên TV1–TV4 test song song toàn bộ chức năng trên Android Studio; phần Phase 6 của TV5 chia đều 4 mảng; phần việc TV5 sẽ phân công riêng sau)*
 
-- [ ] 08-01-PLAN.md — **TV1 (Nhóm trưởng)**: Kiểm thử Nền tảng Phase 1–2, toàn bộ Phase 7 (Gỡ 24h / Xóa phía bạn / Cảm xúc / Sticker) & **Notifications/Sync nền** (1/4 Phase 6)
-- [ ] 08-02-PLAN.md — **TV2**: Kiểm thử Phase 3 (Đăng ký, OTP, 2FA/F-04, Hồ sơ, Đổi/Xóa tài khoản, EN–VI, Light/Dark, Xoay màn hình) & **Dịch tin nhắn ML Kit** (1/4 Phase 6)
-- [ ] 08-03-PLAN.md — **TV3**: Kiểm thử Phase 4 (Tìm SĐT E.164, Kết bạn, Danh bạ Room, Chặn/Bỏ chặn/Hủy kết bạn) & **Gọi thoại WebRTC 1-1** (1/4 Phase 6)
-- [ ] 08-04-PLAN.md — **TV4**: Kiểm thử Phase 5 (Chat 1-1/Nhóm, `SendMessageWorker`, Trạng thái, `/api/sync` & tải lịch sử cũ, FTS4 không dấu) & **Media/Vị trí `geo:`** (1/4 Phase 6)
-
-**Wave 2** *(blocked on Wave 1 completion — không cần Android Studio)*
-
-- [ ] 08-05-PLAN.md — **TV5**: Tổng hợp Test Matrix (`08-TEST-SUMMARY.md`), biên tập/chú thích bộ ảnh chụp màn hình các luồng, đối chiếu `docs/` & hoàn thiện Báo cáo Word + Checklist hồ sơ nộp bài
+- [ ] 08-01-PLAN.md — **TV1 (Nhóm trưởng)**: Kiểm thử Nền tảng Phase 1–2, Cô lập phiên A → B, toàn bộ Phase 7 (Gỡ 24h / Xóa phía bạn / Cảm xúc / Sticker) & **Notifications / Muted / Sync nền** (1/4 Phase 6)
+- [ ] 08-02-PLAN.md — **TV2**: Kiểm thử Phase 3 (`Splash`, Đăng ký/`CompleteProfile`, OTP, brute-force, **2FA/F-04**, Thiết bị/Thu hồi phiên từ xa, Hồ sơ, Đổi/Quên/Xóa/Hủy xóa TK, EN–VI, Light/Dark, Xoay màn hình) & **Dịch ML Kit** (1/4 Phase 6)
+- [ ] 08-03-PLAN.md — **TV3**: Kiểm thử Phase 4 (Tìm SĐT E.164, Lời mời kết bạn, Danh bạ Room offline + mở chat, Chặn/Bỏ chặn/Hủy kết bạn 2 chiều) & **Gọi thoại WebRTC 1-1** (1/4 Phase 6)
+- [ ] 08-04-PLAN.md — **TV4**: Kiểm thử Phase 5 (`NewChat`, Chat 1-1 & `CONTACT_REQUIRED`, WS banner, `SendMessageWorker` + lỗi `FAILED`, Trạng thái, Nhóm + Đổi tên/Phân quyền Admin + `visible_from`, `/api/sync` & tải tin cũ, FTS4 không dấu) & **Media / Vị trí `geo:`** (1/4 Phase 6)
