@@ -89,6 +89,10 @@
             android:paddingVertical="10dp" android:hint="@string/chat_message_hint" android:textColorHint="@color/ute_text_secondary"
             android:textColor="?attr/colorOnSurface" android:textSize="16sp" android:maxLines="5"
             android:inputType="textMultiLine|textCapSentences" android:importantForAutofill="no" />
+        <!-- Mở khay nhãn dán từ vùng soạn tin nhắn. -->
+        <ImageButton android:id="@+id/sticker" android:layout_width="48dp" android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless" android:src="@drawable/ic_sticker"
+            android:contentDescription="@string/chat_cd_sticker" app:tint="@color/ute_accent" />
         <ImageButton android:id="@+id/mic" android:layout_width="48dp" android:layout_height="48dp"
             android:layout_marginStart="4dp" android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@drawable/ic_mic" android:contentDescription="@string/media_mic_cd"
@@ -97,4 +101,7 @@
             android:layout_marginStart="4dp" android:background="@drawable/bg_send_button" android:src="@drawable/ic_send"
             android:contentDescription="@string/chat_send" app:tint="@color/ute_on_accent" />
     </LinearLayout>
+
+    <include android:id="@+id/sticker_tray" layout="@layout/view_sticker_tray"
+        android:layout_width="match_parent" android:layout_height="wrap_content" android:visibility="gone" />
 </LinearLayout>

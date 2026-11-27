@@ -65,7 +65,8 @@ public class ConversationListAdapter extends ListAdapter<ConversationListItem, C
         Context c = b.getRoot().getContext();
         boolean group = "GROUP".equals(item.conversation.getType());
         String preview = SystemMessageFormatter.preview(c::getString, item.lastMessageType, item.lastMessageText,
-                item.lastMessageAttachmentJson, item.lastMessageSenderId, group, users, meId);
+                item.lastMessageAttachmentJson, item.lastMessageSenderId, group, users, meId,
+                item.lastMessageRecalledAt);
         bindRow(b, item.getEffectiveTitle(), preview, group, item.conversation.getLastMessageAt(),
                 item.conversation.getUnreadCount(), item.conversation.getMuted());
     }

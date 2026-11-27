@@ -9,8 +9,10 @@
             android:layout_marginEnd="6dp" android:background="@drawable/bg_avatar" android:gravity="center"
             android:textSize="11sp" android:fontFamily="@font/poppins_semibold" android:textColor="@color/ute_avatar_text"
             android:importantForAccessibility="no" android:visibility="gone" />
+        <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginEnd="64dp" android:orientation="vertical">
         <LinearLayout android:id="@+id/bubble" android:layout_width="wrap_content" android:layout_height="wrap_content"
-            android:layout_marginEnd="64dp" android:orientation="vertical"
+            android:orientation="vertical"
             android:background="@drawable/bg_bubble_in" android:paddingHorizontal="12dp" android:paddingVertical="8dp">
             <TextView android:id="@+id/sender" android:layout_width="wrap_content" android:layout_height="wrap_content"
                 android:textSize="12sp" android:fontFamily="@font/poppins_medium" android:textColor="?attr/colorOnSurfaceVariant"
@@ -102,6 +104,13 @@
             <TextView android:id="@+id/meta" android:layout_width="wrap_content" android:layout_height="wrap_content"
                 android:layout_gravity="end" android:layout_marginTop="2dp" android:textSize="11sp"
                 android:textColor="?attr/colorOnSurfaceVariant" />
+        </LinearLayout>
+            <!-- Cụm biểu cảm nằm dưới bong bóng, ẩn khi chưa có lượt thả. -->
+            <LinearLayout android:id="@+id/reactions_container"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_gravity="start" android:layout_marginTop="2dp"
+                android:orientation="vertical" android:gravity="center_vertical"
+                android:minWidth="48dp" android:minHeight="48dp" android:focusable="true" android:visibility="gone" />
         </LinearLayout>
     </LinearLayout>
 </LinearLayout>

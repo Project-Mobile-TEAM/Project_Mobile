@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Nhãn khay và cửa hàng, dùng chung cho chế độ tối và sáng. -->
+    <string name="sticker_tray_title">Nhãn dán</string>
+    <string name="sticker_store_title">Cửa hàng nhãn dán</string>
+    <string name="sticker_store_install">Tải về</string>
+    <string name="sticker_store_uninstall">Gỡ bộ</string>
+    <string name="sticker_store_installed_badge">Đã cài đặt</string>
+    <string name="sticker_store_empty">Chưa có bộ nhãn dán.</string>
+    <string name="sticker_tray_empty">Chưa cài bộ nhãn dán. Mở cửa hàng để thêm bộ.</string>
+    <string name="sticker_store_open_cd">Mở cửa hàng nhãn dán</string>
+    <string name="sticker_unavailable_offline">Hãy kết nối mạng để tải nhãn dán trước.</string>
+</resources>
