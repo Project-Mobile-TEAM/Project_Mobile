@@ -12,6 +12,8 @@ import androidx.work.WorkManager;
 import com.utechat.data.local.AppDatabase;
 import com.utechat.data.local.dao.ConversationDao;
 import com.utechat.data.local.dao.MessageDao;
+import com.utechat.data.local.dao.ReactionDao;
+import com.utechat.data.local.dao.SyncStateDao;
 import com.utechat.data.local.entity.ConversationEntity;
 import com.utechat.data.local.entity.ConversationMemberEntity;
 import com.utechat.data.local.entity.MessageEntity;
@@ -88,6 +90,8 @@ public class SendMessageWorkerTest {
 
         when(db.messageDao()).thenReturn(messageDao);
         when(db.conversationDao()).thenReturn(conversationDao);
+        when(db.syncStateDao()).thenReturn(mock(SyncStateDao.class));
+        when(db.reactionDao()).thenReturn(mock(ReactionDao.class));
         doAnswer(inv -> {
             ((Runnable) inv.getArgument(0)).run();
             return null;
@@ -337,7 +341,7 @@ public class SendMessageWorkerTest {
         ChatDtos.MessageDto mRead = msgDto(100L, "c-100", CONV_DIRECT, USER_A);
         ChatDtos.MessageDto mDeliv = msgDto(150L, "c-150", CONV_DIRECT, USER_A);
         ChatDtos.MessageDto mSent = msgDto(250L, "c-250", CONV_DIRECT, USER_A);
-        when(api.getMessages(CONV_DIRECT, null, 50))
+        when(api.getMessages("Bearer jwt-alice", CONV_DIRECT, null, 50))
                 .thenReturn(syncCall(() -> Response.success(Arrays.asList(mRead, mDeliv, mSent))));
 
         ChatResult<Integer> histRes = repo.loadOlderMessages(CONV_DIRECT, null, 50).getValue();
@@ -404,6 +408,43 @@ public class SendMessageWorkerTest {
     }
 
     // ======================== HELPERS ========================
+
+    @Test
+    public void queuedStickerSendsOnlyIdAndAcceptsIdempotentReplay() {
+        String stickerId = "22222222-2222-4222-8222-222222220101";
+        MessageEntity pending = pendingMsg("sticker-client", CONV_DIRECT, USER_A, null, null);
+        pending.setType("STICKER");
+        pending.setAttachmentJson("{\"stickerId\":\"" + stickerId + "\"}");
+        when(messageDao.findByClientId("sticker-client")).thenReturn(pending);
+        when(conversationDao.getConversationSync(CONV_DIRECT)).thenReturn(conv(CONV_DIRECT, "DIRECT"));
+        ChatDtos.MessageDto dto = msgDto(502L, "sticker-client", CONV_DIRECT, USER_A);
+        when(api.sendMessage(eq("Bearer jwt-alice"), eq(CONV_DIRECT), any()))
+                .thenReturn(syncCall(() -> Response.success(dto)));
+
+        assertEquals(ListenableWorker.Result.success(), SendMessageWorker.executeSend(
+                db, api, session, workManager, fakeSleeper, "sticker-client", SESSION_A, 1));
+        verify(api).sendMessage(eq("Bearer jwt-alice"), eq(CONV_DIRECT), argThat(request ->
+                request != null && stickerId.equals(request.stickerId) && "STICKER".equals(request.type)
+                        && "sticker-client".equals(request.clientId) && request.mediaUrl == null));
+        verify(messageDao).markSentFromWorker(eq("sticker-client"), eq(502L), anyLong());
+    }
+
+    @Test
+    public void lateWorkerAckDoesNotRestoreMessageDeletedOnAnotherDevice() {
+        when(messageDao.findByClientId("deleted-client")).thenReturn(
+                pendingMsg("deleted-client", CONV_DIRECT, USER_A, "Đã xóa", null));
+        when(conversationDao.getConversationSync(CONV_DIRECT)).thenReturn(conv(CONV_DIRECT, "DIRECT"));
+        when(messageDao.isDeletedForMe(503L)).thenReturn(true);
+        ChatDtos.MessageDto dto = msgDto(503L, "deleted-client", CONV_DIRECT, USER_A);
+        when(api.sendMessage(eq("Bearer jwt-alice"), eq(CONV_DIRECT), any()))
+                .thenReturn(syncCall(() -> Response.success(dto)));
+
+        assertEquals(ListenableWorker.Result.success(), SendMessageWorker.executeSend(
+                db, api, session, workManager, fakeSleeper, "deleted-client", SESSION_A, 0));
+        // Tin chờ không có serverId nên phải dọn theo clientId khi xác nhận về trễ.
+        verify(messageDao).deletePendingByClientId("deleted-client");
+        verify(messageDao, never()).markSentFromWorker(anyString(), anyLong(), anyLong());
+    }
 
     private static MessageEntity pendingMsg(String clientId, String convId, String senderId, String text, Long queuedCutoff) {
         MessageEntity m = new MessageEntity();

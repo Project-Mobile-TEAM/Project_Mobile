@@ -13,6 +13,8 @@ import com.utechat.data.local.AppDatabase;
 import com.utechat.data.local.dao.ContactDao;
 import com.utechat.data.local.dao.ConversationDao;
 import com.utechat.data.local.dao.MessageDao;
+import com.utechat.data.local.dao.ReactionDao;
+import com.utechat.data.local.dao.TranslationDao;
 import com.utechat.data.local.dao.SyncStateDao;
 import com.utechat.data.local.dao.UserDao;
 import com.utechat.data.local.entity.ContactEntity;
@@ -77,6 +79,8 @@ public class SyncEngineAndApplierTest {
     private ConversationDao conversationDao;
     private MessageDao messageDao;
     private SyncStateDao syncStateDao;
+    private ReactionDao reactionDao;
+    private TranslationDao translationDao;
     private ChatApi api;
     private SessionManager session;
 
@@ -103,6 +107,10 @@ public class SyncEngineAndApplierTest {
         when(db.conversationDao()).thenReturn(conversationDao);
         when(db.messageDao()).thenReturn(messageDao);
         when(db.syncStateDao()).thenReturn(syncStateDao);
+        reactionDao = mock(ReactionDao.class);
+        translationDao = mock(TranslationDao.class);
+        when(db.reactionDao()).thenReturn(reactionDao);
+        when(db.translationDao()).thenReturn(translationDao);
         doAnswer(inv -> {
             ((Runnable) inv.getArgument(0)).run();
             return null;
@@ -642,6 +650,66 @@ public class SyncEngineAndApplierTest {
         s.setLastSyncEventId(cursor);
         s.setLastSyncAt(1000L);
         return s;
+    }
+
+    @Test
+    public void recalledMessageClearsSearchAndTranslationAndSuppressesNotification() {
+        MessageEntity cached = new MessageEntity();
+        cached.setClientId("message-57");
+        // Lần lookup đầu thấy tin mới, lần sau thấy bản đã ghi vào Room trong cùng lô.
+        when(messageDao.findByServerId(57L)).thenReturn(null, cached);
+        when(messageDao.insertRespectingVisibleFrom(any(MessageEntity.class), eq(ME))).thenReturn(true);
+        SyncEventApplier.SyncBatchOutcome outcome = new SyncEventApplier(db).applyBatchDetailed(ME, Arrays.asList(
+                event(1, "MESSAGE_CREATED", """
+                        {"id":57,"conversationId":"conv-1","senderId":"u-bob","type":"TEXT","text":"Xin chào"}
+                        """),
+                event(2, "MESSAGE_RECALLED", """
+                        {"messageId":57,"conversationId":"conv-1","recalledAt":"2026-11-27T00:00:00Z"}
+                        """)));
+        verify(messageDao).markRecalledByServerId(eq(57L), anyLong());
+        verify(translationDao).deleteAllForMessage("message-57");
+        verify(reactionDao).deleteByMessageServerId(57L);
+        assertTrue(outcome.newlyInsertedMessages.isEmpty());
+    }
+
+    @Test
+    public void deleteForMeRecordsTombstoneAndMovesPreviewBack() {
+        ConversationEntity conversation = new ConversationEntity();
+        conversation.setLastMessageId(57L);
+        MessageEntity previous = new MessageEntity();
+        previous.setServerId(56L);
+        previous.setCreatedAt(1000L);
+        when(conversationDao.getConversationSync(CONV_ID)).thenReturn(conversation);
+        when(messageDao.findLatestVisibleMessageSync(CONV_ID, ME)).thenReturn(previous);
+
+        new SyncEventApplier(db).applyBatchDetailed(ME, Collections.singletonList(
+                event(1, "MESSAGE_DELETED_FOR_ME", """
+                        {"messageId":57,"conversationId":"conv-1","deletedAt":"2026-11-27T00:00:00Z"}
+                        """)));
+        verify(messageDao).recordDeletionForMe(57L);
+        verify(messageDao).deleteByServerId(57L);
+        verify(conversationDao).updateLastMessageMeta(CONV_ID, 56L, 1000L);
+    }
+
+    @Test
+    public void reactionRemovalAndStickerMetadataAreApplied() {
+        new SyncEventApplier(db).applyBatchDetailed(ME, Arrays.asList(
+                event(1, "MESSAGE_REACTION_UPDATED", """
+                        {"messageId":57,"conversationId":"conv-1","userId":"u-bob","emoji":"👍"}
+                        """),
+                event(2, "MESSAGE_REACTION_UPDATED", """
+                        {"messageId":57,"conversationId":"conv-1","userId":"u-bob"}
+                        """)));
+        verify(reactionDao).upsert(argThat(reaction -> reaction.getMessageServerId() == 57L
+                && "👍".equals(reaction.getEmoji())));
+        verify(reactionDao).delete(57L, BOB);
+
+        ChatDtos.MessageDto sticker = GSON.fromJson("""
+                {"type":"STICKER","sticker":{"id":"sticker-id","imageUrl":"/api/stickers/assets/ute_daily/hi.png"}}
+                """, ChatDtos.MessageDto.class);
+        assertTrue(SyncEventApplier.serializeMessageMetadata(sticker).contains("sticker-id"));
+        sticker.recalledAt = "2026-11-27T00:00:00Z";
+        assertNull(SyncEventApplier.serializeMessageMetadata(sticker));
     }
 
     private static ChatDtos.SyncEventDto event(long id, String type, String jsonPayload) {
