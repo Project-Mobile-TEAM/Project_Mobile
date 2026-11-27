@@ -54,6 +54,18 @@ public class ConversationListItem {
     @Nullable
     public Long lastMessageRecalledAt;
 
+    /** Emoji cảm xúc mới nhất từ người khác trong hội thoại (hiển thị dưới preview). */
+    @Nullable
+    public String latestReactionEmoji;
+
+    /** UUID người thả cảm xúc mới nhất từ người khác trong hội thoại. */
+    @Nullable
+    public String latestReactionUserId;
+
+    /** Mốc UTC mili-giây của lượt thả cảm xúc mới nhất từ người khác. */
+    @Nullable
+    public Long latestReactionAt;
+
     /** Trả về tên hội thoại hiển thị: ưu tiên tiêu đề nhóm, nếu trống thì dùng tên đối phương 1-1. */
     @NonNull
     public String getEffectiveTitle() {

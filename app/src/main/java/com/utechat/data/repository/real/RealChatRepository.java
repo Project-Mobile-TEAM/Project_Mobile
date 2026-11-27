@@ -432,16 +432,19 @@ public class RealChatRepository implements ChatRepository {
             postResult(out, ChatResult.error("UNAUTHENTICATED"));
             return out;
         }
-        // Chụp con trỏ trước khi tải để chỉ thay phản ứng từ một trang không bị sự kiện mới vượt qua.
+        // Chụp con trỏ và mốc cảm xúc trước khi tải trang lịch sử để không bỏ sót reactions khi chỉ có biên nhận đọc mới.
         diskExecutor.execute(() -> session.runIfCurrent(request.key(), () -> {
             long cursor = readCursor(request.userId());
-            networkExecutor.execute(() -> loadHistoryPage(out, request, conversationId, beforeServerId, limit, cursor));
+            long reactionVersion = applier.reactionEventVersion();
+            networkExecutor.execute(() -> loadHistoryPage(
+                    out, request, conversationId, beforeServerId, limit, cursor, reactionVersion));
         }));
         return out;
     }
 
     private void loadHistoryPage(MutableLiveData<ChatResult<Integer>> out, CapturedChatSession request,
-                                 String conversationId, @Nullable Long beforeServerId, int limit, long cursor) {
+                                 String conversationId, @Nullable Long beforeServerId, int limit,
+                                 long cursor, long reactionVersion) {
         if (!request.key().equals(session.sessionKey())) {
             return;
         }
@@ -467,7 +470,7 @@ public class RealChatRepository implements ChatRepository {
             diskExecutor.execute(() -> {
                 boolean saved = session.runIfCurrent(request.key(), () -> db.runInTransaction(() -> {
                     String meId = request.userId();
-                    boolean currentReactions = readCursor(meId) == cursor;
+                    boolean currentReactions = applier.reactionEventVersion() == reactionVersion;
                     List<ConversationMemberEntity> members = db.conversationDao().getMembersSync(conversationId);
                     for (ChatDtos.MessageDto dto : list) {
                         if (dto == null || dto.id <= 0 || !conversationId.equals(dto.conversationId)) {
@@ -481,7 +484,9 @@ public class RealChatRepository implements ChatRepository {
                         }
                         if (message.getRecalledAt() != null) {
                             applier.applyRecall(dto.id, message.getRecalledAt());
-                        } else if (currentReactions) {
+                        } else if (currentReactions
+                                || (dto.reactions != null && !dto.reactions.isEmpty()
+                                && db.reactionDao().findByMessageSync(dto.id).isEmpty())) {
                             applier.syncMessageReactions(dto.id, dto.reactions);
                         }
                     }

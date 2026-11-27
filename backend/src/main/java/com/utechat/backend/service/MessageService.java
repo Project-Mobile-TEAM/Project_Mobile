@@ -482,7 +482,12 @@ public class MessageService {
 
     /** Truy vấn gộp tối đa một trang tin để lịch sử không chạy một câu SQL cho mỗi tin. */
     private Map<Long, List<ReactionDto>> loadReactions(List<Long> messageIds) {
-        if (messageIds.isEmpty()) {
+        return loadReactions(jdbc, messageIds);
+    }
+
+    /** Tải danh sách biểu cảm theo lô message_id dùng chung cho lịch sử tin và lastMessage của hội thoại. */
+    static Map<Long, List<ReactionDto>> loadReactions(JdbcTemplate jdbc, List<Long> messageIds) {
+        if (messageIds == null || messageIds.isEmpty()) {
             return Map.of();
         }
         Map<Long, List<ReactionDto>> grouped = new HashMap<>();

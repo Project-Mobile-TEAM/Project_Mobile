@@ -7,6 +7,7 @@ import com.utechat.backend.dto.MessagingDtos.ConversationDto;
 import com.utechat.backend.dto.MessagingDtos.CreateGroupRequest;
 import com.utechat.backend.dto.MessagingDtos.MemberDto;
 import com.utechat.backend.dto.MessagingDtos.MessageDto;
+import com.utechat.backend.dto.MessagingDtos.ReactionDto;
 import com.utechat.backend.dto.MessagingDtos.UpdateConversationRequest;
 import com.utechat.backend.dto.MessagingDtos.UpdateRoleRequest;
 import com.utechat.backend.exception.ApiException;
@@ -619,7 +620,7 @@ public class ConversationService {
                    AND NOT EXISTS (SELECT 1 FROM public.message_deletions d WHERE d.message_id = m.id AND d.user_id = ?)
                  ORDER BY m.id DESC LIMIT 1
                 """, MessageService::mapMessageRow, conversationId, h.visibleFromMessageId, viewerId);
-        MessageDto lastMessage = previews.isEmpty() ? null : previews.get(0);
+        MessageDto lastMessage = previews.isEmpty() ? null : attachReactions(previews.get(0));
         Long visibleLastMessageId = lastMessage == null ? null : lastMessage.id();
 
         // Số tin chưa đọc chỉ tính các tin của người khác lớn hơn cả last_read và visible_from.
@@ -790,7 +791,16 @@ public class ConversationService {
                 MessageService.SELECT_MESSAGE_WITH_METADATA + " WHERE m.id = ?",
                 MessageService::mapMessageRow,
                 messageId);
-        return rows.isEmpty() ? null : rows.get(0);
+        return rows.isEmpty() ? null : attachReactions(rows.get(0));
+    }
+
+    /** Đính kèm cảm xúc vào lastMessage khi tin chưa gỡ để bootstrap/hội thoại nhận đủ ngay từ đầu. */
+    private MessageDto attachReactions(MessageDto message) {
+        if (message == null || message.recalledAt() != null) {
+            return message;
+        }
+        List<ReactionDto> reactions = MessageService.loadReactions(jdbc, List.of(message.id())).get(message.id());
+        return reactions == null ? message : message.withReactions(reactions);
     }
 
     static String buildDirectKey(UUID a, UUID b) {

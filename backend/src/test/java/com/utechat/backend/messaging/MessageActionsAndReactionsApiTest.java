@@ -184,6 +184,11 @@ class MessageActionsAndReactionsApiTest {
                     .andExpect(jsonPath("$.reactions[0].emoji").value(emoji));
         }
         assertEquals("😡", history(alice).get(0).path("reactions").get(0).path("emoji").asText());
+        mvc.perform(get("/api/sync/bootstrap").header("Authorization", alice.authorization()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.conversations[0].lastMessage.reactions[0].emoji").value("😡"))
+                .andExpect(jsonPath("$.conversations[0].lastMessage.reactions[0].userId")
+                        .value(bob.id().toString()));
         react(bob, id, "🔥").andExpect(status().isBadRequest());
         react(bob, id, "😡").andExpect(status().isOk()).andExpect(jsonPath("$.action").value("REMOVED"))
                 .andExpect(jsonPath("$.reactions.length()").value(0));

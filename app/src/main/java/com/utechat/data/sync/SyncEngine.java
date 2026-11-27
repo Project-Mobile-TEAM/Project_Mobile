@@ -412,7 +412,8 @@ public class SyncEngine {
                 if (cb != null && committedOutcome != null
                         && (!committedOutcome.newlyInsertedMessages.isEmpty()
                         || !committedOutcome.missedCalls.isEmpty()
-                        || !committedOutcome.terminalCalls.isEmpty())
+                        || !committedOutcome.terminalCalls.isEmpty()
+                        || !committedOutcome.incomingReactions.isEmpty())
                         && sessionKey.equals(session.sessionKey())) {
                     try {
                         cb.onBatchCommitted(sessionKey, myUserId, committedOutcome);

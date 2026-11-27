@@ -30,6 +30,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Bộ áp dụng sự kiện đồng bộ dùng chung, bất biến và lũy đẳng (D-03, D-11, D-12, D-14, D-15):
@@ -49,6 +50,8 @@ public class SyncEventApplier {
     private final TranslationDao translationDao;
     @Nullable private final String currentDeviceIdHash;
     @Nullable private final Runnable onSelfDeviceRevoked;
+    /** Mốc tăng khi có sự kiện gỡ/xóa/cảm xúc, tránh bỏ nhầm reactions khi chỉ có biên nhận đọc mới. */
+    private final AtomicLong reactionEventVersion = new AtomicLong();
 
     public SyncEventApplier(@NonNull AppDatabase db) {
         this(db, null, null);
@@ -67,6 +70,11 @@ public class SyncEventApplier {
         this.translationDao = db.translationDao();
         this.currentDeviceIdHash = currentDeviceIdHash;
         this.onSelfDeviceRevoked = onSelfDeviceRevoked;
+    }
+
+    /** Mốc phiên bản cho luồng cảm xúc/gỡ/xóa ở trang lịch sử. */
+    public long reactionEventVersion() {
+        return reactionEventVersion.get();
     }
 
     /**
@@ -257,12 +265,14 @@ public class SyncEventApplier {
         @NonNull public final List<MessageEntity> newlyInsertedMessages;
         @NonNull public final List<NotificationHelper.MissedCallNotice> missedCalls;
         @NonNull public final List<TerminalCallUpdate> terminalCalls;
+        @NonNull public final List<NotificationHelper.ReactionNotice> incomingReactions;
 
         public SyncBatchOutcome(
                 @NonNull Map<String, Long> highestIncomingByConversation,
                 @NonNull List<MessageEntity> newlyInsertedMessages,
                 @NonNull List<NotificationHelper.MissedCallNotice> missedCalls) {
-            this(highestIncomingByConversation, newlyInsertedMessages, missedCalls, Collections.emptyList());
+            this(highestIncomingByConversation, newlyInsertedMessages, missedCalls,
+                    Collections.emptyList(), Collections.emptyList());
         }
 
         public SyncBatchOutcome(
@@ -270,10 +280,21 @@ public class SyncEventApplier {
                 @NonNull List<MessageEntity> newlyInsertedMessages,
                 @NonNull List<NotificationHelper.MissedCallNotice> missedCalls,
                 @NonNull List<TerminalCallUpdate> terminalCalls) {
+            this(highestIncomingByConversation, newlyInsertedMessages, missedCalls,
+                    terminalCalls, Collections.emptyList());
+        }
+
+        public SyncBatchOutcome(
+                @NonNull Map<String, Long> highestIncomingByConversation,
+                @NonNull List<MessageEntity> newlyInsertedMessages,
+                @NonNull List<NotificationHelper.MissedCallNotice> missedCalls,
+                @NonNull List<TerminalCallUpdate> terminalCalls,
+                @NonNull List<NotificationHelper.ReactionNotice> incomingReactions) {
             this.highestIncomingByConversation = highestIncomingByConversation;
             this.newlyInsertedMessages = newlyInsertedMessages;
             this.missedCalls = missedCalls;
             this.terminalCalls = terminalCalls;
+            this.incomingReactions = incomingReactions;
         }
     }
 
@@ -299,12 +320,14 @@ public class SyncEventApplier {
         List<MessageEntity> newlyInsertedMessages = new ArrayList<>();
         List<NotificationHelper.MissedCallNotice> missedCalls = new ArrayList<>();
         List<TerminalCallUpdate> terminalCalls = new ArrayList<>();
+        List<NotificationHelper.ReactionNotice> incomingReactions = new ArrayList<>();
         Map<String, CallOrigin> callOrigins = new HashMap<>();
         List<PendingMissedCall> pendingMissedCalls = new ArrayList<>();
         Map<String, Long> selfReadUpToInBatch = new HashMap<>();
 
         if (events == null || events.isEmpty()) {
-            return new SyncBatchOutcome(highestIncomingByConversation, newlyInsertedMessages, missedCalls, terminalCalls);
+            return new SyncBatchOutcome(
+                    highestIncomingByConversation, newlyInsertedMessages, missedCalls, terminalCalls, incomingReactions);
         }
         for (ChatDtos.SyncEventDto event : events) {
             if (event == null || event.eventType == null) {
@@ -323,16 +346,24 @@ public class SyncEventApplier {
                             event.payload, ChatDtos.MessageRecalledPayload.class, event.eventType);
                     applyRecall(recalled.messageId, parseIsoMillis(recalled.recalledAt, 0L));
                     newlyInsertedMessages.removeIf(msg -> Long.valueOf(recalled.messageId).equals(msg.getServerId()));
+                    incomingReactions.removeIf(r -> r.messageServerId == recalled.messageId);
                     break;
                 case "MESSAGE_DELETED_FOR_ME":
                     ChatDtos.MessageDeletedForMePayload deleted = parseRequired(
                             event.payload, ChatDtos.MessageDeletedForMePayload.class, event.eventType);
                     applyDeleteForMe(deleted.conversationId, deleted.messageId, myUserId);
                     newlyInsertedMessages.removeIf(msg -> Long.valueOf(deleted.messageId).equals(msg.getServerId()));
+                    incomingReactions.removeIf(r -> r.messageServerId == deleted.messageId);
                     break;
                 case "MESSAGE_REACTION_UPDATED":
-                    applyReactionEvent(parseRequired(
-                            event.payload, ChatDtos.MessageReactionUpdatedPayload.class, event.eventType));
+                    ChatDtos.MessageReactionUpdatedPayload reaction = parseRequired(
+                            event.payload, ChatDtos.MessageReactionUpdatedPayload.class, event.eventType);
+                    incomingReactions.removeIf(r ->
+                            r.messageServerId == reaction.messageId && r.userId.equals(reaction.userId));
+                    NotificationHelper.ReactionNotice notice = applyReactionEvent(myUserId, reaction);
+                    if (notice != null) {
+                        incomingReactions.add(notice);
+                    }
                     break;
                 case "RECEIPT_UPDATED":
                     applyReceiptUpdated(myUserId, event, selfReadUpToInBatch);
@@ -374,7 +405,8 @@ public class SyncEventApplier {
             }
         }
 
-        return new SyncBatchOutcome(highestIncomingByConversation, newlyInsertedMessages, missedCalls, terminalCalls);
+        return new SyncBatchOutcome(
+                highestIncomingByConversation, newlyInsertedMessages, missedCalls, terminalCalls, incomingReactions);
     }
 
     /** Cập nhật tin đã gỡ trong transaction hiện tại, kể cả khi mới thấy qua lịch sử. */
@@ -382,6 +414,7 @@ public class SyncEventApplier {
         if (messageId <= 0 || recalledAt <= 0) {
             throw new IllegalStateException("MESSAGE_RECALLED thiếu dữ liệu");
         }
+        reactionEventVersion.incrementAndGet();
         MessageEntity existing = messageDao.findByServerId(messageId);
         messageDao.markRecalledByServerId(messageId, recalledAt);
         reactionDao.deleteByMessageServerId(messageId);
@@ -395,6 +428,7 @@ public class SyncEventApplier {
         if (conversationId == null || messageId <= 0) {
             throw new IllegalStateException("MESSAGE_DELETED_FOR_ME thiếu dữ liệu");
         }
+        reactionEventVersion.incrementAndGet();
         MessageEntity existing = messageDao.findByServerId(messageId);
         messageDao.recordDeletionForMe(messageId);
         messageDao.deleteByServerId(messageId);
@@ -437,19 +471,31 @@ public class SyncEventApplier {
         reactionDao.replaceForMessage(messageId, mapped);
     }
 
-    private void applyReactionEvent(@NonNull ChatDtos.MessageReactionUpdatedPayload reaction) {
+    @Nullable
+    private NotificationHelper.ReactionNotice applyReactionEvent(
+            @NonNull String myUserId,
+            @NonNull ChatDtos.MessageReactionUpdatedPayload reaction) {
         if (reaction.messageId <= 0 || reaction.userId == null) {
             throw new IllegalStateException("MESSAGE_REACTION_UPDATED thiếu dữ liệu");
         }
-        if (messageDao.isDeletedForMe(reaction.messageId)) return;
+        reactionEventVersion.incrementAndGet();
+        if (messageDao.isDeletedForMe(reaction.messageId)) return null;
         MessageEntity message = messageDao.findByServerId(reaction.messageId);
-        if (message != null && message.getRecalledAt() != null) return;
+        if (message != null && message.getRecalledAt() != null) return null;
         if (reaction.emoji == null || reaction.emoji.isEmpty()) {
             reactionDao.delete(reaction.messageId, reaction.userId);
-        } else {
-            reactionDao.upsert(new MessageReactionEntity(reaction.messageId, reaction.userId, reaction.emoji,
-                    parseIsoMillis(reaction.createdAt, 0L)));
+            return null;
         }
+        long timestampMs = parseIsoMillis(reaction.createdAt, 0L);
+        reactionDao.upsert(new MessageReactionEntity(
+                reaction.messageId, reaction.userId, reaction.emoji, timestampMs));
+        if (myUserId.equals(reaction.userId)) return null;
+        String convId = reaction.conversationId != null
+                ? reaction.conversationId
+                : (message != null ? message.getConversationId() : null);
+        if (convId == null || convId.trim().isEmpty()) return null;
+        return new NotificationHelper.ReactionNotice(
+                convId, reaction.messageId, reaction.userId, reaction.emoji, timestampMs);
     }
 
     private void applyMessageCreated(

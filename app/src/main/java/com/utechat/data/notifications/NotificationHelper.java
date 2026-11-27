@@ -177,6 +177,28 @@ public class NotificationHelper {
         }
     }
 
+    /** Dữ liệu sự kiện cảm xúc mới từ người khác dùng để báo ngoài phòng chat. */
+    public static final class ReactionNotice {
+        @NonNull public final String conversationId;
+        public final long messageServerId;
+        @NonNull public final String userId;
+        @NonNull public final String emoji;
+        public final long timestampMs;
+
+        public ReactionNotice(
+                @NonNull String conversationId,
+                long messageServerId,
+                @NonNull String userId,
+                @NonNull String emoji,
+                long timestampMs) {
+            this.conversationId = conversationId;
+            this.messageServerId = messageServerId;
+            this.userId = userId;
+            this.emoji = emoji;
+            this.timestampMs = timestampMs;
+        }
+    }
+
     /** Model thông báo cuộc gọi nhỡ trên kênh "calls". */
     public static final class MissedCallNotificationModel {
         @NonNull public final String callId;
@@ -531,6 +553,19 @@ public class NotificationHelper {
             @Nullable List<MissedCallNotice> missedCalls,
             @NonNull ActiveRoomTracker activeTracker,
             @NonNull Supplier<Boolean> sessionStillValid) {
+        notifyBatch(myUserId, sessionKey, newMessages, missedCalls,
+                Collections.emptyList(), activeTracker, sessionStillValid);
+    }
+
+    /** Phát thông báo gồm cả lượt bày tỏ cảm xúc mới từ người khác khi không mở phòng chat đó. */
+    public void notifyBatch(
+            @NonNull String myUserId,
+            @Nullable String sessionKey,
+            @Nullable List<MessageEntity> newMessages,
+            @Nullable List<MissedCallNotice> missedCalls,
+            @Nullable List<ReactionNotice> reactions,
+            @NonNull ActiveRoomTracker activeTracker,
+            @NonNull Supplier<Boolean> sessionStillValid) {
         if (!Boolean.TRUE.equals(sessionStillValid.get())) {
             return;
         }
@@ -550,6 +585,27 @@ public class NotificationHelper {
             MessageLineModel line = new MessageLineModel(senderId, senderName, preview, msg.getCreatedAt());
             incomingByConv.computeIfAbsent(convId, k -> new ArrayList<>()).add(line);
             lookupConversation(convCache, convId);
+        }
+
+        if (reactions != null && !reactions.isEmpty()) {
+            String activeConvId = activeTracker.getActiveConversationId();
+            for (ReactionNotice reaction : reactions) {
+                if (reaction == null || reaction.conversationId.trim().isEmpty()
+                        || reaction.userId.trim().isEmpty() || myUserId.equals(reaction.userId)
+                        || reaction.emoji.trim().isEmpty()
+                        || reaction.conversationId.equals(activeConvId)) {
+                    continue;
+                }
+                ConversationEntity conv = lookupConversation(convCache, reaction.conversationId);
+                if (conv == null || conv.getMuted()) {
+                    continue;
+                }
+                String reactorName = resolveUserDisplayName(reaction.userId, userCache);
+                String body = strings.get(R.string.notif_reaction_body, reaction.emoji);
+                long timestampMs = reaction.timestampMs > 0L ? reaction.timestampMs : System.currentTimeMillis();
+                incomingByConv.computeIfAbsent(reaction.conversationId, k -> new ArrayList<>())
+                        .add(new MessageLineModel(reaction.userId, reactorName, body, timestampMs));
+            }
         }
 
         List<MissedCallNotificationModel> missedModels = new ArrayList<>();

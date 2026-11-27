@@ -18,6 +18,7 @@ import com.utechat.data.MainThreadExecutor;
 import com.utechat.data.call.CallSessionCoordinator;
 import com.utechat.data.call.StreamWebRtcCallEngine;
 import com.utechat.data.local.AppDatabase;
+import com.utechat.data.local.ReactionSeenStore;
 import com.utechat.data.media.LocationFetchHelper;
 import com.utechat.data.media.MediaDownloadManager;
 import com.utechat.data.media.MediaPreparationHelper;
@@ -79,6 +80,7 @@ public final class Injection {
     private static CallSessionCoordinator callCoordinator;
     private static MessageTranslationManager translationManager;
     private static StickerRepository stickerRepository;
+    private static ReactionSeenStore reactionSeenStore;
 
     // Hook dành riêng cho kiểm thử instrumentation Espresso (tiêm repository/translator giả khi Debug).
     @Nullable private static ChatRepository testChatOverride;
@@ -134,6 +136,13 @@ public final class Injection {
             notificationHelper = new NotificationHelper(appContext, db, SessionManager.get());
         }
         return notificationHelper;
+    }
+
+    public static synchronized ReactionSeenStore provideReactionSeenStore(Context context) {
+        if (reactionSeenStore == null) {
+            reactionSeenStore = new ReactionSeenStore(context.getApplicationContext());
+        }
+        return reactionSeenStore;
     }
 
     public static synchronized MediaPreparationHelper provideMediaPreparationHelper() {
@@ -255,12 +264,15 @@ public final class Injection {
             NotificationHelper notif = provideNotificationHelper(appContext);
             ActiveRoomTracker roomTracker = provideActiveRoomTracker();
             syncEngine.setNotificationCallback((sessionKey, userId, outcome) -> {
-                if (!outcome.newlyInsertedMessages.isEmpty() || !outcome.missedCalls.isEmpty()) {
+                if (!outcome.newlyInsertedMessages.isEmpty()
+                        || !outcome.missedCalls.isEmpty()
+                        || !outcome.incomingReactions.isEmpty()) {
                     notif.notifyBatch(
                             userId,
                             sessionKey,
                             outcome.newlyInsertedMessages,
                             outcome.missedCalls,
+                            outcome.incomingReactions,
                             roomTracker,
                             () -> sessionKey.equals(SessionManager.get().sessionKey()));
                 }
@@ -347,6 +359,7 @@ public final class Injection {
         ActiveRoomTracker currentRoomTracker;
         MediaDownloadManager currentDownloadManager;
         SyncEngine currentSync;
+        ReactionSeenStore currentSeenStore;
         synchronized (Injection.class) {
             currentWs = wsManager;
             currentCall = callCoordinator;
@@ -354,6 +367,11 @@ public final class Injection {
             currentRoomTracker = activeRoomTracker;
             currentDownloadManager = mediaDownloadManager;
             currentSync = syncEngine;
+            currentSeenStore = reactionSeenStore;
+        }
+
+        if (currentSeenStore != null) {
+            currentSeenStore.clear();
         }
 
         if (currentDownloadManager != null && departingSessionKey != null && !departingSessionKey.trim().isEmpty()) {
@@ -569,6 +587,9 @@ public final class Injection {
         if (activeRoomTracker != null) {
             activeRoomTracker.clear();
         }
+        if (reactionSeenStore != null) {
+            reactionSeenStore.clear();
+        }
         if (SessionManager.get() != null) {
             SessionManager.get().setOnSessionChanged(() -> { });
         }
@@ -589,6 +610,7 @@ public final class Injection {
         callCoordinator = null;
         translationManager = null;
         stickerRepository = null;
+        reactionSeenStore = null;
     }
 
     private static boolean useFake() {

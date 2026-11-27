@@ -22,6 +22,10 @@
             <TextView android:id="@+id/preview" android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:layout_marginTop="4dp" android:textSize="15sp" android:textColor="?attr/colorOnSurfaceVariant"
                 android:maxLines="1" android:ellipsize="end" />
+            <!-- Dòng phụ báo cảm xúc mới nhất từ người khác (kiểu "❤️ Tên"). -->
+            <TextView android:id="@+id/reaction_notice" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="2dp" android:textSize="13sp" android:textColor="?attr/colorOnSurfaceVariant"
+                android:maxLines="1" android:ellipsize="end" android:visibility="gone" />
         </LinearLayout>
         <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="12dp"
             android:orientation="vertical" android:gravity="end">

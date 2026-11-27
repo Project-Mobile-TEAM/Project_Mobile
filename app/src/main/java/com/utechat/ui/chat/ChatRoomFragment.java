@@ -62,6 +62,7 @@ import java.io.File;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
@@ -344,6 +345,7 @@ public class ChatRoomFragment extends Fragment {
             if (cid != null && isResumed()) {
                 Injection.provideActiveRoomTracker().setActive(cid);
                 Injection.provideNotificationHelper(requireContext()).cancelConversation(cid);
+                markRoomReactionsSeen(cid, vm.observeReactionsMap().getValue());
             }
         });
         vm.getMembers().observe(getViewLifecycleOwner(), m -> {
@@ -357,7 +359,21 @@ public class ChatRoomFragment extends Fragment {
                 b -> binding.loadingMore.setVisibility(Boolean.TRUE.equals(b) ? View.VISIBLE : View.GONE));
         vm.getTransfers().observe(getViewLifecycleOwner(), transfers -> adapter.setTransfersMap(transfers));
         vm.getTranslations().observe(getViewLifecycleOwner(), translations -> adapter.setTranslationState(translations));
-        vm.observeReactionsMap().observe(getViewLifecycleOwner(), adapter::setReactionsMap);
+        vm.observeReactionsMap().observe(getViewLifecycleOwner(), reactions -> {
+            if (isResumed()) {
+                markRoomReactionsSeen(vm.getConversationId().getValue(), reactions);
+            }
+            // Tự cuộn nhẹ xuống cuối nếu đang đứng ở đáy để chip cảm xúc dưới tin mới nhất không bị khuất.
+            boolean atBottom = !binding.messages.canScrollVertically(1);
+            adapter.setReactionsMap(reactions);
+            if (atBottom && adapter.getItemCount() > 0) {
+                binding.messages.post(() -> {
+                    if (binding != null && adapter.getItemCount() > 0) {
+                        binding.messages.scrollToPosition(adapter.getItemCount() - 1);
+                    }
+                });
+            }
+        });
         vm.getMessages().observe(getViewLifecycleOwner(), this::submit);
         vm.pendingScroll.observe(getViewLifecycleOwner(), id -> scrollToPending());
     }
@@ -1129,9 +1145,29 @@ public class ChatRoomFragment extends Fragment {
         if (activeConvId != null) {
             Injection.provideActiveRoomTracker().setActive(activeConvId);
             Injection.provideNotificationHelper(requireContext()).cancelConversation(activeConvId);
+            markRoomReactionsSeen(activeConvId, vm.observeReactionsMap().getValue());
         }
         if (stickerCatalogOpened) vm.refreshStickers(false);
         if (binding != null) binding.messages.post(this::markVisibleRead);
+    }
+
+    /** Đánh dấu đã xem mọi cảm xúc của người khác trong phòng đang mở để ẩn dòng báo ở danh sách chat. */
+    private void markRoomReactionsSeen(
+            @Nullable String cid, @Nullable Map<Long, List<MessageReactionEntity>> reactions) {
+        if (cid == null || reactions == null || reactions.isEmpty() || getContext() == null) return;
+        String meId = vm.meId();
+        long maxCreatedAt = 0L;
+        for (List<MessageReactionEntity> list : reactions.values()) {
+            if (list == null) continue;
+            for (MessageReactionEntity reaction : list) {
+                if (!Objects.equals(meId, reaction.getUserId()) && reaction.getCreatedAt() > maxCreatedAt) {
+                    maxCreatedAt = reaction.getCreatedAt();
+                }
+            }
+        }
+        if (maxCreatedAt > 0L) {
+            Injection.provideReactionSeenStore(requireContext()).markSeen(meId, cid, maxCreatedAt);
+        }
     }
 
     @Override

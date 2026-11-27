@@ -153,4 +153,5 @@
     <string name="chat_reaction_angry">Giận</string>
     <string name="chat_reactions_count">Cảm xúc (%1$d)</string>
     <string name="chat_reaction_option_count">%1$s (%2$d)</string>
+    <string name="notif_reaction_body">Đã bày tỏ %1$s với một tin nhắn</string>
 </resources>

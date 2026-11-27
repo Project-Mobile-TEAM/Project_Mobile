@@ -12,6 +12,7 @@ import androidx.recyclerview.widget.DiffUtil;
 import androidx.recyclerview.widget.ListAdapter;
 import androidx.recyclerview.widget.RecyclerView;
 import com.utechat.R;
+import com.utechat.data.local.ReactionSeenStore;
 import com.utechat.data.local.dao.ConversationListItem;
 import com.utechat.data.local.entity.UserEntity;
 import com.utechat.databinding.ItemConversationBinding;
@@ -30,6 +31,7 @@ public class ConversationListAdapter extends ListAdapter<ConversationListItem, C
     private final Consumer<ConversationListItem> onClick;
     @Nullable private Map<String, UserEntity> users;
     @Nullable private final String meId;
+    @NonNull private Map<String, Long> seenReactionTimestamps = Map.of();
 
     public ConversationListAdapter(@Nullable String meId, Consumer<ConversationListItem> onClick) {
         super(DIFF);
@@ -44,6 +46,14 @@ public class ConversationListAdapter extends ListAdapter<ConversationListItem, C
         notifyItemRangeChanged(0, getItemCount());
     }
 
+    /** Cập nhật mốc đã xem cảm xúc để ẩn dòng thông báo ngay sau khi vào phòng chat. */
+    public void setSeenReactionTimestamps(@Nullable Map<String, Long> map) {
+        Map<String, Long> next = map == null ? Map.of() : map;
+        if (Objects.equals(this.seenReactionTimestamps, next)) return;
+        this.seenReactionTimestamps = next;
+        notifyItemRangeChanged(0, getItemCount());
+    }
+
     static class Holder extends RecyclerView.ViewHolder {
         final ItemConversationBinding b;
         Holder(ItemConversationBinding b) { super(b.getRoot()); this.b = b; }
@@ -55,13 +65,19 @@ public class ConversationListAdapter extends ListAdapter<ConversationListItem, C
 
     @Override public void onBindViewHolder(@NonNull Holder h, int position) {
         ConversationListItem item = getItem(position);
-        bindConversation(h.b, item, users, meId);
+        bindConversation(h.b, item, users, meId, seenReactionTimestamps);
         h.itemView.setOnClickListener(v -> onClick.accept(item));
     }
 
     /** Dùng chung với GlobalSearchAdapter để hai danh sách trông giống hệt nhau. */
     static void bindConversation(ItemConversationBinding b, ConversationListItem item,
                                  @Nullable Map<String, UserEntity> users, @Nullable String meId) {
+        bindConversation(b, item, users, meId, Map.of());
+    }
+
+    static void bindConversation(ItemConversationBinding b, ConversationListItem item,
+                                 @Nullable Map<String, UserEntity> users, @Nullable String meId,
+                                 @NonNull Map<String, Long> seenReactionTimestamps) {
         Context c = b.getRoot().getContext();
         boolean group = "GROUP".equals(item.conversation.getType());
         String preview = SystemMessageFormatter.preview(c::getString, item.lastMessageType, item.lastMessageText,
@@ -69,6 +85,30 @@ public class ConversationListAdapter extends ListAdapter<ConversationListItem, C
                 item.lastMessageRecalledAt);
         bindRow(b, item.getEffectiveTitle(), preview, group, item.conversation.getLastMessageAt(),
                 item.conversation.getUnreadCount(), item.conversation.getMuted());
+        Long seenValue = seenReactionTimestamps.get(ReactionSeenStore.key(meId, item.conversation.getId()));
+        long seenAt = seenValue == null ? 0L : seenValue;
+        if (item.latestReactionEmoji != null
+                && item.latestReactionUserId != null
+                && !item.latestReactionUserId.equals(meId)
+                && item.latestReactionAt != null
+                && item.latestReactionAt >= item.conversation.getLastMessageAt()
+                && item.latestReactionAt > seenAt) {
+            String reactorName = resolveReactorName(c, item, users);
+            b.reactionNotice.setText(item.latestReactionEmoji + " " + reactorName);
+            b.reactionNotice.setVisibility(View.VISIBLE);
+        }
+    }
+
+    private static String resolveReactorName(
+            Context c, ConversationListItem item, @Nullable Map<String, UserEntity> users) {
+        UserEntity reactor = users == null ? null : users.get(item.latestReactionUserId);
+        String name = reactor != null ? reactor.getDisplayName() : null;
+        if ((name == null || name.isBlank())
+                && !"GROUP".equals(item.conversation.getType())
+                && Objects.equals(item.latestReactionUserId, item.peerUserId)) {
+            name = item.peerDisplayName;
+        }
+        return name == null || name.isBlank() ? c.getString(R.string.chat_someone) : name;
     }
 
     static void bindRow(ItemConversationBinding b, String title, CharSequence preview, boolean group,
@@ -78,6 +118,7 @@ public class ConversationListAdapter extends ListAdapter<ConversationListItem, C
         b.avatar.setText(group ? "" : initials(title));
         b.avatarGroup.setVisibility(group ? View.VISIBLE : View.GONE);
         b.preview.setText(preview);
+        b.reactionNotice.setVisibility(View.GONE);
         b.time.setText(timeMillis > 0 ? formatTime(c, timeMillis) : "");
         // Có tin chưa đọc: tên đậm, giờ màu nhấn, huy hiệu đỏ (Figma).
         boolean hasUnread = unread > 0;
@@ -122,6 +163,10 @@ public class ConversationListAdapter extends ListAdapter<ConversationListItem, C
                     && Objects.equals(a.lastMessageType, b.lastMessageType)
                     && Objects.equals(a.lastMessageAttachmentJson, b.lastMessageAttachmentJson)
                     && Objects.equals(a.lastMessageSenderId, b.lastMessageSenderId)
+                    && Objects.equals(a.lastMessageRecalledAt, b.lastMessageRecalledAt)
+                    && Objects.equals(a.latestReactionEmoji, b.latestReactionEmoji)
+                    && Objects.equals(a.latestReactionUserId, b.latestReactionUserId)
+                    && Objects.equals(a.latestReactionAt, b.latestReactionAt)
                     && a.conversation.getLastMessageAt() == b.conversation.getLastMessageAt()
                     && a.conversation.getUnreadCount() == b.conversation.getUnreadCount()
                     && a.conversation.getMuted() == b.conversation.getMuted();
