@@ -20,8 +20,12 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.StringRes;
+import androidx.appcompat.app.AlertDialog;
 import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.navigation.fragment.NavHostFragment;
@@ -32,11 +36,14 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.snackbar.Snackbar;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.utechat.BuildConfig;
 import com.utechat.R;
 import com.utechat.data.local.entity.AttachmentTransferEntity;
 import com.utechat.data.local.entity.ConversationEntity;
 import com.utechat.data.local.entity.ConversationMemberEntity;
 import com.utechat.data.local.entity.MessageEntity;
+import com.utechat.data.local.entity.MessageReactionEntity;
+import com.utechat.data.local.entity.StickerEntity;
 import com.utechat.data.local.entity.UserEntity;
 import com.utechat.data.media.LocationFetchHelper;
 import com.utechat.data.media.MediaDownloadManager;
@@ -44,7 +51,6 @@ import com.utechat.data.media.MediaPreparationHelper;
 import com.utechat.data.media.VoiceRecorderHelper;
 import com.utechat.data.session.SessionManager;
 import com.utechat.data.sync.WsConnectionState;
-import com.utechat.data.translate.MessageTranslator;
 import com.utechat.databinding.DialogAttachmentPickerBinding;
 import com.utechat.databinding.FragmentChatRoomBinding;
 import com.utechat.di.Injection;
@@ -80,6 +86,10 @@ public class ChatRoomFragment extends Fragment {
     @Nullable private VoiceRecorderHelper voiceRecorder;
     @Nullable private VoiceBubblePlayer voiceBubblePlayer;
     @Nullable private BottomSheetDialog attachmentSheet;
+    @Nullable private BottomSheetDialog chatSheet;
+    @Nullable private AlertDialog messageConfirmation;
+    @Nullable private StickerTrayView stickerTray;
+    private boolean stickerCatalogOpened;
     @Nullable private String pendingCameraFilePath;
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -247,7 +257,16 @@ public class ChatRoomFragment extends Fragment {
 
             @Override
             public void onTextLongClick(@NonNull MessageEntity message) {
-                showTranslationMenu(message);
+                showMessageActionSheet(message);
+            }
+
+            @Override
+            public void onReactionsClick(@NonNull MessageEntity message,
+                    @NonNull List<MessageReactionEntity> reactions) {
+                if (chatSheet != null) chatSheet.dismiss();
+                Map<String, UserEntity> users = vm.getUsers().getValue();
+                chatSheet = ReactionDetailsBottomSheet.show(
+                        requireContext(), reactions, users == null ? Map.of() : users, vm.meId());
             }
 
             @Override
@@ -285,6 +304,7 @@ public class ChatRoomFragment extends Fragment {
             @Override public void afterTextChanged(Editable e) { }
         };
         binding.input.addTextChangedListener(inputWatcher);
+        bindStickerTray();
         binding.send.setOnClickListener(v -> {
             String text = binding.input.getText().toString();
             if (text.isBlank()) return;
@@ -337,8 +357,54 @@ public class ChatRoomFragment extends Fragment {
                 b -> binding.loadingMore.setVisibility(Boolean.TRUE.equals(b) ? View.VISIBLE : View.GONE));
         vm.getTransfers().observe(getViewLifecycleOwner(), transfers -> adapter.setTransfersMap(transfers));
         vm.getTranslations().observe(getViewLifecycleOwner(), translations -> adapter.setTranslationState(translations));
+        vm.observeReactionsMap().observe(getViewLifecycleOwner(), adapter::setReactionsMap);
         vm.getMessages().observe(getViewLifecycleOwner(), this::submit);
         vm.pendingScroll.observe(getViewLifecycleOwner(), id -> scrollToPending());
+    }
+
+    /** Nối khay với bộ đã cài trong Room và chia sẻ chỗ hiển thị với bàn phím. */
+    private void bindStickerTray() {
+        stickerTray = new StickerTrayView(binding.stickerTray, this::sendSticker, this::openStickerStore);
+        vm.observeInstalledStickerPacks().observe(getViewLifecycleOwner(), stickerTray::setPacks);
+        vm.observeInstalledStickers().observe(getViewLifecycleOwner(), stickerTray::setStickers);
+        binding.sticker.setOnClickListener(view -> {
+            if (stickerTray.isOpen()) {
+                stickerTray.setOpen(false);
+                return;
+            }
+            binding.input.clearFocus();
+            WindowInsetsControllerCompat insets = ViewCompat.getWindowInsetsController(view);
+            if (insets != null) insets.hide(WindowInsetsCompat.Type.ime());
+            stickerTray.setOpen(true);
+            stickerCatalogOpened = true;
+            vm.refreshStickers(false);
+        });
+        binding.input.setOnFocusChangeListener((view, focused) -> {
+            if (focused) closeStickerTray();
+        });
+        binding.input.setOnClickListener(view -> closeStickerTray());
+    }
+
+    private void openStickerStore() {
+        if (chatSheet != null) chatSheet.dismiss();
+        chatSheet = StickerStoreDialog.show(requireContext(), getViewLifecycleOwner(),
+                vm.observeAllStickerPacks(), vm::installStickerPack, vm::uninstallStickerPack);
+        vm.refreshStickers();
+    }
+
+    private void sendSticker(@NonNull StickerEntity sticker) {
+        if (readOnly || binding.composer.getVisibility() != View.VISIBLE) return;
+        // Tin gửi ngoại tuyến dùng ảnh đã tải trong bộ nhãn dán của ứng dụng.
+        if (!BuildConfig.USE_FAKE_DATA && StickerTrayView.cachedStickerFile(requireContext(), sticker.getLocalPath()) == null) {
+            showSnackbar(R.string.sticker_unavailable_offline);
+            return;
+        }
+        vm.sendSticker(sticker);
+        closeStickerTray();
+    }
+
+    private void closeStickerTray() {
+        if (stickerTray != null) stickerTray.setOpen(false);
     }
 
     // ======================== ĐÍNH KÈM MEDIA, CAMERA, GHI ÂM, VỊ TRÍ (D-02) ========================
@@ -757,36 +823,58 @@ public class ChatRoomFragment extends Fragment {
         }
     }
 
-    /**
-     * Menu dịch thẳng EN <-> VI trên tin nhắn TEXT (D-13, D-14):
-     * không dùng Language ID và không bao giờ hiển thị trên SYSTEM/CALL/media.
-     */
-    private void showTranslationMenu(@NonNull MessageEntity message) {
-        if (!"TEXT".equals(message.getType()) || message.getText() == null || message.getText().trim().isEmpty()) {
-            return;
-        }
-        boolean hasTranslation = vm.hasActiveTranslation(message.getClientId());
-        CharSequence[] options = hasTranslation
-                ? new CharSequence[]{
-                        getString(R.string.chat_translate_to_vi),
-                        getString(R.string.chat_translate_to_en),
-                        getString(R.string.chat_translation_hide)
+    /** Dùng chung một menu cho dịch, thả cảm xúc và thao tác tin nhắn. */
+    private void showMessageActionSheet(@NonNull MessageEntity message) {
+        Map<Long, List<MessageReactionEntity>> reactions = vm.observeReactionsMap().getValue();
+        String userId = vm.meId();
+        String currentEmoji = null;
+        if (reactions != null && message.getServerId() != null) {
+            for (MessageReactionEntity reaction : reactions.getOrDefault(message.getServerId(), List.of())) {
+                if (reaction.getUserId().equals(userId)) {
+                    currentEmoji = reaction.getEmoji();
+                    break;
                 }
-                : new CharSequence[]{
-                        getString(R.string.chat_translate_to_vi),
-                        getString(R.string.chat_translate_to_en)
-                };
-        new MaterialAlertDialogBuilder(requireContext())
-                .setTitle(R.string.chat_translate_menu_title)
-                .setItems(options, (dialog, which) -> {
-                    if (which == 0) {
-                        vm.requestTranslate(message, MessageTranslator.LANG_VI, false);
-                    } else if (which == 1) {
-                        vm.requestTranslate(message, MessageTranslator.LANG_EN, false);
-                    } else if (which == 2 && message.getClientId() != null) {
-                        vm.hideTranslation(message.getClientId());
+            }
+        }
+
+        String policy = ChatRoomViewModel.policyBanner(vm.openError.getValue(), vm.getMessages().getValue(), userId);
+        if (chatSheet != null) chatSheet.dismiss();
+        chatSheet = MessageActionBottomSheet.show(requireContext(), message, userId, currentEmoji,
+                readOnly, "BLOCKED".equals(policy), vm.hasActiveTranslation(message.getClientId()),
+                new MessageActionBottomSheet.Listener() {
+                    @Override public void onEmojiSelected(String emoji) {
+                        vm.toggleReaction(message, emoji);
                     }
-                })
+
+                    @Override public void onTranslate(String language) {
+                        vm.requestTranslate(message, language, false);
+                    }
+
+                    @Override public void onHideTranslation() {
+                        if (message.getClientId() != null) vm.hideTranslation(message.getClientId());
+                    }
+
+                    @Override public void onRecall() {
+                        confirmMessageAction(R.string.chat_recall_confirm_title, R.string.chat_recall_confirm_message,
+                                R.string.chat_action_recall, () -> vm.recallMessage(message));
+                    }
+
+                    @Override public void onDeleteForMe() {
+                        confirmMessageAction(R.string.chat_delete_for_me_confirm_title,
+                                R.string.chat_delete_for_me_confirm_message, R.string.chat_action_delete_for_me,
+                                () -> vm.deleteMessageForMe(message));
+                    }
+                });
+    }
+
+    private void confirmMessageAction(@StringRes int title, @StringRes int message,
+            @StringRes int action, Runnable confirm) {
+        if (messageConfirmation != null) messageConfirmation.dismiss();
+        messageConfirmation = new MaterialAlertDialogBuilder(requireContext())
+                .setTitle(title)
+                .setMessage(message)
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton(action, (dialog, button) -> confirm.run())
                 .show();
     }
 
@@ -919,6 +1007,7 @@ public class ChatRoomFragment extends Fragment {
         boolean disabled = readOnly || noConversation;
         binding.readOnlyBar.setVisibility(readOnly ? View.VISIBLE : View.GONE);
         if (disabled) {
+            closeStickerTray();
             if (voiceRecorder != null && voiceRecorder.isRecording()) {
                 mainHandler.removeCallbacks(voiceRecordTicker);
                 voiceRecorder.cancelAndDelete();
@@ -927,6 +1016,7 @@ public class ChatRoomFragment extends Fragment {
             binding.composer.setVisibility(View.GONE);
         } else {
             boolean recording = voiceRecorder != null && voiceRecorder.isRecording();
+            if (recording) closeStickerTray();
             binding.recordingBar.setVisibility(recording ? View.VISIBLE : View.GONE);
             binding.composer.setVisibility(recording ? View.GONE : View.VISIBLE);
         }
@@ -965,6 +1055,7 @@ public class ChatRoomFragment extends Fragment {
     }
 
     private void openSearch() {
+        closeStickerTray();
         binding.roomSearch.setVisibility(View.VISIBLE);
         binding.roomQuery.requestFocus();
     }
@@ -1039,6 +1130,7 @@ public class ChatRoomFragment extends Fragment {
             Injection.provideActiveRoomTracker().setActive(activeConvId);
             Injection.provideNotificationHelper(requireContext()).cancelConversation(activeConvId);
         }
+        if (stickerCatalogOpened) vm.refreshStickers(false);
         if (binding != null) binding.messages.post(this::markVisibleRead);
     }
 
@@ -1067,6 +1159,11 @@ public class ChatRoomFragment extends Fragment {
     @Override
     public void onDestroyView() {
         dismissAttachmentSheet();
+        if (chatSheet != null) chatSheet.dismiss();
+        if (messageConfirmation != null) messageConfirmation.dismiss();
+        chatSheet = null;
+        messageConfirmation = null;
+        stickerTray = null;
         mainHandler.removeCallbacks(voiceRecordTicker);
         if (voiceRecorder != null) {
             voiceRecorder.cancelAndDelete();

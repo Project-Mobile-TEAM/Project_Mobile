@@ -19,11 +19,16 @@ import com.utechat.data.local.entity.AttachmentTransferEntity;
 import com.utechat.data.local.entity.ConversationEntity;
 import com.utechat.data.local.entity.ConversationMemberEntity;
 import com.utechat.data.local.entity.MessageEntity;
+import com.utechat.data.local.entity.MessageReactionEntity;
+import com.utechat.data.local.entity.StickerEntity;
+import com.utechat.data.local.entity.StickerPackEntity;
 import com.utechat.data.local.entity.UserEntity;
 import com.utechat.data.media.LocationFetchHelper;
 import com.utechat.data.media.MediaPreparationHelper;
 import com.utechat.data.repository.ChatRepository;
+import com.utechat.data.repository.ChatResult;
 import com.utechat.data.repository.ContactsRepository;
+import com.utechat.data.repository.StickerRepository;
 import com.utechat.data.sync.WsConnectionState;
 import com.utechat.data.translate.MessageTranslationManager;
 import com.utechat.di.Injection;
@@ -68,7 +73,8 @@ public class ChatRoomViewModel extends ViewModel {
                         Injection.provideMessageTranslationManager(app),
                         Injection.provideMediaPreparationHelper(),
                         Injection.provideCallSessionCoordinator(app),
-                        Injection.provideLocationFetchHelper());
+                        Injection.provideLocationFetchHelper(),
+                        Injection.provideStickerRepository(app));
             }));
 
     private final SavedStateHandle state;
@@ -78,6 +84,11 @@ public class ChatRoomViewModel extends ViewModel {
     @Nullable private final MediaPreparationHelper mediaPreparationHelper;
     @Nullable private final CallSessionCoordinator callCoordinator;
     @Nullable private final LocationFetchHelper locationFetchHelper;
+    @Nullable private final StickerRepository stickerRepository;
+    private final LiveData<Map<Long, List<MessageReactionEntity>>> reactionsMap;
+    private final LiveData<List<StickerPackEntity>> allStickerPacks;
+    private final LiveData<List<StickerPackEntity>> installedStickerPacks;
+    private final LiveData<List<StickerEntity>> installedStickers;
 
     /** true khi đã gửi lời mời kết bạn từ biểu ngữ CONTACT_REQUIRED (ẩn nút, hiện "Đã gửi lời mời"). */
     public final MutableLiveData<Boolean> requestSent = new MutableLiveData<>(false);
@@ -121,6 +132,18 @@ public class ChatRoomViewModel extends ViewModel {
             @Nullable MediaPreparationHelper mediaPreparationHelper,
             @Nullable CallSessionCoordinator callCoordinator,
             @Nullable LocationFetchHelper locationFetchHelper) {
+        this(state, repo, contacts, translationManager, mediaPreparationHelper, callCoordinator,
+                locationFetchHelper, null);
+    }
+
+    /** Kho nhãn dán được tiêm theo phiên, các constructor cũ vẫn dùng được trong kiểm thử. */
+    public ChatRoomViewModel(
+            SavedStateHandle state, ChatRepository repo, ContactsRepository contacts,
+            @Nullable MessageTranslationManager translationManager,
+            @Nullable MediaPreparationHelper mediaPreparationHelper,
+            @Nullable CallSessionCoordinator callCoordinator,
+            @Nullable LocationFetchHelper locationFetchHelper,
+            @Nullable StickerRepository stickerRepository) {
         this.state = state;
         this.repo = repo;
         this.contacts = contacts;
@@ -128,8 +151,28 @@ public class ChatRoomViewModel extends ViewModel {
         this.mediaPreparationHelper = mediaPreparationHelper;
         this.callCoordinator = callCoordinator;
         this.locationFetchHelper = locationFetchHelper;
+        this.stickerRepository = stickerRepository;
+        allStickerPacks = stickerRepository == null
+                ? new MutableLiveData<>(List.of()) : stickerRepository.observeAllPacks();
+        installedStickerPacks = stickerRepository == null
+                ? new MutableLiveData<>(List.of()) : stickerRepository.observeInstalledPacks();
+        installedStickers = stickerRepository == null
+                ? new MutableLiveData<>(List.of()) : stickerRepository.observeInstalledStickers();
 
         conversationId = state.getLiveData(K_CONV);
+        // Chỉ lắng nghe phòng đang xem, gom lượt thả theo ID tin nhắn phía server.
+        reactionsMap = Transformations.switchMap(conversationId, id -> {
+            LiveData<List<MessageReactionEntity>> source = id == null ? null : repo.observeReactions(id);
+            return source == null ? new MutableLiveData<>(Map.of()) : Transformations.map(source, rows -> {
+                Map<Long, List<MessageReactionEntity>> grouped = new LinkedHashMap<>();
+                if (rows != null) {
+                    for (MessageReactionEntity row : rows) {
+                        grouped.computeIfAbsent(row.getMessageServerId(), ignored -> new ArrayList<>()).add(row);
+                    }
+                }
+                return grouped;
+            });
+        });
         LiveData<Integer> window = state.getLiveData(K_WINDOW, PAGE);
         messages = Transformations.switchMap(conversationId, id -> id == null
                 ? new MutableLiveData<>(Collections.emptyList())
@@ -264,6 +307,57 @@ public class ChatRoomViewModel extends ViewModel {
         repo.sendTypingStop(id);
     }
 
+    public LiveData<Map<Long, List<MessageReactionEntity>>> observeReactionsMap() { return reactionsMap; }
+    public LiveData<List<StickerPackEntity>> observeAllStickerPacks() { return allStickerPacks; }
+    public LiveData<List<StickerPackEntity>> observeInstalledStickerPacks() { return installedStickerPacks; }
+    public LiveData<List<StickerEntity>> observeInstalledStickers() { return installedStickers; }
+
+    /** Gỡ, xóa và thả cảm xúc chỉ áp dụng trên tin đã có ID server. */
+    public void recallMessage(@NonNull MessageEntity message) {
+        String id = state.get(K_CONV);
+        if (id != null && message.getServerId() != null) reportAction(repo.recallMessage(id, message.getServerId()));
+    }
+
+    public void deleteMessageForMe(@NonNull MessageEntity message) {
+        String id = state.get(K_CONV);
+        if (id != null && message.getServerId() != null) reportAction(repo.deleteMessageForMe(id, message.getServerId()));
+    }
+
+    public void toggleReaction(@NonNull MessageEntity message, @Nullable String emoji) {
+        String id = state.get(K_CONV);
+        if (id != null && message.getServerId() != null) reportAction(repo.toggleReaction(id, message.getServerId(), emoji));
+    }
+
+    public void sendSticker(@NonNull StickerEntity sticker) {
+        String id = state.get(K_CONV);
+        if (id != null) repo.enqueueStickerMessage(id, sticker);
+    }
+
+    public void refreshStickers() { refreshStickers(true); }
+
+    /** Cập nhật nền vẫn cho mở bộ đã tải khi mất mạng. */
+    void refreshStickers(boolean showError) {
+        if (stickerRepository == null) return;
+        LiveData<ChatResult<Boolean>> result = stickerRepository.refreshPacks();
+        if (showError) reportAction(result);
+    }
+
+    public void installStickerPack(@NonNull String packId) {
+        if (stickerRepository != null) reportAction(stickerRepository.installPack(packId));
+    }
+
+    public void uninstallStickerPack(@NonNull String packId) {
+        if (stickerRepository != null) reportAction(stickerRepository.uninstallPack(packId));
+    }
+
+    private void reportAction(LiveData<ChatResult<Boolean>> result) {
+        if (result == null) return;
+        Once.observe(result, response -> {
+            if (!response.isSuccess()) notice.setValue("NETWORK".equals(response.errorCode)
+                    ? R.string.chat_action_requires_network : ChatErrors.message(response.errorCode));
+        });
+    }
+
     /** Xếp tệp media đã chuẩn bị (IMAGE/AUDIO/VIDEO/FILE) vào hàng đợi gửi 2 pha (D-04). */
     public void enqueuePreparedMedia(
             @NonNull MediaPreparationHelper.PreparedMedia prepared, @Nullable String caption) {
@@ -289,7 +383,7 @@ public class ChatRoomViewModel extends ViewModel {
      */
     public void requestTranslate(
             @NonNull MessageEntity message, @NonNull String targetLang, boolean cellularConfirmed) {
-        if (translationManager == null || message.getClientId() == null) {
+        if (translationManager == null || message.getClientId() == null || message.getRecalledAt() != null) {
             return;
         }
         final String clientId = message.getClientId();
@@ -355,11 +449,18 @@ public class ChatRoomViewModel extends ViewModel {
     /** Khôi phục bản dịch đã chọn từ SavedStateHandle bằng cách đọc lại từ cache Room qua manager (ADR-021). */
     public void rehydrateSavedTranslations(@Nullable List<MessageEntity> loadedMessages) {
         HashMap<String, String> savedLangs = getSavedMap(K_TRANS_LANGS);
-        if (savedLangs.isEmpty() || loadedMessages == null || translationManager == null) {
+        if (loadedMessages == null || translationManager == null) {
             return;
         }
         for (MessageEntity m : loadedMessages) {
             if (m == null || m.getClientId() == null) continue;
+            if (m.getRecalledAt() != null) {
+                if (savedLangs.containsKey(m.getClientId()) || translationGenerations.remove(m.getClientId()) != null) {
+                    hideTranslation(m.getClientId());
+                    translationGenerations.remove(m.getClientId());
+                }
+                continue;
+            }
             String lang = savedLangs.get(m.getClientId());
             if (lang != null && !translationEntries.containsKey(m.getClientId())) {
                 requestTranslate(m, lang, false);
