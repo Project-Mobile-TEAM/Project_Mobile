@@ -268,6 +268,7 @@ Room là bản lưu cục bộ phục vụ offline-first (ADR-009). **Server là
 | `message_fts` | FTS4 trên `message.text` và `normalized_text` | Tìm kiếm tin nhắn offline (ADR-016). Cột `normalized_text` được chuẩn hóa (loại bỏ dấu tiếng Việt kết hợp, đổi đ/Đ → d, chuyển chữ thường); hỗ trợ tìm kiếm cả tiếng Việt có dấu và không dấu |
 | `message_translation` | `messageKey`, `targetLang`, `translatedText` | Bản dịch lưu cục bộ (ADR-014) |
 | `message_reaction` | `messageServerId`, `userId`, `emoji`, `createdAt` | Room v4 lưu một cảm xúc cho mỗi người trên mỗi tin. |
+| `message_deletion` | `messageServerId` (PK) | Giữ dấu xóa phía bạn để phản hồi gửi tin hoặc tải lịch sử đến muộn không khôi phục tin đã xóa. Nội dung tin được dọn khỏi bảng `message`. |
 | `sticker_pack` | `id`, `code`, tên, thứ tự, trạng thái đã thêm | Room v4 lưu danh mục theo phiên tài khoản để mở khay offline. |
 | `sticker` | `id`, `packId`, URL và đường dẫn cache | Room v4 lưu metadata và vị trí ảnh đã tải. |
 | `sync_state` | `lastSyncEventId`, `lastSyncAt` | Con trỏ đồng bộ sự kiện qua `GET /api/sync?after=<lastSyncEventId>` |
