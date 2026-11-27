@@ -24,6 +24,8 @@ import androidx.lifecycle.SavedStateHandle;
 import com.utechat.R;
 import com.utechat.data.local.entity.ConversationMemberEntity;
 import com.utechat.data.local.entity.MessageEntity;
+import com.utechat.data.local.entity.MessageReactionEntity;
+import com.utechat.data.local.entity.StickerEntity;
 import com.utechat.data.media.MediaPreparationHelper;
 import com.utechat.data.repository.ChatRepository;
 import com.utechat.data.repository.ChatResult;
@@ -224,6 +226,86 @@ public class ChatViewModelTest {
         verify(r, times(1)).enqueueMediaMessage("c1", media, "Ảnh lớp học");
         verify(r, times(1)).enqueueLocationMessage("c1", 10.8506, 106.7719);
         verify(r, times(2)).sendTypingStop("c1");
+    }
+
+    @Test public void messageActionVisibilityRespectsSenderTimeTypeAndMembership() {
+        long now = 200_000_000L;
+        MessageEntity message = msg("me", "TEXT", "SENT");
+        message.setServerId(20L);
+        message.setText("Hello");
+        message.setCreatedAt(now - 10_000L);
+        var allowed = MessageActionBottomSheet.computeVisibility(message, "me", false, false, false, now);
+        assertTrue(allowed.showEmojiBar && allowed.showTranslateVi && allowed.showTranslateEn
+                && allowed.showRecall && allowed.showDeleteForMe);
+        assertFalse(MessageActionBottomSheet.computeVisibility(message, "peer", false, false, false, now)
+                .showRecall);
+        for (boolean left : new boolean[]{true, false}) {
+            var readOnly = MessageActionBottomSheet.computeVisibility(message, "me", left, !left, false, now);
+            assertFalse(readOnly.showRecall || readOnly.showEmojiBar);
+            assertTrue(readOnly.showDeleteForMe);
+        }
+        message.setCreatedAt(now - 86_400_000L);
+        assertFalse(MessageActionBottomSheet.computeVisibility(message, "me", false, false, false, now)
+                .showRecall);
+        message.setCreatedAt(now - 10_000L);
+        for (String type : List.of("SYSTEM", "CALL")) {
+            message.setType(type);
+            var special = MessageActionBottomSheet.computeVisibility(message, "me", false, false, false, now);
+            assertFalse(special.showRecall || special.showTranslateVi || special.showTranslateEn);
+            assertEquals("CALL".equals(type), special.showEmojiBar);
+        }
+        message.setType("TEXT");
+        message.setRecalledAt(now);
+        var recalled = MessageActionBottomSheet.computeVisibility(message, "me", false, false, false, now);
+        assertFalse(recalled.showRecall || recalled.showEmojiBar || recalled.showTranslateVi);
+        assertTrue(recalled.showDeleteForMe);
+        message.setServerId(null);
+        assertFalse(MessageActionBottomSheet.computeVisibility(message, "me", false, false, false, now)
+                .showDeleteForMe);
+    }
+
+    @Test public void stickerAndRecalledRowsUseDedicatedPreviewAndViewTypes() {
+        MessageEntity outgoing = msg("me", "STICKER", "SENT");
+        MessageEntity incoming = msg("peer", "STICKER", "SENT");
+        assertEquals(MessageAdapter.TYPE_STICKER_OUT, MessageAdapter.viewType(outgoing, "me"));
+        assertEquals(MessageAdapter.TYPE_STICKER_IN, MessageAdapter.viewType(incoming, "me"));
+        incoming.setRecalledAt(1000L);
+        assertEquals(MessageAdapter.TYPE_TEXT_IN, MessageAdapter.viewType(incoming, "me"));
+        assertEquals(String.valueOf(R.string.chat_type_sticker), SystemMessageFormatter.preview(
+                (id, args) -> String.valueOf(id), "STICKER", null, null, "peer", false, Map.of(), "me", null));
+        assertEquals(String.valueOf(R.string.chat_message_recalled), SystemMessageFormatter.preview(
+                (id, args) -> String.valueOf(id), "IMAGE", null, null, "peer", false, Map.of(), "me", 1000L));
+        assertEquals(R.string.chat_error_recall_expired, ChatErrors.message("RECALL_EXPIRED"));
+    }
+
+    @Test public void phase7ViewModelGroupsReactionsAndSurfacesOfflineNotice() {
+        ChatRepository repository = repo();
+        when(repository.observeReactions("c1")).thenReturn(new MutableLiveData<>(List.of(
+                new MessageReactionEntity(20L, "me", "👍", 110L),
+                new MessageReactionEntity(20L, "peer", "❤️", 120L),
+                new MessageReactionEntity(21L, "peer", "👍", 130L))));
+        when(repository.recallMessage("c1", 20L)).thenReturn(new MutableLiveData<>(ChatResult.error("NETWORK")));
+        when(repository.deleteMessageForMe("c1", 20L)).thenReturn(new MutableLiveData<>(ChatResult.error("NETWORK")));
+        when(repository.toggleReaction("c1", 20L, "👍")).thenReturn(new MutableLiveData<>(ChatResult.error("NETWORK")));
+        ChatRoomViewModel vm = new ChatRoomViewModel(
+                new SavedStateHandle(Map.of("conversationId", "c1")), repository, mock(ContactsRepository.class));
+        vm.observeReactionsMap().observeForever(reactions -> {});
+        Map<Long, List<MessageReactionEntity>> grouped = vm.observeReactionsMap().getValue();
+        assertNotNull(grouped);
+        assertEquals(2, grouped.get(20L).size());
+        assertEquals(1, grouped.get(21L).size());
+
+        MessageEntity message = msg("me", "TEXT", "SENT");
+        message.setServerId(20L);
+        for (Runnable action : List.<Runnable>of(() -> vm.recallMessage(message),
+                () -> vm.deleteMessageForMe(message), () -> vm.toggleReaction(message, "👍"))) {
+            vm.notice.setValue(null);
+            action.run();
+            assertEquals(Integer.valueOf(R.string.chat_action_requires_network), vm.notice.getValue());
+        }
+        StickerEntity sticker = new StickerEntity();
+        vm.sendSticker(sticker);
+        verify(repository).enqueueStickerMessage("c1", sticker);
     }
 
     private static MessageEntity msg(String sender, String type, String status) {
