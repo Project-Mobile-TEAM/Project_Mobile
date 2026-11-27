@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Cửa hàng hiển thị trạng thái tải và gỡ theo tài khoản. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:orientation="vertical" android:padding="16dp">
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:textAppearance="?attr/textAppearanceTitleLarge" android:text="@string/sticker_store_title" />
+    <TextView android:id="@+id/sticker_store_empty"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:paddingVertical="24dp" android:text="@string/sticker_store_empty"
+        android:textColor="?attr/colorOnSurfaceVariant" android:visibility="gone" />
+    <androidx.recyclerview.widget.RecyclerView android:id="@+id/sticker_store_list"
+        android:layout_width="match_parent" android:layout_height="264dp" android:layout_marginTop="8dp" />
+</LinearLayout>

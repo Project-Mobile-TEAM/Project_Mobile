@@ -18,6 +18,10 @@ import com.utechat.data.local.entity.AttachmentTransferEntity;
 import com.utechat.data.local.entity.ConversationEntity;
 import com.utechat.data.local.entity.ConversationMemberEntity;
 import com.utechat.data.local.entity.MessageEntity;
+import com.utechat.data.local.entity.MessageReactionEntity;
+import com.utechat.data.local.entity.StickerEntity;
+import com.utechat.data.local.entity.StickerPackEntity;
+import com.utechat.data.local.entity.SyncStateEntity;
 import com.utechat.data.local.entity.UserEntity;
 import com.utechat.data.media.MediaPreparationHelper;
 import com.utechat.data.remote.api.ChatApi;
@@ -41,6 +45,9 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Executor;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
+import retrofit2.Call;
 import retrofit2.Response;
 
 /**
@@ -420,47 +427,168 @@ public class RealChatRepository implements ChatRepository {
     public LiveData<ChatResult<Integer>> loadOlderMessages(
             String conversationId, @Nullable Long beforeServerId, int limit) {
         MutableLiveData<ChatResult<Integer>> out = new MutableLiveData<>();
-        String sessionKey = session.sessionKey();
-        String meId = session.getUserId();
-        if (sessionKey == null || meId == null) {
+        CapturedChatSession request = CapturedChatSession.capture(session);
+        if (request == null) {
             postResult(out, ChatResult.error("UNAUTHENTICATED"));
             return out;
         }
+        // Chụp con trỏ và mốc cảm xúc trước khi tải trang lịch sử để không bỏ sót reactions khi chỉ có biên nhận đọc mới.
+        diskExecutor.execute(() -> session.runIfCurrent(request.key(), () -> {
+            long cursor = readCursor(request.userId());
+            long reactionVersion = applier.reactionEventVersion();
+            networkExecutor.execute(() -> loadHistoryPage(
+                    out, request, conversationId, beforeServerId, limit, cursor, reactionVersion));
+        }));
+        return out;
+    }
 
-        networkExecutor.execute(() -> {
-            try {
-                Response<List<ChatDtos.MessageDto>> res = api.getMessages(conversationId, beforeServerId, limit).execute();
-                if (!sessionKey.equals(session.sessionKey())) return;
-                if (res.isSuccessful()) {
-                    List<ChatDtos.MessageDto> list = res.body() != null ? res.body() : Collections.emptyList();
+    private void loadHistoryPage(MutableLiveData<ChatResult<Integer>> out, CapturedChatSession request,
+                                 String conversationId, @Nullable Long beforeServerId, int limit,
+                                 long cursor, long reactionVersion) {
+        if (!request.key().equals(session.sessionKey())) {
+            return;
+        }
+        try {
+            Response<List<ChatDtos.MessageDto>> res =
+                    api.getMessages(request.authorization(), conversationId, beforeServerId, limit).execute();
+            if (!res.isSuccessful()) {
+                ChatResult<Integer> error = parseErrorResult(res);
+                if (res.code() == 401) {
+                    request.expire(session);
+                } else if (res.code() == 403 && "NOT_A_MEMBER".equals(error.errorCode)) {
+                    diskExecutor.execute(() -> session.runIfCurrent(request.key(), () -> {
+                        // Không ghi đè sự kiện tái gia nhập đã đến trong lúc trang lịch sử đang tải.
+                        if (readCursor(request.userId()) == cursor) {
+                            db.conversationDao().markMemberLeft(conversationId, request.userId());
+                        }
+                    }));
+                }
+                postForSession(out, request, error);
+                return;
+            }
+            List<ChatDtos.MessageDto> list = res.body() != null ? res.body() : Collections.emptyList();
+            diskExecutor.execute(() -> {
+                boolean saved = session.runIfCurrent(request.key(), () -> db.runInTransaction(() -> {
+                    String meId = request.userId();
+                    boolean currentReactions = applier.reactionEventVersion() == reactionVersion;
+                    List<ConversationMemberEntity> members = db.conversationDao().getMembersSync(conversationId);
+                    for (ChatDtos.MessageDto dto : list) {
+                        if (dto == null || dto.id <= 0 || !conversationId.equals(dto.conversationId)) {
+                            continue;
+                        }
+                        // DAO bảo toàn mốc gỡ và kiểm dấu xóa riêng trước khi chèn trang lịch sử.
+                        String status = SyncEventApplier.deriveMessageStatus(dto, meId, members);
+                        MessageEntity message = SyncEventApplier.toMessageEntity(dto, status);
+                        if (!db.messageDao().insertRespectingVisibleFrom(message, meId)) {
+                            continue;
+                        }
+                        if (message.getRecalledAt() != null) {
+                            applier.applyRecall(dto.id, message.getRecalledAt());
+                        } else if (currentReactions
+                                || (dto.reactions != null && !dto.reactions.isEmpty()
+                                && db.reactionDao().findByMessageSync(dto.id).isEmpty())) {
+                            applier.syncMessageReactions(dto.id, dto.reactions);
+                        }
+                    }
+                }));
+                if (saved) {
+                    postForSession(out, request, ChatResult.ok(list.size()));
+                }
+            });
+        } catch (IOException e) {
+            postForSession(out, request, ChatResult.error("NETWORK"));
+        }
+    }
+
+    @Override
+    public LiveData<List<MessageReactionEntity>> observeReactions(String conversationId) {
+        return db.reactionDao().observeByConversation(conversationId);
+    }
+
+    @Override
+    public LiveData<ChatResult<Boolean>> recallMessage(String conversationId, long serverId) {
+        return runMessageAction(
+                auth -> api.recallMessage(auth, conversationId, serverId),
+                (request, body) -> {
+                    long at = body == null ? 0L : SyncEventApplier.parseIsoMillis(body.recalledAt, 0L);
+                    if (at > 0L) {
+                        applier.applyRecall(serverId, at);
+                    }
+                }, false);
+    }
+
+    @Override
+    public LiveData<ChatResult<Boolean>> deleteMessageForMe(String conversationId, long serverId) {
+        return runMessageAction(
+                auth -> api.deleteMessageForMe(auth, conversationId, serverId),
+                (request, body) -> applier.applyDeleteForMe(conversationId, serverId, request.userId()), false);
+    }
+
+    @Override
+    public LiveData<ChatResult<Boolean>> toggleReaction(String conversationId, long serverId, @Nullable String emoji) {
+        return runMessageAction(
+                auth -> api.updateReaction(auth, conversationId, serverId, new ChatDtos.ReactionRequest(emoji)),
+                (request, body) -> {
+                    if (body != null && body.messageId == serverId) {
+                        applier.syncMessageReactions(serverId, body.reactions);
+                    }
+                }, true);
+    }
+
+    /** Thao tác nhấn giữ chỉ sửa Room sau phản hồi thành công của đúng phiên. */
+    private <T> LiveData<ChatResult<Boolean>> runMessageAction(
+            Function<String, Call<T>> createCall, BiConsumer<CapturedChatSession, T> apply, boolean checkCursor) {
+        MutableLiveData<ChatResult<Boolean>> out = new MutableLiveData<>();
+        CapturedChatSession request = CapturedChatSession.capture(session);
+        if (request == null) {
+            postResult(out, ChatResult.error("UNAUTHENTICATED"));
+            return out;
+        }
+        diskExecutor.execute(() -> session.runIfCurrent(request.key(), () -> {
+            long cursor = checkCursor ? readCursor(request.userId()) : -1L;
+            networkExecutor.execute(() -> {
+                if (!request.key().equals(session.sessionKey())) {
+                    return;
+                }
+                try {
+                    Response<T> response = createCall.apply(request.authorization()).execute();
+                    if (!response.isSuccessful()) {
+                        if (response.code() == 401) {
+                            request.expire(session);
+                        }
+                        postForSession(out, request, parseErrorResult(response));
+                        return;
+                    }
                     diskExecutor.execute(() -> {
-                        boolean saved = session.runIfCurrent(sessionKey, () -> db.runInTransaction(() -> {
-                            List<ConversationMemberEntity> members = db.conversationDao().getMembersSync(conversationId);
-                            for (ChatDtos.MessageDto dto : list) {
-                                if (dto == null || dto.id <= 0) continue;
-                                // Suy luận trạng thái biên nhận từ watermark thành viên (ADR-010, D-11) và giữ nguyên metadata Phase 6.
-                                String status = SyncEventApplier.deriveMessageStatus(dto, meId, members);
-                                db.messageDao().insertRespectingVisibleFrom(
-                                        SyncEventApplier.toMessageEntity(dto, status), meId);
+                        boolean saved = session.runIfCurrent(request.key(), () -> db.runInTransaction(() -> {
+                            if (!checkCursor || readCursor(request.userId()) == cursor) {
+                                apply.accept(request, response.body());
                             }
                         }));
                         if (saved) {
-                            postResult(out, ChatResult.ok(list.size()));
+                            syncEngine.requestSync();
+                            postForSession(out, request, ChatResult.ok(true));
                         }
                     });
-                } else {
-                    ChatResult<Integer> error = parseErrorResult(res);
-                    if (res.code() == 403 && "NOT_A_MEMBER".equals(error.errorCode)) {
-                        diskExecutor.execute(() -> session.runIfCurrent(sessionKey, () ->
-                                db.conversationDao().markMemberLeft(conversationId, meId)));
-                    }
-                    postResult(out, error);
+                } catch (IOException e) {
+                    postForSession(out, request, ChatResult.error("NETWORK"));
                 }
-            } catch (IOException e) {
-                postResult(out, ChatResult.error("NETWORK"));
+            });
+        }));
+        return out;
+    }
+
+    private long readCursor(String userId) {
+        SyncStateEntity state = db.syncStateDao().get(userId);
+        return state == null ? 0L : state.getLastSyncEventId();
+    }
+
+    private <T> void postForSession(MutableLiveData<ChatResult<T>> out, CapturedChatSession request, ChatResult<T> value) {
+        mainExecutor.execute(() -> {
+            if (request.key().equals(session.sessionKey())) {
+                out.setValue(value);
             }
         });
-        return out;
     }
 
     @Override
@@ -690,6 +818,69 @@ public class RealChatRepository implements ChatRepository {
                 SendMessageWorker.enqueue(workManager, queuedClientId[0], sessionKey);
             }
         });
+    }
+
+    /** Lưu nhãn dán vào cùng hàng đợi với tin chữ, để WorkManager gửi bằng clientId đã tạo. */
+    @Override
+    public void enqueueStickerMessage(String conversationId, StickerEntity sticker) {
+        if (conversationId == null || sticker == null || sticker.getStickerId().isBlank()) {
+            return;
+        }
+        CapturedChatSession request = CapturedChatSession.capture(session);
+        if (request == null) {
+            return;
+        }
+        String stickerId = sticker.getStickerId();
+        diskExecutor.execute(() -> session.runIfCurrent(request.key(), () -> {
+            String clientId = db.runInTransaction(() -> storePendingSticker(conversationId, stickerId, request.userId()));
+            if (clientId != null) {
+                SendMessageWorker.enqueue(workManager, clientId, request.key());
+            }
+        }));
+    }
+
+    private String storePendingSticker(String conversationId, String stickerId, String meId) {
+        // Lấy metadata từ kho của phiên hiện tại, rồi kiểm mốc thành viên trước khi xếp hàng.
+        StickerEntity sticker = db.stickerDao().findStickerByIdSync(stickerId);
+        ConversationEntity conversation = db.conversationDao().getConversationSync(conversationId);
+        ConversationMemberEntity member = db.conversationDao().getMemberSync(conversationId, meId);
+        if (sticker == null || conversation == null || member == null || member.getLeft()) {
+            return null;
+        }
+        StickerPackEntity pack = db.stickerDao().findPackByIdSync(sticker.getPackId());
+        if (pack == null || !pack.getInstalled()) {
+            return null;
+        }
+        JsonObject metadata = new JsonObject();
+        metadata.addProperty("stickerId", sticker.getStickerId());
+        metadata.addProperty("packId", sticker.getPackId());
+        metadata.addProperty("code", sticker.getCode());
+        metadata.addProperty("label", sticker.getLabel());
+        metadata.addProperty("imageUrl", sticker.getImageUrl());
+        metadata.addProperty("localPath", sticker.getLocalPath());
+        metadata.addProperty("width", sticker.getWidth());
+        metadata.addProperty("height", sticker.getHeight());
+
+        String clientId = UUID.randomUUID().toString();
+        long now = System.currentTimeMillis();
+        MessageEntity message = new MessageEntity();
+        message.setClientId(clientId);
+        message.setConversationId(conversationId);
+        message.setSenderId(meId);
+        message.setType("STICKER");
+        message.setAttachmentJson(metadata.toString());
+        message.setCreatedAt(now);
+        message.setStatus("SENDING");
+        if ("GROUP".equals(conversation.getType())) {
+            Long cutoff = member.getVisibleFromMessageId();
+            message.setQueuedVisibleFromMessageId(cutoff == null ? 0L : cutoff);
+        }
+        db.messageDao().insert(message);
+        if (now >= conversation.getLastMessageAt()) {
+            conversation.setLastMessageAt(now);
+            db.conversationDao().insert(conversation);
+        }
+        return clientId;
     }
 
     @Override
@@ -941,7 +1132,7 @@ public class RealChatRepository implements ChatRepository {
         mainExecutor.execute(() -> target.setValue(value));
     }
 
-    private static <T> ChatResult<T> parseErrorResult(Response<?> response) {
+    static <T> ChatResult<T> parseErrorResult(Response<?> response) {
         String code = "HTTP_" + response.code();
         Long retryAfter = null;
         try {

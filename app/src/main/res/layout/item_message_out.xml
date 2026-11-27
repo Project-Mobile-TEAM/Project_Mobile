@@ -97,6 +97,12 @@
             android:layout_gravity="end" android:layout_marginTop="2dp" android:textSize="11sp"
             android:textColor="@color/ute_on_accent" />
     </LinearLayout>
+    <!-- Cụm biểu cảm nằm dưới bong bóng, ẩn khi chưa có lượt thả. -->
+    <LinearLayout android:id="@+id/reactions_container"
+        android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:layout_gravity="end" android:layout_marginTop="2dp"
+        android:orientation="vertical" android:gravity="center_vertical"
+                android:minWidth="48dp" android:minHeight="48dp" android:focusable="true" android:visibility="gone" />
     <TextView android:id="@+id/failed" android:layout_width="wrap_content" android:layout_height="wrap_content"
         android:layout_gravity="end" android:minHeight="32dp" android:gravity="center_vertical"
         android:text="@string/chat_status_failed" android:textSize="12sp" android:textColor="@color/ute_error"

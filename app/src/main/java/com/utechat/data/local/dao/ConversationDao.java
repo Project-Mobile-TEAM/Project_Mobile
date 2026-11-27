@@ -28,7 +28,11 @@ public interface ConversationDao {
             + "lm.attachmentJson AS lastMessageAttachmentJson, "
             + "lm.senderId AS lastMessageSenderId, "
             + "lm.status AS lastMessageStatus, "
-            + "lm.serverId AS lastMessageServerId "
+            + "lm.serverId AS lastMessageServerId, "
+            + "lm.recalledAt AS lastMessageRecalledAt, "
+            + "lr.emoji AS latestReactionEmoji, "
+            + "lr.userId AS latestReactionUserId, "
+            + "lr.createdAt AS latestReactionAt "
             + "FROM conversation c "
             + "JOIN member myMb ON myMb.conversationId = c.id AND myMb.userId = :myUserId "
             + "LEFT JOIN member peerMb ON peerMb.conversationId = c.id AND c.type = 'DIRECT' AND peerMb.userId <> :myUserId "
@@ -38,6 +42,17 @@ public interface ConversationDao {
             + "  WHERE m.conversationId = c.id "
             + "    AND (m.serverId IS NULL OR m.serverId > COALESCE(myMb.visibleFromMessageId, 0)) "
             + "  ORDER BY m.createdAt DESC, m.localId DESC "
+            + "  LIMIT 1"
+            + ") "
+            + "LEFT JOIN message_reaction lr ON lr.rowid = ("
+            + "  SELECT r.rowid FROM message_reaction r "
+            + "  INNER JOIN message rm ON rm.serverId = r.messageServerId "
+            + "  WHERE rm.conversationId = c.id "
+            + "    AND rm.recalledAt IS NULL "
+            + "    AND r.userId <> :myUserId "
+            + "    AND rm.serverId > COALESCE(myMb.visibleFromMessageId, 0) "
+            + "    AND NOT EXISTS (SELECT 1 FROM message_deletion d WHERE d.serverId = rm.serverId) "
+            + "  ORDER BY r.createdAt DESC, r.messageServerId DESC, r.userId ASC "
             + "  LIMIT 1"
             + ") "
             + "ORDER BY c.lastMessageAt DESC, c.id ASC")
@@ -129,6 +144,10 @@ public interface ConversationDao {
     /** Cập nhật tiêu đề, ảnh đại diện và thông tin tin nhắn cuối của hội thoại. */
     @Query("UPDATE conversation SET title = :title, avatarUrl = :avatarUrl, lastMessageId = :lastMessageId, lastMessageAt = :lastMessageAt WHERE id = :conversationId")
     void updateTitleAndLastMessage(String conversationId, @Nullable String title, @Nullable String avatarUrl, @Nullable Long lastMessageId, long lastMessageAt);
+
+    /** Cập nhật mốc tin cuối sau khi xóa tin phía mình, kể cả khi cần lùi về tin cũ. */
+    @Query("UPDATE conversation SET lastMessageId = :lastMessageId, lastMessageAt = :lastMessageAt WHERE id = :conversationId")
+    void updateLastMessageMeta(String conversationId, @Nullable Long lastMessageId, long lastMessageAt);
 
     /** Cập nhật mốc tin nhắn cuối chỉ khi tin mới có serverId/thời gian lớn hơn hoặc bằng mốc hiện tại. */
     @Query("UPDATE conversation SET "

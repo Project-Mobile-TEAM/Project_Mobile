@@ -8,6 +8,8 @@ import com.utechat.data.local.entity.AttachmentTransferEntity;
 import com.utechat.data.local.entity.ConversationEntity;
 import com.utechat.data.local.entity.ConversationMemberEntity;
 import com.utechat.data.local.entity.MessageEntity;
+import com.utechat.data.local.entity.MessageReactionEntity;
+import com.utechat.data.local.entity.StickerEntity;
 import com.utechat.data.local.entity.UserEntity;
 import com.utechat.data.media.MediaPreparationHelper;
 import com.utechat.data.sync.WsConnectionState;
@@ -50,6 +52,12 @@ public interface ChatRepository {
     void enqueueTextMessage(String conversationId, String text);
     void enqueueMediaMessage(String conversationId, MediaPreparationHelper.PreparedMedia prepared, @Nullable String caption);
     void enqueueLocationMessage(String conversationId, double latitude, double longitude);
+    // Thao tác Phase 7 trả lỗi mạng ngay, riêng gửi nhãn dán tiếp tục dùng hàng đợi offline.
+    LiveData<List<MessageReactionEntity>> observeReactions(String conversationId);
+    LiveData<ChatResult<Boolean>> recallMessage(String conversationId, long serverId);
+    LiveData<ChatResult<Boolean>> deleteMessageForMe(String conversationId, long serverId);
+    LiveData<ChatResult<Boolean>> toggleReaction(String conversationId, long serverId, @Nullable String emoji);
+    void enqueueStickerMessage(String conversationId, StickerEntity sticker);
     void retryFailedMessage(String clientId);
     void deleteFailedMessage(String clientId);
     void markConversationRead(String conversationId, long upToServerId);

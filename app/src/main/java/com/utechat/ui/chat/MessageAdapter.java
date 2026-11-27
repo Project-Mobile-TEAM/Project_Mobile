@@ -1,11 +1,14 @@
 package com.utechat.ui.chat;
 
 import android.content.Context;
+import android.graphics.Typeface;
+import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageButton;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.SeekBar;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
@@ -23,10 +26,13 @@ import com.utechat.BuildConfig;
 import com.utechat.R;
 import com.utechat.data.local.entity.AttachmentTransferEntity;
 import com.utechat.data.local.entity.MessageEntity;
+import com.utechat.data.local.entity.MessageReactionEntity;
 import com.utechat.data.local.entity.UserEntity;
 import com.utechat.data.remote.api.ApiClient;
 import com.utechat.databinding.ItemMessageInBinding;
 import com.utechat.databinding.ItemMessageOutBinding;
+import com.utechat.databinding.ItemMessageStickerInBinding;
+import com.utechat.databinding.ItemMessageStickerOutBinding;
 import com.utechat.databinding.ItemMessageSummaryInBinding;
 import com.utechat.databinding.ItemMessageSummaryOutBinding;
 import com.utechat.databinding.ItemMessageSystemBinding;
@@ -55,6 +61,8 @@ import java.util.function.Consumer;
 public class MessageAdapter extends ListAdapter<MessageEntity, RecyclerView.ViewHolder> {
     static final int TYPE_SYSTEM = 0, TYPE_TEXT_OUT = 1, TYPE_TEXT_IN = 2,
             NON_TEXT_SUMMARY_OUT = 3, NON_TEXT_SUMMARY_IN = 4, UNKNOWN_FALLBACK = 5;
+    static final int TYPE_STICKER_OUT = 6, TYPE_STICKER_IN = 7;
+    private static final Object PAYLOAD_REACTION = new Object();
     private static final Set<String> SUMMARY = Set.of("IMAGE", "AUDIO", "VIDEO", "FILE", "LOCATION", "CALL");
     private static final Object PAYLOAD_VOICE = new Object();
     private static final Object PAYLOAD_TRANSFER = new Object();
@@ -78,6 +86,10 @@ public class MessageAdapter extends ListAdapter<MessageEntity, RecyclerView.View
         void onTextLongClick(@NonNull MessageEntity message);
 
         void onHideTranslationClick(@NonNull MessageEntity message);
+
+        default void onMessageLongClick(@NonNull MessageEntity message) { onTextLongClick(message); }
+
+        default void onReactionsClick(@NonNull MessageEntity message, @NonNull List<MessageReactionEntity> reactions) {}
     }
 
     /** Trạng thái hiển thị bản dịch cho một tin TEXT (không bao giờ có trường phần trăm tải!). */
@@ -124,6 +136,7 @@ public class MessageAdapter extends ListAdapter<MessageEntity, RecyclerView.View
     @Nullable private Map<String, UserEntity> users;
     @NonNull private Map<String, AttachmentTransferEntity> transfersMap = Collections.emptyMap();
     @NonNull private Map<String, TranslationUiEntry> translationState = Collections.emptyMap();
+    @NonNull private Map<Long, List<MessageReactionEntity>> reactionsMap = Map.of();
     @NonNull private VoiceBubblePlayer.PlaybackState voiceState = VoiceBubblePlayer.PlaybackState.idle();
     private boolean group;
     private long highlighted = -1;
@@ -199,6 +212,30 @@ public class MessageAdapter extends ListAdapter<MessageEntity, RecyclerView.View
         }
     }
 
+    /** Cập nhật riêng cụm cảm xúc, tránh vẽ lại ảnh hoặc SeekBar khi người khác thả. */
+    public void setReactionsMap(@Nullable Map<Long, List<MessageReactionEntity>> map) {
+        Map<Long, List<MessageReactionEntity>> previous = reactionsMap;
+        reactionsMap = map == null ? Map.of() : map;
+        for (int i = 0; i < getItemCount(); i++) {
+            Long id = getItem(i).getServerId();
+            if (id != null && !sameReactions(previous.get(id), reactionsMap.get(id))) {
+                notifyItemChanged(i, PAYLOAD_REACTION);
+            }
+        }
+    }
+
+    private static boolean sameReactions(@Nullable List<MessageReactionEntity> before,
+                                         @Nullable List<MessageReactionEntity> after) {
+        if (before == after) return true;
+        if (before == null || after == null || before.size() != after.size()) return false;
+        for (int i = 0; i < before.size(); i++) {
+            MessageReactionEntity old = before.get(i);
+            MessageReactionEntity next = after.get(i);
+            if (!old.getUserId().equals(next.getUserId()) || !old.getEmoji().equals(next.getEmoji())) return false;
+        }
+        return true;
+    }
+
     /** Tô nền tin vừa nhảy tới từ tìm kiếm; chỉ vẽ lại dòng cũ và dòng mới. */
     public void setHighlightedLocalId(long localId) {
         int old = indexOf(highlighted);
@@ -224,6 +261,8 @@ public class MessageAdapter extends ListAdapter<MessageEntity, RecyclerView.View
     static int viewType(MessageEntity m, @Nullable String meId) {
         boolean mine = meId != null && meId.equals(m.getSenderId());
         String type = m.getType() == null ? "" : m.getType();
+        if (m.getRecalledAt() != null) return mine ? TYPE_TEXT_OUT : TYPE_TEXT_IN;
+        if ("STICKER".equals(type)) return mine ? TYPE_STICKER_OUT : TYPE_STICKER_IN;
         if ("SYSTEM".equals(type)) return TYPE_SYSTEM;
         if ("TEXT".equals(type)) return mine ? TYPE_TEXT_OUT : TYPE_TEXT_IN;
         if (SUMMARY.contains(type)) return mine ? NON_TEXT_SUMMARY_OUT : NON_TEXT_SUMMARY_IN;
@@ -255,6 +294,37 @@ public class MessageAdapter extends ListAdapter<MessageEntity, RecyclerView.View
         final ItemMessageSummaryInBinding b;
         SummaryInHolder(ItemMessageSummaryInBinding b) { super(b.getRoot()); this.b = b; }
     }
+    /** Hai layout nhãn dán cùng cấu trúc, chỉ đổi căn lề theo chiều gửi. */
+    static final class StickerHolder extends RecyclerView.ViewHolder {
+        final ViewDatePillBinding date;
+        final View bubble;
+        final ImageView image;
+        final TextView senderName;
+        final TextView meta;
+        final TextView failed;
+        final LinearLayout reactions;
+
+        StickerHolder(ItemMessageStickerOutBinding b) {
+            this(b.getRoot(), b.date, b.bubble, b.stickerImage, b.senderName, b.meta, b.failed, b.reactionsContainer);
+        }
+
+        StickerHolder(ItemMessageStickerInBinding b) {
+            this(b.getRoot(), b.date, b.bubble, b.stickerImage, b.senderName, b.meta, b.failed, b.reactionsContainer);
+        }
+
+        private StickerHolder(View root, ViewDatePillBinding date, View bubble, ImageView image,
+                              TextView senderName, TextView meta, TextView failed, LinearLayout reactions) {
+            super(root);
+            this.date = date;
+            this.bubble = bubble;
+            this.image = image;
+            this.senderName = senderName;
+            this.meta = meta;
+            this.failed = failed;
+            this.reactions = reactions;
+        }
+    }
+
     static class SysHolder extends RecyclerView.ViewHolder {
         final ItemMessageSystemBinding b;
         SysHolder(ItemMessageSystemBinding b) { super(b.getRoot()); this.b = b; }
@@ -264,6 +334,8 @@ public class MessageAdapter extends ListAdapter<MessageEntity, RecyclerView.View
         LayoutInflater in = LayoutInflater.from(parent.getContext());
         if (type == TYPE_SYSTEM) return new SysHolder(ItemMessageSystemBinding.inflate(in, parent, false));
         if (type == TYPE_TEXT_OUT) return new OutHolder(ItemMessageOutBinding.inflate(in, parent, false));
+        if (type == TYPE_STICKER_OUT) return new StickerHolder(ItemMessageStickerOutBinding.inflate(in, parent, false));
+        if (type == TYPE_STICKER_IN) return new StickerHolder(ItemMessageStickerInBinding.inflate(in, parent, false));
         if (type == NON_TEXT_SUMMARY_OUT) return new SummaryOutHolder(ItemMessageSummaryOutBinding.inflate(in, parent, false));
         if (type == NON_TEXT_SUMMARY_IN) return new SummaryInHolder(ItemMessageSummaryInBinding.inflate(in, parent, false));
         return new InHolder(ItemMessageInBinding.inflate(in, parent, false));
@@ -277,6 +349,8 @@ public class MessageAdapter extends ListAdapter<MessageEntity, RecyclerView.View
             imageView = ((SummaryOutHolder) holder).b.mediaImage;
         } else if (holder instanceof SummaryInHolder) {
             imageView = ((SummaryInHolder) holder).b.mediaImage;
+        } else if (holder instanceof StickerHolder) {
+            imageView = ((StickerHolder) holder).image;
         } else {
             return;
         }
@@ -293,6 +367,10 @@ public class MessageAdapter extends ListAdapter<MessageEntity, RecyclerView.View
         }
         boolean handled = false;
         MessageEntity m = getItem(position);
+        if (payloads.contains(PAYLOAD_REACTION)) {
+            bindReactions(m, holder);
+            handled = true;
+        }
         if (payloads.contains(PAYLOAD_TRANSLATION)) {
             if (holder instanceof OutHolder) {
                 OutHolder h = (OutHolder) holder;
@@ -352,12 +430,20 @@ public class MessageAdapter extends ListAdapter<MessageEntity, RecyclerView.View
             return;
         }
 
+        bindReactions(m, holder);
+        if (holder instanceof StickerHolder) {
+            StickerHolder h = (StickerHolder) holder;
+            bindDate(h.date, position);
+            bindSticker(h, m, type == TYPE_STICKER_OUT, time);
+            return;
+        }
+
         if (holder instanceof OutHolder) {
             OutHolder h = (OutHolder) holder;
             bindDate(h.b.date, position);
             h.b.summary.setVisibility(View.GONE);
             h.b.text.setVisibility(View.VISIBLE);
-            h.b.text.setText(m.getText());
+            bindText(h.b.text, m);
             h.b.meta.setText(c.getString(R.string.chat_dot_pair, time, c.getString(statusLabel(m.getStatus()))));
             bindFailedRow(c, m, h.b.failed);
             bindTranslationBox(m, h.b.translationBox, h.b.translationLabel, h.b.translationHide,
@@ -369,13 +455,7 @@ public class MessageAdapter extends ListAdapter<MessageEntity, RecyclerView.View
             h.b.failed.setOnClickListener(click);
             h.b.bubble.setClickable(failed);
             h.b.failed.setClickable(failed);
-            h.b.bubble.setOnLongClickListener(v -> {
-                if (interactionListener != null) {
-                    interactionListener.onTextLongClick(m);
-                    return true;
-                }
-                return false;
-            });
+            bindLongPress(h.b.bubble, m);
             return;
         }
 
@@ -386,22 +466,18 @@ public class MessageAdapter extends ListAdapter<MessageEntity, RecyclerView.View
             h.b.meta.setText(time);
             h.b.summary.setVisibility(View.GONE);
             if (type == UNKNOWN_FALLBACK) {
+                h.b.text.setTypeface(h.b.text.getTypeface(), Typeface.NORMAL);
                 h.b.text.setText(R.string.chat_type_unknown);
                 h.b.text.setTextColor(ContextCompat.getColor(c, R.color.ute_text_secondary));
                 h.b.translationBox.setVisibility(View.GONE);
                 h.b.bubble.setOnLongClickListener(null);
             } else {
-                h.b.text.setTextColor(ContextCompat.getColor(c, R.color.ute_text));
-                h.b.text.setText(m.getText());
+                h.b.text.setTextColor(ContextCompat.getColor(c, m.getRecalledAt() == null
+                        ? R.color.ute_text : R.color.ute_text_secondary));
+                bindText(h.b.text, m);
                 bindTranslationBox(m, h.b.translationBox, h.b.translationLabel, h.b.translationHide,
                         h.b.translationProgress, h.b.translationText);
-                h.b.bubble.setOnLongClickListener(v -> {
-                    if (interactionListener != null) {
-                        interactionListener.onTextLongClick(m);
-                        return true;
-                    }
-                    return false;
-                });
+                bindLongPress(h.b.bubble, m);
             }
             return;
         }
@@ -431,9 +507,110 @@ public class MessageAdapter extends ListAdapter<MessageEntity, RecyclerView.View
                 h.b.summary, h.b.summaryIcon, h.b.summaryLabel, h.b.text, h.b.mediaProgress);
     }
 
+    private static void bindText(TextView textView, MessageEntity message) {
+        boolean recalled = message.getRecalledAt() != null;
+        textView.setTypeface(textView.getTypeface(), recalled ? Typeface.ITALIC : Typeface.NORMAL);
+        if (recalled) textView.setText(R.string.chat_message_recalled);
+        else textView.setText(message.getText());
+    }
+
+    private void bindSticker(StickerHolder holder, MessageEntity message, boolean mine, String time) {
+        Context context = holder.itemView.getContext();
+        JsonObject metadata = parseJsonObject(message.getAttachmentJson());
+        String label = str(metadata, "label");
+        holder.image.setContentDescription(label == null || label.isBlank()
+                ? context.getString(R.string.chat_cd_sticker) : label);
+        StickerTrayView.loadStickerImage(holder.image, str(metadata, "localPath"), str(metadata, "imageUrl"));
+        holder.senderName.setVisibility(!mine && group ? View.VISIBLE : View.GONE);
+        holder.senderName.setText(senderName(context, message));
+        holder.meta.setText(mine ? context.getString(R.string.chat_dot_pair, time,
+                context.getString(statusLabel(message.getStatus()))) : time);
+        bindFailedRow(context, message, holder.failed);
+        holder.failed.setOnClickListener("FAILED".equals(message.getStatus())
+                ? view -> onFailedClick.accept(message) : null);
+        bindLongPress(holder.bubble, message);
+    }
+
+    private void bindLongPress(View view, MessageEntity message) {
+        view.setOnLongClickListener(ignored -> {
+            if (interactionListener == null) return false;
+            interactionListener.onMessageLongClick(message);
+            return true;
+        });
+    }
+
+    @Nullable private LinearLayout reactionsContainer(RecyclerView.ViewHolder holder) {
+        if (holder instanceof OutHolder) return ((OutHolder) holder).b.reactionsContainer;
+        if (holder instanceof InHolder) return ((InHolder) holder).b.reactionsContainer;
+        if (holder instanceof SummaryOutHolder) return ((SummaryOutHolder) holder).b.reactionsContainer;
+        if (holder instanceof SummaryInHolder) return ((SummaryInHolder) holder).b.reactionsContainer;
+        return holder instanceof StickerHolder ? ((StickerHolder) holder).reactions : null;
+    }
+
+    /** Gom biểu cảm theo thứ tự trên menu, mỗi cụm mở danh sách người bày tỏ. */
+    private void bindReactions(MessageEntity message, RecyclerView.ViewHolder holder) {
+        LinearLayout container = reactionsContainer(holder);
+        if (container == null) return;
+        container.removeAllViews();
+        container.setOnClickListener(null);
+        container.setContentDescription(null);
+        Long serverId = message.getServerId();
+        List<MessageReactionEntity> rows = serverId == null || message.getRecalledAt() != null
+                ? null : reactionsMap.get(serverId);
+        if (rows == null || rows.isEmpty()) {
+            container.setVisibility(View.GONE);
+            return;
+        }
+        Context context = container.getContext();
+        float density = context.getResources().getDisplayMetrics().density;
+        int spacing = Math.round(3 * density);
+        LinearLayout chipRow = null;
+        int chipCount = 0;
+        // Giới hạn ba nhãn mỗi dòng để không cắt lượt cảm xúc trên màn hình hẹp.
+        for (String emoji : MessageActionBottomSheet.FIXED_EMOJIS) {
+            int count = 0;
+            boolean mine = false;
+            for (MessageReactionEntity row : rows) {
+                if (emoji.equals(row.getEmoji())) {
+                    count++;
+                    mine |= row.getUserId().equals(meId);
+                }
+            }
+            if (count == 0) continue;
+            TextView chip = new TextView(context);
+            chip.setText(context.getString(R.string.chat_reaction_option_count, emoji, count));
+            chip.setTextSize(12);
+            chip.setGravity(Gravity.CENTER);
+            chip.setTextColor(ContextCompat.getColor(context, R.color.ute_text));
+            chip.setPadding(spacing * 2, spacing, spacing * 2, spacing);
+            chip.setBackgroundResource(mine ? R.drawable.bg_reaction_chip_mine : R.drawable.bg_reaction_chip);
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            params.setMarginEnd(spacing);
+            if (chipCount % 3 == 0) {
+                chipRow = new LinearLayout(context);
+                chipRow.setOrientation(LinearLayout.HORIZONTAL);
+                container.addView(chipRow, new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            }
+            chipRow.addView(chip, params);
+            chipCount++;
+        }
+        container.setVisibility(container.getChildCount() == 0 ? View.GONE : View.VISIBLE);
+        container.setContentDescription(context.getString(R.string.chat_reactions_count, rows.size()));
+        container.setOnClickListener(view -> {
+            if (interactionListener != null) interactionListener.onReactionsClick(message, rows);
+        });
+    }
+
+    private String senderName(Context context, MessageEntity message) {
+        UserEntity sender = users == null || message.getSenderId() == null ? null : users.get(message.getSenderId());
+        String name = sender == null ? null : sender.getDisplayName();
+        return name == null || name.isBlank() ? context.getString(R.string.chat_someone) : name;
+    }
+
     private void bindSenderHeader(Context c, MessageEntity m, TextView senderView, TextView avatarView) {
-        UserEntity sender = users == null || m.getSenderId() == null ? null : users.get(m.getSenderId());
-        String name = sender == null || sender.getDisplayName() == null ? c.getString(R.string.chat_someone) : sender.getDisplayName();
+        String name = senderName(c, m);
         senderView.setVisibility(group ? View.VISIBLE : View.GONE);
         senderView.setText(name);
         avatarView.setVisibility(group ? View.VISIBLE : View.GONE);
@@ -458,7 +635,8 @@ public class MessageAdapter extends ListAdapter<MessageEntity, RecyclerView.View
             TextView hideBtn,
             LinearProgressIndicator progress,
             TextView translatedText) {
-        TranslationUiEntry entry = m.getClientId() != null ? translationState.get(m.getClientId()) : null;
+        TranslationUiEntry entry = m.getClientId() != null && m.getRecalledAt() == null
+                ? translationState.get(m.getClientId()) : null;
         if (entry == null) {
             box.setVisibility(View.GONE);
             return;
@@ -517,7 +695,7 @@ public class MessageAdapter extends ListAdapter<MessageEntity, RecyclerView.View
         voiceBox.setVisibility(View.GONE);
         summaryRow.setVisibility(View.GONE);
         detailText.setVisibility(View.GONE);
-        bubble.setOnLongClickListener(null);
+        bindLongPress(bubble, m);
 
         switch (msgType) {
             case "IMAGE": {
@@ -876,7 +1054,9 @@ public class MessageAdapter extends ListAdapter<MessageEntity, RecyclerView.View
         @Override public boolean areContentsTheSame(@NonNull MessageEntity a, @NonNull MessageEntity b) {
             return Objects.equals(a.getText(), b.getText()) && Objects.equals(a.getStatus(), b.getStatus())
                     && Objects.equals(a.getErrorCode(), b.getErrorCode()) && Objects.equals(a.getServerId(), b.getServerId())
-                    && Objects.equals(a.getAttachmentJson(), b.getAttachmentJson()) && a.getCreatedAt() == b.getCreatedAt();
+                    && Objects.equals(a.getAttachmentJson(), b.getAttachmentJson())
+                    && Objects.equals(a.getRecalledAt(), b.getRecalledAt()) && Objects.equals(a.getType(), b.getType())
+                    && a.getCreatedAt() == b.getCreatedAt();
         }
     };
 }

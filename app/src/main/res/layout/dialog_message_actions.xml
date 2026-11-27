@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Menu nhấn giữ, nhóm biểu cảm và các thao tác tùy quyền trên cùng một bảng. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:orientation="vertical" android:padding="16dp">
+    <HorizontalScrollView
+        android:id="@+id/emoji_bar" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:fillViewport="true" android:scrollbars="none">
+        <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:gravity="center" android:orientation="horizontal">
+            <TextView android:id="@+id/emoji_0"
+                android:layout_width="48dp" android:layout_height="48dp"
+                android:gravity="center" android:textSize="24sp" android:focusable="true"
+                android:contentDescription="@string/chat_reaction_heart"
+                android:foreground="?attr/selectableItemBackgroundBorderless" />
+            <TextView android:id="@+id/emoji_1"
+                android:layout_width="48dp" android:layout_height="48dp"
+                android:gravity="center" android:textSize="24sp" android:focusable="true"
+                android:contentDescription="@string/chat_reaction_laugh"
+                android:foreground="?attr/selectableItemBackgroundBorderless" />
+            <TextView android:id="@+id/emoji_2"
+                android:layout_width="48dp" android:layout_height="48dp"
+                android:gravity="center" android:textSize="24sp" android:focusable="true"
+                android:contentDescription="@string/chat_reaction_like"
+                android:foreground="?attr/selectableItemBackgroundBorderless" />
+            <TextView android:id="@+id/emoji_3"
+                android:layout_width="48dp" android:layout_height="48dp"
+                android:gravity="center" android:textSize="24sp" android:focusable="true"
+                android:contentDescription="@string/chat_reaction_surprised"
+                android:foreground="?attr/selectableItemBackgroundBorderless" />
+            <TextView android:id="@+id/emoji_4"
+                android:layout_width="48dp" android:layout_height="48dp"
+                android:gravity="center" android:textSize="24sp" android:focusable="true"
+                android:contentDescription="@string/chat_reaction_sad"
+                android:foreground="?attr/selectableItemBackgroundBorderless" />
+            <TextView android:id="@+id/emoji_5"
+                android:layout_width="48dp" android:layout_height="48dp"
+                android:gravity="center" android:textSize="24sp" android:focusable="true"
+                android:contentDescription="@string/chat_reaction_angry"
+                android:foreground="?attr/selectableItemBackgroundBorderless" />
+        </LinearLayout>
+    </HorizontalScrollView>
+    <View android:id="@+id/action_divider" android:layout_width="match_parent" android:layout_height="1dp"
+        android:layout_marginVertical="4dp" android:background="@color/ute_border" />
+    <com.google.android.material.button.MaterialButton android:id="@+id/action_translate_vi"
+        style="@style/Widget.Material3.Button.TextButton"
+        android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="48dp"
+        android:gravity="start|center_vertical" android:text="@string/chat_translate_to_vi"
+        android:textColor="?attr/colorOnSurface" app:icon="@drawable/ic_translate"
+        app:iconTint="?attr/colorOnSurfaceVariant" app:iconPadding="16dp" />
+    <com.google.android.material.button.MaterialButton android:id="@+id/action_translate_en"
+        style="@style/Widget.Material3.Button.TextButton"
+        android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="48dp"
+        android:gravity="start|center_vertical" android:text="@string/chat_translate_to_en"
+        android:textColor="?attr/colorOnSurface" app:icon="@drawable/ic_translate"
+        app:iconTint="?attr/colorOnSurfaceVariant" app:iconPadding="16dp" />
+    <com.google.android.material.button.MaterialButton android:id="@+id/action_hide_translation"
+        style="@style/Widget.Material3.Button.TextButton"
+        android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="48dp"
+        android:gravity="start|center_vertical" android:text="@string/chat_translation_hide"
+        android:textColor="?attr/colorOnSurface" app:icon="@drawable/ic_translate"
+        app:iconTint="?attr/colorOnSurfaceVariant" app:iconPadding="16dp" />
+    <com.google.android.material.button.MaterialButton android:id="@+id/action_recall"
+        style="@style/Widget.Material3.Button.TextButton"
+        android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="48dp"
+        android:gravity="start|center_vertical" android:text="@string/chat_action_recall"
+        android:textColor="?attr/colorOnSurface" app:icon="@drawable/ic_recall"
+        app:iconTint="?attr/colorOnSurfaceVariant" app:iconPadding="16dp" />
+    <com.google.android.material.button.MaterialButton android:id="@+id/action_delete_for_me"
+        style="@style/Widget.Material3.Button.TextButton"
+        android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="48dp"
+        android:gravity="start|center_vertical" android:text="@string/chat_action_delete_for_me"
+        android:textColor="?attr/colorOnSurface" app:icon="@drawable/ic_delete"
+        app:iconTint="?attr/colorOnSurfaceVariant" app:iconPadding="16dp" />
+</LinearLayout>

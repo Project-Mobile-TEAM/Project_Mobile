@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Tin nhãn dán dùng ảnh trong suốt và giữ hàng ngày/giờ như các tin khác. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:orientation="vertical" android:paddingHorizontal="12dp" android:paddingVertical="3dp">
+    <include android:id="@+id/date" layout="@layout/view_date_pill" />
+    <LinearLayout android:id="@+id/bubble"
+        android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:layout_gravity="start" android:orientation="vertical">
+        <TextView android:id="@+id/sender_name"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:textSize="12sp" android:textColor="?attr/colorOnSurfaceVariant" android:visibility="gone" />
+        <ImageView android:id="@+id/sticker_image"
+            android:layout_width="152dp" android:layout_height="152dp"
+            android:scaleType="fitCenter" android:contentDescription="@string/chat_cd_sticker" />
+        <TextView android:id="@+id/meta"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_gravity="end" android:layout_marginTop="2dp" android:textSize="11sp"
+            android:textColor="?attr/colorOnSurfaceVariant" />
+    </LinearLayout>
+    <!-- Cụm biểu cảm nằm dưới bong bóng, ẩn khi chưa có lượt thả. -->
+    <LinearLayout android:id="@+id/reactions_container"
+        android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:layout_gravity="start" android:layout_marginTop="2dp"
+        android:orientation="vertical" android:gravity="center_vertical"
+                android:minWidth="48dp" android:minHeight="48dp" android:focusable="true" android:visibility="gone" />
+    <TextView android:id="@+id/failed" android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:layout_gravity="start" android:minHeight="48dp" android:gravity="center_vertical"
+        android:text="@string/chat_status_failed" android:textSize="12sp" android:textColor="@color/ute_error"
+        android:visibility="gone" />
+</LinearLayout>

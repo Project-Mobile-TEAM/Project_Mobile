@@ -47,6 +47,15 @@ public final class SystemMessageFormatter {
     @NonNull public static String preview(@NonNull Strings s, @Nullable String type, @Nullable String text,
                                           @Nullable String attachmentJson, @Nullable String senderId, boolean group,
                                           @Nullable Map<String, UserEntity> users, @Nullable String meId) {
+        return preview(s, type, text, attachmentJson, senderId, group, users, meId, null);
+    }
+
+    /** Tin đã gỡ dùng nhãn cố định, kể cả khi dữ liệu cũ còn giữ nội dung trong Room. */
+    @NonNull public static String preview(@NonNull Strings s, @Nullable String type, @Nullable String text,
+                                          @Nullable String attachmentJson, @Nullable String senderId, boolean group,
+                                          @Nullable Map<String, UserEntity> users, @Nullable String meId,
+                                          @Nullable Long recalledAt) {
+        if (recalledAt != null) return s.get(R.string.chat_message_recalled);
         if (type == null) return "";
         if ("SYSTEM".equals(type)) return format(s, attachmentJson, users, meId);
         String body = "TEXT".equals(type) ? nz(text) : s.get(summaryLabel(type));
@@ -66,6 +75,7 @@ public final class SystemMessageFormatter {
             case "FILE": return R.string.chat_type_file;
             case "LOCATION": return R.string.chat_type_location;
             case "CALL": return R.string.chat_type_call;
+            case "STICKER": return R.string.chat_type_sticker;
             default: return R.string.chat_type_unknown;
         }
     }

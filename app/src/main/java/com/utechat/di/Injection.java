@@ -18,6 +18,7 @@ import com.utechat.data.MainThreadExecutor;
 import com.utechat.data.call.CallSessionCoordinator;
 import com.utechat.data.call.StreamWebRtcCallEngine;
 import com.utechat.data.local.AppDatabase;
+import com.utechat.data.local.ReactionSeenStore;
 import com.utechat.data.media.LocationFetchHelper;
 import com.utechat.data.media.MediaDownloadManager;
 import com.utechat.data.media.MediaPreparationHelper;
@@ -29,18 +30,23 @@ import com.utechat.data.remote.api.AuthApi;
 import com.utechat.data.remote.api.CallApi;
 import com.utechat.data.remote.api.ChatApi;
 import com.utechat.data.remote.api.ContactApi;
+import com.utechat.data.remote.api.StickerApi;
 import com.utechat.data.repository.AuthRepository;
 import com.utechat.data.repository.ChatRepository;
 import com.utechat.data.repository.ContactsRepository;
 import com.utechat.data.repository.CurrentUserIdProvider;
 import com.utechat.data.repository.HealthRepository;
+import com.utechat.data.repository.StickerRepository;
 import com.utechat.data.repository.fake.FakeAuthRepository;
 import com.utechat.data.repository.fake.FakeChatRepository;
 import com.utechat.data.repository.fake.FakeContactsRepository;
+import com.utechat.data.repository.fake.FakeStickerRepository;
 import com.utechat.data.repository.real.RealAuthRepository;
 import com.utechat.data.repository.real.RealChatRepository;
 import com.utechat.data.repository.real.RealContactsRepository;
+import com.utechat.data.repository.real.RealStickerRepository;
 import com.utechat.data.session.SessionManager;
+import com.utechat.data.sticker.StickerCacheManager;
 import com.utechat.data.sync.ChatWebSocketManager;
 import com.utechat.data.sync.SyncEngine;
 import com.utechat.data.sync.SyncEventApplier;
@@ -73,11 +79,14 @@ public final class Injection {
     private static LocationFetchHelper locationFetchHelper;
     private static CallSessionCoordinator callCoordinator;
     private static MessageTranslationManager translationManager;
+    private static StickerRepository stickerRepository;
+    private static ReactionSeenStore reactionSeenStore;
 
     // Hook dành riêng cho kiểm thử instrumentation Espresso (tiêm repository/translator giả khi Debug).
     @Nullable private static ChatRepository testChatOverride;
     @Nullable private static ContactsRepository testContactsOverride;
     @Nullable private static MessageTranslationManager testTranslationOverride;
+    @Nullable private static StickerRepository testStickerOverride;
 
     // Luồng đĩa đơn tuần tự cho mọi thao tác ghi/xóa Room và dọn thư mục media khi chuyển phiên.
     private static final Executor DISK = Executors.newSingleThreadExecutor();
@@ -127,6 +136,13 @@ public final class Injection {
             notificationHelper = new NotificationHelper(appContext, db, SessionManager.get());
         }
         return notificationHelper;
+    }
+
+    public static synchronized ReactionSeenStore provideReactionSeenStore(Context context) {
+        if (reactionSeenStore == null) {
+            reactionSeenStore = new ReactionSeenStore(context.getApplicationContext());
+        }
+        return reactionSeenStore;
     }
 
     public static synchronized MediaPreparationHelper provideMediaPreparationHelper() {
@@ -248,12 +264,15 @@ public final class Injection {
             NotificationHelper notif = provideNotificationHelper(appContext);
             ActiveRoomTracker roomTracker = provideActiveRoomTracker();
             syncEngine.setNotificationCallback((sessionKey, userId, outcome) -> {
-                if (!outcome.newlyInsertedMessages.isEmpty() || !outcome.missedCalls.isEmpty()) {
+                if (!outcome.newlyInsertedMessages.isEmpty()
+                        || !outcome.missedCalls.isEmpty()
+                        || !outcome.incomingReactions.isEmpty()) {
                     notif.notifyBatch(
                             userId,
                             sessionKey,
                             outcome.newlyInsertedMessages,
                             outcome.missedCalls,
+                            outcome.incomingReactions,
                             roomTracker,
                             () -> sessionKey.equals(SessionManager.get().sessionKey()));
                 }
@@ -340,6 +359,7 @@ public final class Injection {
         ActiveRoomTracker currentRoomTracker;
         MediaDownloadManager currentDownloadManager;
         SyncEngine currentSync;
+        ReactionSeenStore currentSeenStore;
         synchronized (Injection.class) {
             currentWs = wsManager;
             currentCall = callCoordinator;
@@ -347,6 +367,11 @@ public final class Injection {
             currentRoomTracker = activeRoomTracker;
             currentDownloadManager = mediaDownloadManager;
             currentSync = syncEngine;
+            currentSeenStore = reactionSeenStore;
+        }
+
+        if (currentSeenStore != null) {
+            currentSeenStore.clear();
         }
 
         if (currentDownloadManager != null && departingSessionKey != null && !departingSessionKey.trim().isEmpty()) {
@@ -387,6 +412,7 @@ public final class Injection {
             deleteDirectoryContents(new File(appContext.getFilesDir(), "pending_media"));
             deleteDirectoryContents(new File(appContext.getCacheDir(), "media_cache"));
             deleteDirectoryContents(new File(appContext.getCacheDir(), "camera"));
+            deleteDirectoryContents(new File(appContext.getFilesDir(), "stickers"));
             try {
                 Glide.get(appContext).clearDiskCache();
             } catch (Throwable ignored) {
@@ -493,6 +519,34 @@ public final class Injection {
         return health;
     }
 
+    /** Dùng chung cache Room và bộ thực thi phiên cho khay và cửa hàng nhãn dán. */
+    public static synchronized StickerRepository provideStickerRepository(Context context) {
+        if (testStickerOverride != null) {
+            return testStickerOverride;
+        }
+        if (stickerRepository == null) {
+            Context appContext = context.getApplicationContext();
+            if (useFake()) {
+                stickerRepository = new FakeStickerRepository();
+            } else {
+                provideAuthRepository(appContext);
+                AppDatabase database = AppDatabase.getInstance(appContext);
+                StickerApi api = ApiClient.getRetrofit().create(StickerApi.class);
+                StickerCacheManager cache = new StickerCacheManager(appContext,
+                        ApiClient.getMediaOkHttpClient(), BuildConfig.BACKEND_BASE_URL,
+                        database.stickerDao(), SessionManager.get(), MEDIA_IO, DISK);
+                stickerRepository = new RealStickerRepository(database, api, cache, SessionManager.get(),
+                        CHAT_NETWORK, DISK, MainThreadExecutor.INSTANCE);
+            }
+        }
+        return stickerRepository;
+    }
+
+    @VisibleForTesting
+    public static synchronized void overrideStickerRepositoryForTest(@Nullable StickerRepository override) {
+        testStickerOverride = override;
+    }
+
     @VisibleForTesting
     public static synchronized void overrideChatRepositoryForTest(@Nullable ChatRepository testChat) {
         testChatOverride = testChat;
@@ -514,6 +568,7 @@ public final class Injection {
         testChatOverride = null;
         testContactsOverride = null;
         testTranslationOverride = null;
+        testStickerOverride = null;
         if (mediaDownloadManager != null && SessionManager.get() != null) {
             String key = SessionManager.get().sessionKey();
             if (key != null) {
@@ -531,6 +586,9 @@ public final class Injection {
         }
         if (activeRoomTracker != null) {
             activeRoomTracker.clear();
+        }
+        if (reactionSeenStore != null) {
+            reactionSeenStore.clear();
         }
         if (SessionManager.get() != null) {
             SessionManager.get().setOnSessionChanged(() -> { });
@@ -551,6 +609,8 @@ public final class Injection {
         locationFetchHelper = null;
         callCoordinator = null;
         translationManager = null;
+        stickerRepository = null;
+        reactionSeenStore = null;
     }
 
     private static boolean useFake() {

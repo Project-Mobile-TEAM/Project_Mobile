@@ -11,6 +11,8 @@ import com.utechat.data.local.entity.AttachmentTransferEntity;
 import com.utechat.data.local.entity.ConversationEntity;
 import com.utechat.data.local.entity.ConversationMemberEntity;
 import com.utechat.data.local.entity.MessageEntity;
+import com.utechat.data.local.entity.MessageReactionEntity;
+import com.utechat.data.local.entity.StickerEntity;
 import com.utechat.data.local.entity.UserEntity;
 import com.utechat.data.media.MediaPreparationHelper;
 import com.utechat.data.repository.ChatRepository;
@@ -22,6 +24,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
@@ -29,6 +32,7 @@ import java.util.UUID;
 public class FakeChatRepository implements ChatRepository {
     private final List<ConversationEntity> conversations = new ArrayList<>();
     private final Map<String, MutableLiveData<List<MessageEntity>>> messages = new HashMap<>();
+    private final Map<String, MutableLiveData<List<MessageReactionEntity>>> reactions = new HashMap<>();
     // Giữ luồng theo tài khoản để danh sách hội thoại cũng nhận cập nhật tin mới.
     private final Map<String, MutableLiveData<List<ConversationEntity>>> conversationStreams = new HashMap<>();
     private final Map<String, List<ConversationMemberEntity>> memberMap = new HashMap<>();
@@ -408,6 +412,170 @@ public class FakeChatRepository implements ChatRepository {
     }
 
     @Override
+    public LiveData<List<MessageReactionEntity>> observeReactions(String conversationId) {
+        return reactionStream(conversationId);
+    }
+
+    @Override
+    public LiveData<ChatResult<Boolean>> recallMessage(String conversationId, long serverId) {
+        List<MessageEntity> rows = new ArrayList<>(messageRows(conversationId));
+        MessageEntity original = findMessage(rows, serverId);
+        if (original == null) {
+            return new MutableLiveData<>(ChatResult.error("NOT_FOUND"));
+        }
+        if (!isMember(conversationId, DemoData.ALICE)) {
+            return new MutableLiveData<>(ChatResult.error("NOT_A_MEMBER"));
+        }
+        if (!DemoData.ALICE.equals(original.getSenderId())) {
+            return new MutableLiveData<>(ChatResult.error("FORBIDDEN"));
+        }
+        if ("SYSTEM".equals(original.getType()) || "CALL".equals(original.getType())) {
+            return new MutableLiveData<>(ChatResult.error("INVALID_STATE"));
+        }
+        if (original.getRecalledAt() != null) {
+            return new MutableLiveData<>(ChatResult.ok(true));
+        }
+        long now = System.currentTimeMillis();
+        if (now - original.getCreatedAt() > 86_400_000L) {
+            return new MutableLiveData<>(ChatResult.error("RECALL_EXPIRED"));
+        }
+        // Tạo hàng mới để DiffUtil nhận ra payload và preview vừa được gỡ.
+        MessageEntity recalled = new MessageEntity();
+        recalled.setLocalId(original.getLocalId());
+        recalled.setServerId(original.getServerId());
+        recalled.setClientId(original.getClientId());
+        recalled.setConversationId(original.getConversationId());
+        recalled.setSenderId(original.getSenderId());
+        recalled.setCreatedAt(original.getCreatedAt());
+        recalled.setStatus(original.getStatus());
+        recalled.setType(original.getType());
+        recalled.setRecalledAt(now);
+        rows.set(rows.indexOf(original), recalled);
+        clearFakeReactions(conversationId, serverId);
+        publishFakeMessages(conversationId, rows);
+        return new MutableLiveData<>(ChatResult.ok(true));
+    }
+
+    @Override
+    public LiveData<ChatResult<Boolean>> deleteMessageForMe(String conversationId, long serverId) {
+        List<MessageEntity> rows = new ArrayList<>(messageRows(conversationId));
+        if (rows.removeIf(message -> Objects.equals(message.getServerId(), serverId))) {
+            clearFakeReactions(conversationId, serverId);
+            publishFakeMessages(conversationId, rows);
+        }
+        return new MutableLiveData<>(ChatResult.ok(true));
+    }
+
+    @Override
+    public LiveData<ChatResult<Boolean>> toggleReaction(String conversationId, long serverId, @Nullable String emoji) {
+        MessageEntity message = findMessage(messageRows(conversationId), serverId);
+        if (message == null) {
+            return new MutableLiveData<>(ChatResult.error("NOT_FOUND"));
+        }
+        if (!isMember(conversationId, DemoData.ALICE)) {
+            return new MutableLiveData<>(ChatResult.error("NOT_A_MEMBER"));
+        }
+        if ("SYSTEM".equals(message.getType()) || message.getRecalledAt() != null) {
+            return new MutableLiveData<>(ChatResult.error("INVALID_STATE"));
+        }
+        String normalized = "❤".equals(emoji) ? "❤️" : emoji;
+        if (normalized != null && !Set.of("❤️", "😂", "👍", "😮", "😢", "😡").contains(normalized)) {
+            return new MutableLiveData<>(ChatResult.error("VALIDATION"));
+        }
+        // Giữ cảm xúc của người khác và thay đúng hàng của tài khoản mẫu.
+        MutableLiveData<List<MessageReactionEntity>> stream = reactionStream(conversationId);
+        List<MessageReactionEntity> values = new ArrayList<>(Objects.requireNonNull(stream.getValue()));
+        boolean wasSelected = false;
+        for (MessageReactionEntity row : values) {
+            if (isOwnReaction(row, serverId) && row.getEmoji().equals(normalized)) {
+                wasSelected = true;
+                break;
+            }
+        }
+        values.removeIf(row -> isOwnReaction(row, serverId));
+        if (normalized != null && !wasSelected) {
+            values.add(new MessageReactionEntity(serverId, DemoData.ALICE, normalized, System.currentTimeMillis()));
+        }
+        stream.setValue(values);
+        return new MutableLiveData<>(ChatResult.ok(true));
+    }
+
+    @Override
+    public void enqueueStickerMessage(String conversationId, StickerEntity sticker) {
+        if (sticker == null || !isMember(conversationId, DemoData.ALICE)) {
+            return;
+        }
+        // Dùng cùng metadata với client thật để giao diện đọc được tin giả.
+        JsonObject metadata = new JsonObject();
+        metadata.addProperty("stickerId", sticker.getStickerId());
+        metadata.addProperty("packId", sticker.getPackId());
+        metadata.addProperty("code", sticker.getCode());
+        metadata.addProperty("label", sticker.getLabel());
+        metadata.addProperty("imageUrl", sticker.getImageUrl());
+        metadata.addProperty("localPath", sticker.getLocalPath());
+        metadata.addProperty("width", sticker.getWidth());
+        metadata.addProperty("height", sticker.getHeight());
+        MessageEntity message = new MessageEntity();
+        message.setLocalId(nextId);
+        message.setServerId(nextId++);
+        message.setClientId(UUID.randomUUID().toString());
+        message.setConversationId(conversationId);
+        message.setSenderId(DemoData.ALICE);
+        message.setType("STICKER");
+        message.setAttachmentJson(metadata.toString());
+        message.setCreatedAt(System.currentTimeMillis());
+        message.setStatus("SENT");
+        appendFakeMessage(conversationId, message);
+    }
+
+    private MutableLiveData<List<MessageReactionEntity>> reactionStream(String conversationId) {
+        return reactions.computeIfAbsent(conversationId,
+                key -> new MutableLiveData<>(Collections.emptyList()));
+    }
+
+    private void clearFakeReactions(String conversationId, long serverId) {
+        MutableLiveData<List<MessageReactionEntity>> stream = reactionStream(conversationId);
+        List<MessageReactionEntity> values = new ArrayList<>(Objects.requireNonNull(stream.getValue()));
+        values.removeIf(row -> row.getMessageServerId() == serverId);
+        stream.setValue(values);
+    }
+
+    private static boolean isOwnReaction(MessageReactionEntity row, long serverId) {
+        return row.getMessageServerId() == serverId && DemoData.ALICE.equals(row.getUserId());
+    }
+
+    private List<MessageEntity> messageRows(String conversationId) {
+        MutableLiveData<List<MessageEntity>> stream = messages.get(conversationId);
+        List<MessageEntity> value = stream == null ? null : stream.getValue();
+        return value == null ? Collections.emptyList() : value;
+    }
+
+    @Nullable private static MessageEntity findMessage(List<MessageEntity> rows, long serverId) {
+        for (MessageEntity row : rows) {
+            if (Objects.equals(row.getServerId(), serverId)) {
+                return row;
+            }
+        }
+        return null;
+    }
+
+    private void publishFakeMessages(String conversationId, List<MessageEntity> rows) {
+        messages.get(conversationId).setValue(rows);
+        MessageEntity latest = rows.isEmpty() ? null : rows.get(rows.size() - 1);
+        for (ConversationEntity conversation : conversations) {
+            if (conversationId.equals(conversation.getId())) {
+                conversation.setLastMessageId(latest == null ? null : latest.getServerId());
+                conversation.setLastMessageAt(latest == null ? 0L : latest.getCreatedAt());
+                MutableLiveData<ConversationEntity> stream = conversationByIdStreams.get(conversationId);
+                if (stream != null) {
+                    stream.setValue(conversation);
+                }
+            }
+        }
+        refreshSummaries();
+    }
+
+    @Override
     public void retryFailedMessage(String clientId) { /* Dữ liệu giả gửi tức thì thành công. */ }
 
     @Override
@@ -511,6 +679,7 @@ public class FakeChatRepository implements ChatRepository {
                 item.lastMessageSenderId = last.getSenderId();
                 item.lastMessageStatus = last.getStatus();
                 item.lastMessageServerId = last.getServerId();
+                item.lastMessageRecalledAt = last.getRecalledAt();
             }
             items.add(item);
         }

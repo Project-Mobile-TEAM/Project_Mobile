@@ -440,6 +440,9 @@ public class ChatWebSocketManager {
                         shouldFinalizeRevoke = prepareRevokeLocked(webSocket);
                         break;
                     case "message.new":
+                    case "message.recalled":
+                    case "message.deleted":
+                    case "message.reaction":
                     case "conversation.updated":
                     case "message.status":
                     case "contact_request.new":

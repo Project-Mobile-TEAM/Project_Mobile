@@ -28,11 +28,11 @@
             android:textSize="11sp"
             android:visibility="gone" />
 
-        <LinearLayout
-            android:id="@+id/bubble"
+        <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginEnd="64dp" android:orientation="vertical">
+        <LinearLayout android:id="@+id/bubble"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginEnd="64dp"
             android:background="@drawable/bg_bubble_in"
             android:orientation="vertical"
             android:paddingHorizontal="12dp"
@@ -162,6 +162,13 @@
                 android:layout_marginTop="2dp"
                 android:textColor="?attr/colorOnSurfaceVariant"
                 android:textSize="11sp" />
+        </LinearLayout>
+            <!-- Cụm biểu cảm nằm dưới bong bóng, ẩn khi chưa có lượt thả. -->
+            <LinearLayout android:id="@+id/reactions_container"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_gravity="start" android:layout_marginTop="2dp"
+                android:orientation="vertical" android:gravity="center_vertical"
+                android:minWidth="48dp" android:minHeight="48dp" android:focusable="true" android:visibility="gone" />
         </LinearLayout>
     </LinearLayout>
 </LinearLayout>

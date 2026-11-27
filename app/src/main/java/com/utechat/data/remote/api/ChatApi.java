@@ -60,6 +60,14 @@ public interface ChatApi {
             @Query("before") @Nullable Long before,
             @Query("limit") int limit);
 
+    // Tải trang lịch sử với JWT chụp khi yêu cầu được tạo để cô lập hai phiên.
+    @GET("api/conversations/{id}/messages")
+    Call<List<ChatDtos.MessageDto>> getMessages(
+            @Header("Authorization") String authorization,
+            @Path("id") String id,
+            @Query("before") @Nullable Long before,
+            @Query("limit") int limit);
+
     /**
      * Gửi tin nhắn với header Authorization truyền tường minh từ SendMessageWorker
      * để khóa chặt đúng JWT của phiên xếp hàng; AuthInterceptor sẽ không ghi đè header này.
@@ -69,6 +77,19 @@ public interface ChatApi {
             @Header("Authorization") String authorization,
             @Path("id") String id,
             @Body ChatDtos.SendMessageRequest request);
+
+    // Các thao tác Phase 7 dùng JWT của phiên đã thực hiện thao tác.
+    @POST("api/conversations/{id}/messages/{messageId}/recall")
+    Call<ChatDtos.MessageDto> recallMessage(@Header("Authorization") String authorization,
+            @Path("id") String id, @Path("messageId") long messageId);
+
+    @DELETE("api/conversations/{id}/messages/{messageId}")
+    Call<Void> deleteMessageForMe(@Header("Authorization") String authorization,
+            @Path("id") String id, @Path("messageId") long messageId);
+
+    @PUT("api/conversations/{id}/messages/{messageId}/reaction")
+    Call<ChatDtos.ReactionUpdateResponse> updateReaction(@Header("Authorization") String authorization,
+            @Path("id") String id, @Path("messageId") long messageId, @Body ChatDtos.ReactionRequest request);
 
     @POST("api/conversations/{id}/delivered")
     Call<Void> markDelivered(

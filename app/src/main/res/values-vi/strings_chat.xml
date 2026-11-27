@@ -129,4 +129,29 @@
     <string name="chat_error_call_not_found">Không tìm thấy cuộc gọi.</string>
     <string name="chat_error_invalid_state">Cuộc gọi này không còn hoạt động.</string>
     <string name="chat_voice_call">Gọi thoại</string>
+    <!-- Chuỗi dùng chung cho tin đã gỡ và thông báo nhãn dán. -->
+    <string name="chat_message_recalled">Tin nhắn đã được gỡ</string>
+    <string name="chat_type_sticker">[Nhãn dán]</string>
+
+    <!-- Thao tác gỡ, xóa, dịch và biểu cảm trên tin nhắn. -->
+    <string name="chat_action_recall">Gỡ tin nhắn</string>
+    <string name="chat_action_delete_for_me">Xóa ở phía bạn</string>
+    <string name="chat_recall_confirm_title">Gỡ tin nhắn này?</string>
+    <string name="chat_recall_confirm_message">Mọi người trong cuộc trò chuyện sẽ thấy tin nhắn đã được gỡ.</string>
+    <string name="chat_delete_for_me_confirm_title">Xóa tin nhắn này ở phía bạn?</string>
+    <string name="chat_delete_for_me_confirm_message">Tin sẽ được ẩn trên các thiết bị của bạn. Người khác vẫn có thể xem tin.</string>
+    <string name="chat_action_requires_network">Cần kết nối mạng để thực hiện thao tác này</string>
+    <string name="chat_error_recall_expired">Đã quá thời hạn 24 giờ để gỡ tin nhắn</string>
+    <string name="chat_reactions_title">Cảm xúc</string>
+    <string name="chat_reactions_all">Tất cả (%1$d)</string>
+    <string name="chat_cd_sticker">Nhãn dán</string>
+    <string name="chat_reaction_heart">Yêu thích</string>
+    <string name="chat_reaction_laugh">Cười</string>
+    <string name="chat_reaction_like">Thích</string>
+    <string name="chat_reaction_surprised">Ngạc nhiên</string>
+    <string name="chat_reaction_sad">Buồn</string>
+    <string name="chat_reaction_angry">Giận</string>
+    <string name="chat_reactions_count">Cảm xúc (%1$d)</string>
+    <string name="chat_reaction_option_count">%1$s (%2$d)</string>
+    <string name="notif_reaction_body">Đã bày tỏ %1$s với một tin nhắn</string>
 </resources>

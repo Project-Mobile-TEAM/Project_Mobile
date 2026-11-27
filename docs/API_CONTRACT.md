@@ -132,7 +132,7 @@ Sự kiện và dữ liệu nghiệp vụ phải cùng commit/rollback; SyncEven
 | `DELETE /conversations/{id}/members/{userId}?successorUserId=` | — | 204 (`ADMIN`, hoặc chính mình = rời nhóm; nếu là `ADMIN` duy nhất còn thành viên khác bắt buộc truyền `successorUserId` để bàn giao trong cùng transaction, nếu không trả `409 ADMIN_HANDOVER_REQUIRED`) | `403 FORBIDDEN`, `403 NOT_A_MEMBER`, `409 ADMIN_HANDOVER_REQUIRED` |
 | `PUT /conversations/{id}/members/{userId}/role` | `role` | 204 (`ADMIN`) | `403 NOT_ADMIN` |
 | `GET /conversations/{id}/messages?before=&limit=` | — | tin cũ hơn `before` (`messageId`), mới nhất trước (phân trang lịch sử, lọc chặt `id > visibleFromMessageId`) | `403 NOT_A_MEMBER` |
-| `POST /conversations/{id}/messages` | `clientId`, `type`, `text`, `mediaUrl`, `latitude`, `longitude`, `expectedVisibleFromMessageId` (tùy chọn; bắt buộc với `GROUP`, `null` với `DIRECT`) | `MessageDto` (201 mới tạo / 200 trùng `clientId`) | `400 VALIDATION`, `403 BLOCKED`, `403 CONTACT_REQUIRED`, `403 FORBIDDEN`, `403 NOT_A_MEMBER`, `409 CONFLICT`, `409 MEMBERSHIP_CHANGED`, `429 RATE_LIMITED` |
+| `POST /conversations/{id}/messages` | `clientId`, `type`, `text`, `mediaUrl`, `latitude`, `longitude`, `stickerId`, `expectedVisibleFromMessageId` (bắt buộc với `GROUP`, `null` với `DIRECT`) | `MessageDto` (201 mới tạo / 200 trùng `clientId`) | `400 VALIDATION`, `403 BLOCKED`, `403 CONTACT_REQUIRED`, `403 FORBIDDEN`, `403 NOT_A_MEMBER`, `409 CONFLICT`, `409 MEMBERSHIP_CHANGED`, `429 RATE_LIMITED` |
 | `POST /conversations/{id}/delivered` | `upToMessageId` | 204 | `403 NOT_A_MEMBER` |
 | `POST /conversations/{id}/read` | `upToMessageId` | 204 | `403 NOT_A_MEMBER` |
 | `GET /sync/bootstrap` | — | `{me, conversations, friends, blocked, contactRequests, syncCursor}` nhất quán trong 1 transaction `REPEATABLE READ READ ONLY` | — |
@@ -146,7 +146,7 @@ Sự kiện và dữ liệu nghiệp vụ phải cùng commit/rollback; SyncEven
 > - Gửi lời mời kết bạn qua `POST /contact-requests` vẫn luôn được phép kể cả khi tắt nhận tin từ người lạ.
 >
 > **Quy ước gửi tin từ Client:**
-> - Các loại tin nhắn được client gửi (`type`): `TEXT`, `IMAGE`, `AUDIO`, `VIDEO`, `FILE`, `LOCATION`. Riêng `SYSTEM` và `CALL` do server tự sinh, client gửi lên sẽ nhận lỗi `400 VALIDATION`.
+> - Các loại tin nhắn được client gửi (`type`): `TEXT`, `IMAGE`, `AUDIO`, `VIDEO`, `FILE`, `LOCATION`, `STICKER`. Riêng `SYSTEM` và `CALL` do server tự sinh, client gửi lên sẽ nhận lỗi `400 VALIDATION`.
 > - **Tin nhắn văn bản (`TEXT`):** Yêu cầu `text` có từ 1..4000 ký tự (sau khi trim, không rỗng).
 > - **Tin nhắn đa phương tiện (`IMAGE`, `AUDIO`, `VIDEO`, `FILE`):**
 >   - Bắt buộc có trường `mediaUrl` dạng `/api/media/{attachmentId}` (với `attachmentId` là UUID chuẩn 8-4-4-4-12 khớp regex `^/api/media/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$`). `text` là tùy chọn (chú thích kèm theo, tối đa 4000 ký tự).
@@ -156,6 +156,7 @@ Sự kiện và dữ liệu nghiệp vụ phải cùng commit/rollback; SyncEven
 > - **Tin nhắn vị trí (`LOCATION`):**
 >   - Bắt buộc gửi `latitude` và `longitude` là số thực hữu hạn (finite), thỏa mãn `latitude ∈ [-90, 90]` và `longitude ∈ [-180, 180]`.
 >   - Trường `mediaUrl` bắt buộc phải là `null`. Nếu vi phạm trả về `400 VALIDATION`. `text` là tùy chọn (địa chỉ hoặc mô tả).
+> - **Nhãn dán (`STICKER`).** Gửi `stickerId` là UUID trong danh mục server. Để `text`, `mediaUrl`, `latitude` và `longitude` trống. Tin đã xếp hàng vẫn gửi được nếu người dùng gỡ bộ trước khi có mạng trở lại.
 > - **Kiểm tra phiên bản thành viên nhóm (`GROUP`):**
 >   - Đối với nhóm, client bắt buộc gửi `expectedVisibleFromMessageId` khớp với mốc `visible_from_message_id` hiện tại của thành viên trong hội thoại; nếu lệch trả về `409 MEMBERSHIP_CHANGED`.
 >
@@ -223,6 +224,7 @@ Sự kiện và dữ liệu nghiệp vụ phải cùng commit/rollback; SyncEven
 > 4. **Kiểm soát quyền truy cập tải file (`GET /media/{id}`):**
 >    - **Bearer-only:** Chỉ chấp nhận token trong header `Authorization: Bearer <token>`. Tuyệt đối không cho phép query ticket hoặc JWT trong query string của URL nhằm tránh lộ token trong access log hay lịch sử duyệt web.
 >    - **Kiểm tra thành viên:** Người yêu cầu phải là uploader (nếu file chưa gắn message), hoặc là thành viên hiện tại của hội thoại chứa message đó (`left_at IS NULL`) VÀ tin nhắn phải được gửi sau mốc gia nhập của họ (`message.id > visible_from_message_id`). Nếu vi phạm trả về `403 FORBIDDEN`.
+>    - Tệp đã bị thu hồi do gỡ tin trả `404 NOT_FOUND`. Người đã xóa tin ở phía mình nhận `403 FORBIDDEN` khi tải tệp của tin đó.
 > 5. **Hỗ trợ HTTP Range:**
 >    - Phục vụ phát video/audio tua đoạn (streaming) hoặc resume tải file khi mạng gián đoạn.
 >    - Range hợp lệ trả về `206 Partial Content` với header `Content-Range: bytes <start>-<end>/<total>` và `Content-Length: <end - start + 1>`.
@@ -250,6 +252,23 @@ Sự kiện và dữ liệu nghiệp vụ phải cùng commit/rollback; SyncEven
 |---|---|
 | `GET /demo/sms?phone=` | Trả các tin OTP gần nhất từ `demo_sms_outbox`. Cần header khoá demo riêng. **Không tồn tại** ở profile `prod` |
 
+### 2.8 Thao tác tin nhắn và nhãn dán
+
+| Method và đường dẫn | Body | Kết quả |
+|---|---|---|
+| `POST /conversations/{id}/messages/{messageId}/recall` | — | `200` với `MessageDto` đã gỡ. Gửi lại yêu cầu cho cùng tin trả về trạng thái hiện có. |
+| `DELETE /conversations/{id}/messages/{messageId}` | — | `204`. Ẩn tin đối với tài khoản gọi API, kể cả khi đã rời nhóm hoặc bị chặn. Gửi lại yêu cầu vẫn trả `204`. |
+| `PUT /conversations/{id}/messages/{messageId}/reaction` | `{ "emoji": "❤️" }` hoặc `{ "emoji": null }` | `200` với `messageId`, `emoji` nếu còn, `action` (`SET` hoặc `REMOVED`) và danh sách `reactions`. |
+| `GET /stickers/packs` | — | Danh mục bộ nhãn dán, trạng thái `installed` theo tài khoản và các nhãn dán trong từng bộ. |
+| `POST /stickers/packs/{packId}/install` | — | `204`, đặt bộ nhãn dán ở trạng thái đã thêm. |
+| `DELETE /stickers/packs/{packId}/install` | — | `204`, gỡ bộ khỏi khay. |
+| `GET /stickers/assets/{packCode}/{fileName}` | — | `200` với ảnh PNG/WebP, `Cache-Control: private, max-age=86400` và `X-Content-Type-Options: nosniff`. |
+
+- Chỉ người gửi được gỡ tin trong 24 giờ tính từ `createdAt` theo đồng hồ server. Gỡ tin quá hạn trả `409 RECALL_EXPIRED`, gỡ tin của người khác trả `403 FORBIDDEN`, gỡ tin `SYSTEM` hoặc `CALL` trả `409 INVALID_STATE`. Gỡ tin và thả cảm xúc yêu cầu thành viên còn hoạt động và hội thoại 1-1 không bị chặn.
+- Cảm xúc cho phép đúng sáu giá trị ❤️, 😂, 👍, 😮, 😢, 😡. Server chuẩn hóa ❤ thành ❤️. Mỗi người có tối đa một cảm xúc trên một tin. Chọn lại emoji hiện tại hoặc gửi `null` để bỏ, chọn emoji khác để thay thế. Tin `SYSTEM` và tin đã gỡ trả `409 INVALID_STATE`.
+- `MessageDto` có các trường bổ sung `recalledAt`, `sticker` (`id`, `packId`, `code`, `label`, `imageUrl`, `width`, `height`) và `reactions` (mỗi mục có `userId`, `emoji`, `createdAt`). Tin đã gỡ giữ ID và vị trí. Lịch sử, preview và số tin chưa đọc được tính theo người xem sau khi loại tin đã xóa ở phía họ.
+- API nhãn dán dùng Bearer trong header. Bộ mặc định xuất hiện sẵn với tài khoản mới. Gỡ bộ chỉ cập nhật trạng thái của tài khoản. Asset còn phục vụ cho nhãn dán đã gửi trong lịch sử.
+
 ## 3. WebSocket
 
 **Kết nối:** `wss://<host>/ws`, gửi header `Authorization: Bearer <token>` trong HTTP Upgrade handshake bằng OkHttp. Không đặt JWT trong query URL. Server kiểm token/thiết bị và quyền trên từng thao tác; đóng socket khi token hết hạn hoặc bị thu hồi theo ADR-018. Ping/pong mỗi 25 giây. Một tài khoản có thể có nhiều kết nối đồng thời từ các thiết bị khác nhau.
@@ -273,6 +292,9 @@ Trường `syncEventId` trỏ trực tiếp tới `sync_events.id`. Client cập
 | `type` | Mang `syncEventId`? | `payload` | Khi nào |
 |---|:---:|---|---|
 | `message.new` | Có | message (như mục 2.4) | Có tin mới trong hội thoại của người dùng |
+| `message.recalled` | Có | `messageId`, `conversationId`, `recalledAt`, `recalledBy` | Ánh xạ từ `MESSAGE_RECALLED`. |
+| `message.deleted` | Có | `messageId`, `conversationId`, `deletedAt` | Ánh xạ từ `MESSAGE_DELETED_FOR_ME`, chỉ gửi cho tài khoản thực hiện. |
+| `message.reaction` | Có | `messageId`, `conversationId`, `userId`, `emoji`, `createdAt` | Ánh xạ từ `MESSAGE_REACTION_UPDATED`. `emoji` trống khi bỏ cảm xúc. |
 | `message.status` | Có | `conversationId`, `userId`, `deliveredUpTo`, `readUpTo` | Một thành viên nâng mốc biên nhận |
 | `typing` | Không | `conversationId`, `userId`, `state` (`start`, `stop`) | Người khác trong hội thoại đang nhập văn bản |
 | `conversation.updated` | Có | hội thoại rút gọn | Đổi tên nhóm, thêm/xoá thành viên, đổi vai trò |

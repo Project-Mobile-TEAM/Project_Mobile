@@ -17,6 +17,7 @@ import com.utechat.data.local.dao.ConversationListItem;
 import com.utechat.data.local.dao.MessageDao;
 import com.utechat.data.sync.WsConnectionState;
 import com.utechat.databinding.FragmentChatListBinding;
+import com.utechat.di.Injection;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -65,12 +66,18 @@ public class ChatListFragment extends Fragment {
             searchAdapter.setUsers(users);
             render();
         });
+        Injection.provideReactionSeenStore(requireContext()).observeAll()
+                .observe(getViewLifecycleOwner(), listAdapter::setSeenReactionTimestamps);
         vm.getConversations().observe(getViewLifecycleOwner(), list -> render());
         vm.getQuery().observe(getViewLifecycleOwner(), q -> render());
         vm.getMessageHits().observe(getViewLifecycleOwner(), hits -> render());
     }
 
     private void open(ConversationListItem item) {
+        if (item.latestReactionAt != null) {
+            Injection.provideReactionSeenStore(requireContext()).markSeen(
+                    vm.meId(), item.conversation.getId(), item.latestReactionAt);
+        }
         ChatNavigation.openConversation(NavHostFragment.findNavController(this), item.conversation.getId(), -1L);
     }
 

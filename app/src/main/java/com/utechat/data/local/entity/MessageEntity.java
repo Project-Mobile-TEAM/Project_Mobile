@@ -27,7 +27,7 @@ public class MessageEntity {
     @NonNull
     private String senderId;
 
-    /** TEXT, IMAGE, AUDIO, VIDEO, FILE, LOCATION, SYSTEM hoặc CALL. */
+    /** TEXT, IMAGE, AUDIO, VIDEO, FILE, LOCATION, SYSTEM, CALL hoặc STICKER. */
     @NonNull
     private String type;
 
@@ -39,7 +39,7 @@ public class MessageEntity {
     @Nullable @ColumnInfo(name = "normalized_text")
     private String normalizedText;
 
-    /** Metadata tệp do server cung cấp, không tự suy đoán. */
+    /** Metadata tệp hoặc nhãn dán do server cung cấp. */
     @Nullable
     private String attachmentJson;
 
@@ -57,6 +57,10 @@ public class MessageEntity {
     /** Mốc visibleFromMessageId của nhóm lúc xếp hàng gửi; null với chat 1-1 hoặc dữ liệu cũ v1. */
     @Nullable
     private Long queuedVisibleFromMessageId;
+
+    /** Mốc UTC mili-giây khi server gỡ tin, giúp giữ vị trí tin trong lịch sử. */
+    @Nullable
+    private Long recalledAt;
 
     // Room dùng constructor rỗng để tạo đối tượng rồi đọc/ghi qua getter và setter.
     public MessageEntity() { }
@@ -109,6 +113,11 @@ public class MessageEntity {
     @Nullable
     public String getErrorCode() { return errorCode; }
     public void setErrorCode(@Nullable String value) { this.errorCode = value; }
+
+    // Đọc và cập nhật mốc gỡ để hiển thị tin đã được thu hồi.
+    @Nullable
+    public Long getRecalledAt() { return recalledAt; }
+    public void setRecalledAt(@Nullable Long value) { recalledAt = value; }
 
     // Đọc và cập nhật mốc tham gia nhóm tại lúc đưa tin vào hàng đợi gửi offline.
     @Nullable

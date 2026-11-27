@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Nhãn khay và cửa hàng, dùng chung cho chế độ tối và sáng. -->
+    <string name="sticker_tray_title">Stickers</string>
+    <string name="sticker_store_title">Sticker Store</string>
+    <string name="sticker_store_install">Install</string>
+    <string name="sticker_store_uninstall">Remove pack</string>
+    <string name="sticker_store_installed_badge">Installed</string>
+    <string name="sticker_store_empty">No sticker packs available.</string>
+    <string name="sticker_tray_empty">No stickers installed. Open the store to add a pack.</string>
+    <string name="sticker_store_open_cd">Open Sticker Store</string>
+    <string name="sticker_unavailable_offline">Download this sticker while connected first.</string>
+</resources>

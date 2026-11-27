@@ -22,6 +22,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.time.Clock;
+import java.time.Instant;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoField;
 import java.util.Arrays;
@@ -40,6 +41,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -267,14 +269,14 @@ public class MediaService {
      * Chuẩn bị dữ liệu để stream tải tệp: kiểm tra quyền truy cập (RBAC theo mốc visible_from_message_id)
      * và tính hợp lệ của tệp trên ổ đĩa server.
      */
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public MediaDownloadMeta prepareDownload(UUID actorId, UUID attachmentId) {
         if (actorId == null || attachmentId == null) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "VALIDATION", "Invalid actorId or attachmentId");
         }
 
         List<AttachmentRecord> records = jdbc.query(
-                "SELECT id, uploader_id, kind, mime, size_bytes, storage_path, original_name "
+                "SELECT id, uploader_id, kind, mime, size_bytes, storage_path, original_name, revoked_at "
                         + "FROM public.attachments WHERE id = ?",
                 (rs, i) -> new AttachmentRecord(
                         rs.getObject("id", UUID.class),
@@ -283,30 +285,41 @@ public class MediaService {
                         rs.getString("mime"),
                         rs.getLong("size_bytes"),
                         rs.getString("storage_path"),
-                        rs.getString("original_name")),
+                        rs.getString("original_name"), null, null, null, rs.getTimestamp("revoked_at") != null),
                 attachmentId);
 
         if (records.isEmpty()) {
             throw new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Attachment not found");
         }
         AttachmentRecord att = records.get(0);
+        // Tệp bị gỡ không quay về quyền xem trước của người tải lên sau khi bỏ liên kết tin.
+        if (att.revoked()) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Attachment is no longer available");
+        }
 
         List<LinkedMessage> linkedMsgs = jdbc.query(
-                "SELECT m.conversation_id, m.id AS message_id FROM public.messages m WHERE m.attachment_id = ?",
-                (rs, i) -> new LinkedMessage(rs.getObject("conversation_id", UUID.class), rs.getLong("message_id")),
+                "SELECT m.conversation_id, m.id AS message_id, m.recalled_at "
+                        + "FROM public.messages m WHERE m.attachment_id = ?",
+                (rs, i) -> new LinkedMessage(rs.getObject("conversation_id", UUID.class),
+                        rs.getLong("message_id"), rs.getTimestamp("recalled_at") != null),
                 attachmentId);
 
         if (!linkedMsgs.isEmpty()) {
             LinkedMessage lm = linkedMsgs.get(0);
+            if (lm.recalled()) {
+                throw new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Attachment is no longer available");
+            }
             // Người yêu cầu phải là thành viên hiện tại VÀ message.id > visible_from_message_id (strict >)
             Boolean hasAccess = jdbc.queryForObject(
                     "SELECT EXISTS("
                             + "    SELECT 1 FROM public.conversation_members cm "
                             + "    WHERE cm.conversation_id = ? AND cm.user_id = ? "
-                            + "      AND cm.left_at IS NULL AND ? > cm.visible_from_message_id"
+                            + "      AND cm.left_at IS NULL AND ? > cm.visible_from_message_id "
+                            + "      AND NOT EXISTS (SELECT 1 FROM public.message_deletions d "
+                            + "                      WHERE d.user_id = cm.user_id AND d.message_id = ?)"
                             + ")",
                     Boolean.class,
-                    lm.conversationId(), actorId, lm.messageId());
+                    lm.conversationId(), actorId, lm.messageId(), lm.messageId());
 
             if (!Boolean.TRUE.equals(hasAccess)) {
                 throw new ApiException(HttpStatus.FORBIDDEN, "FORBIDDEN", "Not authorized to access this media");
@@ -332,10 +345,36 @@ public class MediaService {
                 filePath);
     }
 
+    /** Đánh dấu thu hồi trong transaction gỡ tin, xóa tệp vật lý sau commit để rollback vẫn giữ được tệp. */
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
+    void revokeAttachment(UUID attachmentId, Instant revokedAt) {
+        List<String> paths = jdbc.queryForList("""
+                UPDATE public.attachments SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL
+                RETURNING storage_path
+                """, String.class, java.sql.Timestamp.from(revokedAt), attachmentId);
+        if (paths.isEmpty()) {
+            return;
+        }
+        Path file = rootDir.resolve(paths.get(0)).normalize();
+        if (!file.startsWith(rootDir) || file.equals(rootDir)) {
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                try {
+                    Files.deleteIfExists(file);
+                } catch (IOException e) {
+                    log.warn("Không thể xóa tệp đã thu hồi {}", attachmentId, e);
+                }
+            }
+        });
+    }
+
     private MediaUploadResponse findExistingUpload(UUID actorId, UUID clientId, String expectedKind) {
         List<AttachmentRecord> existing = jdbc.query(
                 "SELECT id, uploader_id, kind, mime, size_bytes, storage_path, original_name, "
-                        + "       duration_ms, width, height "
+                        + "       duration_ms, width, height, revoked_at "
                         + "FROM public.attachments "
                         + "WHERE uploader_id = ? AND upload_client_id = ?",
                 (rs, i) -> new AttachmentRecord(
@@ -348,7 +387,8 @@ public class MediaService {
                         rs.getString("original_name"),
                         (Integer) rs.getObject("duration_ms"),
                         (Integer) rs.getObject("width"),
-                        (Integer) rs.getObject("height")),
+                        (Integer) rs.getObject("height"),
+                        rs.getTimestamp("revoked_at") != null),
                 actorId, clientId);
 
         if (existing.isEmpty()) {
@@ -356,6 +396,9 @@ public class MediaService {
         }
 
         AttachmentRecord row = existing.get(0);
+        if (row.revoked()) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Attachment is no longer available");
+        }
         if (!expectedKind.equalsIgnoreCase(row.kind())) {
             throw new ApiException(
                     HttpStatus.CONFLICT,
@@ -988,11 +1031,8 @@ public class MediaService {
             String originalName,
             Integer durationMs,
             Integer width,
-            Integer height) {
-        AttachmentRecord(UUID id, UUID uploaderId, String kind, String mime, long sizeBytes, String storagePath, String originalName) {
-            this(id, uploaderId, kind, mime, sizeBytes, storagePath, originalName, null, null, null);
-        }
-    }
+            Integer height,
+            boolean revoked) {}
 
-    private record LinkedMessage(UUID conversationId, long messageId) {}
+    private record LinkedMessage(UUID conversationId, long messageId, boolean recalled) {}
 }

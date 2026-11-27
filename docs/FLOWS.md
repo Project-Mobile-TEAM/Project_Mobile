@@ -499,3 +499,21 @@ Xóa mềm tài khoản thu hồi mọi thiết bị, gỡ khỏi các nhóm, **
 
 ### 11.6 Xem OTP demo
 Chỉ khả dụng ở profile `demo`: `GET /api/demo/sms?phone=` (kèm secret header) để lấy mã OTP phục vụ kiểm thử nhanh.
+
+## 12. Thao tác tin nhắn và nhãn dán
+
+### F-27 Gỡ tin cho mọi người và xóa phía bạn
+
+1. Người gửi chọn **Gỡ tin nhắn** từ menu nhấn giữ. Server chỉ cho gỡ tin của chính người đó trong vòng 24 giờ. Quyền gỡ và thả cảm xúc bị khóa trong nhóm đã rời hoặc hội thoại 1-1 bị chặn.
+2. Server giữ vị trí tin, xóa nội dung và cảm xúc, rồi thu hồi quyền tải lại tệp đính kèm. Qua `MESSAGE_RECALLED`, thiết bị đổi tin và preview thành **Tin nhắn đã được gỡ**, đồng thời loại nội dung khỏi FTS4 và bộ nhớ đệm bản dịch.
+3. **Xóa phía bạn** chỉ ảnh hưởng đến tài khoản thực hiện và dùng được ở hội thoại chỉ đọc hoặc bị chặn. Sự kiện `MESSAGE_DELETED_FOR_ME` cập nhật các thiết bị của tài khoản đó. Nếu tin mới nhất bị ẩn, preview lùi về tin còn lại gần nhất hoặc để trống.
+
+### F-28 Bày tỏ cảm xúc
+
+Menu nhấn giữ cung cấp sáu emoji. Mỗi người có một cảm xúc trên mỗi tin. Chọn emoji mới để thay thế, chọn lại để bỏ. `MESSAGE_REACTION_UPDATED` đồng bộ thay đổi. Nhấn cụm cảm xúc để xem người đã thả.
+
+### F-29 Khay nhãn dán và thao tác khi mất mạng
+
+- Tài khoản mới có một bộ mặc định trong khay. Cửa hàng cho phép thêm hoặc gỡ bộ. Ứng dụng tải ảnh về bộ nhớ riêng để mở khay khi offline. Nhãn dán đã gửi tiếp tục hiển thị trong lịch sử sau khi gỡ bộ.
+- Khi gửi nhãn dán đã tải trong lúc mất mạng, app xếp hàng tin `STICKER` với `stickerId` và `clientId`. WorkManager tự gửi khi mạng trở lại. Server dùng `clientId` để tránh tạo tin trùng.
+- Menu nhấn giữ hợp nhất gỡ, xóa, cảm xúc và dịch theo quyền và loại tin. Gỡ, xóa và cảm xúc cần xác nhận từ server. Khi mất mạng, app báo trạng thái và giữ dữ liệu hiện tại. Dịch vẫn dùng được nếu gói ngôn ngữ đã tải.

@@ -29,6 +29,7 @@ public final class ChatErrors {
             case "CALL_UNSUPPORTED": return R.string.chat_error_call_unsupported;
             case "CALL_NOT_FOUND": return R.string.chat_error_call_not_found;
             case "INVALID_STATE": return R.string.chat_error_invalid_state;
+            case "RECALL_EXPIRED": return R.string.chat_error_recall_expired;
             case "UNAUTHORIZED":
             case "UNAUTHENTICATED": return R.string.auth_session_expired;
             case "FORBIDDEN":

@@ -7,6 +7,7 @@ import com.utechat.backend.dto.MessagingDtos.ConversationDto;
 import com.utechat.backend.dto.MessagingDtos.CreateGroupRequest;
 import com.utechat.backend.dto.MessagingDtos.MemberDto;
 import com.utechat.backend.dto.MessagingDtos.MessageDto;
+import com.utechat.backend.dto.MessagingDtos.ReactionDto;
 import com.utechat.backend.dto.MessagingDtos.UpdateConversationRequest;
 import com.utechat.backend.dto.MessagingDtos.UpdateRoleRequest;
 import com.utechat.backend.exception.ApiException;
@@ -573,7 +574,7 @@ public class ConversationService {
      */
     public ConversationDto buildConversationDto(UUID viewerId, UUID conversationId) {
         List<ConversationHeader> headers = jdbc.query(
-                "SELECT c.id, c.type, c.title, c.avatar_url, c.last_message_id, c.created_at, "
+                "SELECT c.id, c.type, c.title, c.avatar_url, c.created_at, "
                         + "cm.muted, cm.visible_from_message_id, cm.last_read_message_id, cm.left_at "
                         + "FROM conversations c "
                         + "JOIN conversation_members cm ON cm.conversation_id = c.id AND cm.user_id = ? "
@@ -583,7 +584,6 @@ public class ConversationService {
                         rs.getString("type"),
                         rs.getString("title"),
                         rs.getString("avatar_url"),
-                        rs.getObject("last_message_id") == null ? null : rs.getLong("last_message_id"),
                         toIso(rs.getTimestamp("created_at")),
                         rs.getBoolean("muted"),
                         rs.getLong("visible_from_message_id"),
@@ -614,21 +614,23 @@ public class ConversationService {
                         toIso(rs.getTimestamp("left_at"))),
                 conversationId);
 
-        // Chỉ hiển thị lastMessage nếu nằm sau mốc visible_from_message_id (dấu > chặt).
-        Long visibleLastMessageId = null;
-        MessageDto lastMessage = null;
-        if (h.lastMessageId != null && h.lastMessageId > h.visibleFromMessageId) {
-            visibleLastMessageId = h.lastMessageId;
-            lastMessage = loadMessageById(h.lastMessageId);
-        }
+        // Preview lùi về tin còn thấy gần nhất của tài khoản, giữ đúng mốc lịch sử nhóm.
+        List<MessageDto> previews = jdbc.query(MessageService.SELECT_MESSAGE_WITH_METADATA + """
+                 WHERE m.conversation_id = ? AND m.id > ?
+                   AND NOT EXISTS (SELECT 1 FROM public.message_deletions d WHERE d.message_id = m.id AND d.user_id = ?)
+                 ORDER BY m.id DESC LIMIT 1
+                """, MessageService::mapMessageRow, conversationId, h.visibleFromMessageId, viewerId);
+        MessageDto lastMessage = previews.isEmpty() ? null : attachReactions(previews.get(0));
+        Long visibleLastMessageId = lastMessage == null ? null : lastMessage.id();
 
         // Số tin chưa đọc chỉ tính các tin của người khác lớn hơn cả last_read và visible_from.
         long unreadFloor = Math.max(h.lastReadMessageId, h.visibleFromMessageId);
         Integer unread = jdbc.queryForObject(
                 "SELECT count(*) FROM messages m "
-                        + "WHERE m.conversation_id = ? AND m.sender_id <> ? AND m.id > ?",
+                        + "WHERE m.conversation_id = ? AND m.sender_id <> ? AND m.id > ? "
+                        + "AND NOT EXISTS (SELECT 1 FROM public.message_deletions d WHERE d.message_id = m.id AND d.user_id = ?)",
                 Integer.class,
-                conversationId, viewerId, unreadFloor);
+                conversationId, viewerId, unreadFloor, viewerId);
 
         return new ConversationDto(
                 h.id.toString(),
@@ -789,7 +791,16 @@ public class ConversationService {
                 MessageService.SELECT_MESSAGE_WITH_METADATA + " WHERE m.id = ?",
                 MessageService::mapMessageRow,
                 messageId);
-        return rows.isEmpty() ? null : rows.get(0);
+        return rows.isEmpty() ? null : attachReactions(rows.get(0));
+    }
+
+    /** Đính kèm cảm xúc vào lastMessage khi tin chưa gỡ để bootstrap/hội thoại nhận đủ ngay từ đầu. */
+    private MessageDto attachReactions(MessageDto message) {
+        if (message == null || message.recalledAt() != null) {
+            return message;
+        }
+        List<ReactionDto> reactions = MessageService.loadReactions(jdbc, List.of(message.id())).get(message.id());
+        return reactions == null ? message : message.withReactions(reactions);
     }
 
     static String buildDirectKey(UUID a, UUID b) {
@@ -824,7 +835,6 @@ public class ConversationService {
             String type,
             String title,
             String avatarUrl,
-            Long lastMessageId,
             String createdAt,
             boolean muted,
             long visibleFromMessageId,

@@ -11,9 +11,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase;
 import com.utechat.data.local.dao.*;
 import com.utechat.data.local.entity.*;
 
-/** 10 bảng Room theo ERD mục 4 (phiên bản v3 bổ sung 11 cột cho attachment_transfer), khác 13 bảng PostgreSQL. */
-@Database(entities = {UserEntity.class, ContactRequestEntity.class, ContactEntity.class, ConversationEntity.class, ConversationMemberEntity.class, MessageEntity.class, AttachmentTransferEntity.class, MessageFtsEntity.class, MessageTranslationEntity.class, SyncStateEntity.class},
-        version = 3, exportSchema = true)
+/** Cache Room theo ERD mục 4, gồm cảm xúc, dấu xóa phía bạn và kho nhãn dán của Phase 7. */
+@Database(entities = {UserEntity.class, ContactRequestEntity.class, ContactEntity.class, ConversationEntity.class, ConversationMemberEntity.class, MessageEntity.class, AttachmentTransferEntity.class, MessageFtsEntity.class, MessageTranslationEntity.class, SyncStateEntity.class,
+        MessageReactionEntity.class, MessageDeletionEntity.class, StickerPackEntity.class, StickerEntity.class},
+        version = 4, exportSchema = true)
 @TypeConverters(Converters.class)
 public abstract class AppDatabase extends RoomDatabase {
     // Migration tường minh từ v1 lên v2 cho cả Debug và Release để không làm mất dữ liệu cục bộ.
@@ -47,6 +48,33 @@ public abstract class AppDatabase extends RoomDatabase {
         }
     };
 
+    // Thêm mốc gỡ tin và các bảng cache Phase 7, giữ nguyên dữ liệu từ v3.
+    public static final Migration MIGRATION_3_4 = new Migration(3, 4) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase db) {
+            db.execSQL("ALTER TABLE message ADD COLUMN recalledAt INTEGER");
+            // Giữ ID tin đã ẩn để phản hồi cũ không đưa tin trở lại trên máy này.
+            db.execSQL("CREATE TABLE IF NOT EXISTS `message_deletion` (`serverId` INTEGER NOT NULL, PRIMARY KEY(`serverId`))");
+            db.execSQL("CREATE TABLE IF NOT EXISTS `message_reaction` ("
+                    + "`messageServerId` INTEGER NOT NULL, `userId` TEXT NOT NULL, "
+                    + "`emoji` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, "
+                    + "PRIMARY KEY(`messageServerId`, `userId`))");
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_message_reaction_messageServerId` "
+                    + "ON `message_reaction` (`messageServerId`)");
+            db.execSQL("CREATE TABLE IF NOT EXISTS `sticker_pack` ("
+                    + "`packId` TEXT NOT NULL, `code` TEXT NOT NULL, `name` TEXT NOT NULL, "
+                    + "`description` TEXT, `thumbnailUrl` TEXT NOT NULL, "
+                    + "`installed` INTEGER NOT NULL, `isDefault` INTEGER NOT NULL, "
+                    + "`sortOrder` INTEGER NOT NULL, PRIMARY KEY(`packId`))");
+            db.execSQL("CREATE TABLE IF NOT EXISTS `sticker` ("
+                    + "`stickerId` TEXT NOT NULL, `packId` TEXT NOT NULL, `code` TEXT NOT NULL, "
+                    + "`label` TEXT NOT NULL, `imageUrl` TEXT NOT NULL, `localPath` TEXT, "
+                    + "`width` INTEGER NOT NULL, `height` INTEGER NOT NULL, `sortOrder` INTEGER NOT NULL, "
+                    + "PRIMARY KEY(`stickerId`))");
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_sticker_packId` ON `sticker` (`packId`)");
+        }
+    };
+
     // volatile cùng khóa synchronized bảo đảm chỉ tạo một database cho nhiều luồng.
     private static volatile AppDatabase instance;
 
@@ -57,15 +85,17 @@ public abstract class AppDatabase extends RoomDatabase {
     public abstract TransferDao transferDao();
     public abstract TranslationDao translationDao();
     public abstract SyncStateDao syncStateDao();
+    public abstract ReactionDao reactionDao();
+    public abstract StickerDao stickerDao();
 
     public static AppDatabase getInstance(Context context) {
         if (instance == null) {
             synchronized (AppDatabase.class) {
                 if (instance == null) {
-                    // Luôn gắn đầy đủ MIGRATION_1_2 và MIGRATION_2_3 cho mọi biến thể build, tuyệt đối không dùng fallbackToDestructiveMigration.
+                    // Giữ chuỗi migration từ v1 để thiết bị còn dữ liệu cũ nâng cấp an toàn.
                     RoomDatabase.Builder<AppDatabase> builder = Room.databaseBuilder(
                             context.getApplicationContext(), AppDatabase.class, "utechat.db")
-                            .addMigrations(MIGRATION_1_2, MIGRATION_2_3);
+                            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4);
                     instance = builder.build();
                 }
             }
