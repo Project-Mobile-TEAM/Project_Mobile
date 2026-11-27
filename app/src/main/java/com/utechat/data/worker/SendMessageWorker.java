@@ -300,6 +300,8 @@ public class SendMessageWorker extends Worker {
                 return executeMediaSend(c, type);
             case "LOCATION":
                 return executeLocationSend(c);
+            case "STICKER":
+                return executeStickerSend(c);
             default:
                 break;
         }
@@ -339,6 +341,22 @@ public class SendMessageWorker extends Worker {
         }
         ChatDtos.SendMessageRequest body = new ChatDtos.SendMessageRequest(
                 c.clientId, "LOCATION", c.msg.getText(), null, lat, lng, c.msg.getQueuedVisibleFromMessageId());
+        return sendAndHandle(c, body, null);
+    }
+
+    /** Nhãn dán nằm sẵn trong danh mục, Worker chỉ gửi ID và giữ nguyên clientId khi thử lại. */
+    private static Result executeStickerSend(SendContext c) {
+        String stickerId;
+        try {
+            JsonObject metadata = JsonParser.parseString(c.msg.getAttachmentJson()).getAsJsonObject();
+            stickerId = metadata.get("stickerId").getAsString();
+            java.util.UUID.fromString(stickerId);
+        } catch (RuntimeException malformed) {
+            failMessageOnly(c, "VALIDATION");
+            return Result.success();
+        }
+        ChatDtos.SendMessageRequest body = new ChatDtos.SendMessageRequest(
+                c.clientId, "STICKER", null, null, null, null, c.msg.getQueuedVisibleFromMessageId(), stickerId);
         return sendAndHandle(c, body, null);
     }
 
@@ -554,7 +572,18 @@ public class SendMessageWorker extends Worker {
             long createdAt = SyncEventApplier.parseIsoMillis(dto.createdAt, c.msg.getCreatedAt());
             runOnDisk(c.diskExecutor, () -> {
                 c.session.runIfCurrent(c.key, () -> c.db.runInTransaction(() -> {
-                    c.db.messageDao().markSentFromWorker(c.clientId, dto.id, createdAt);
+                    var messages = c.db.messageDao();
+                    // ACK tới sau thao tác xóa ở thiết bị khác chỉ được dọn tin chờ cục bộ.
+                    if (messages.isDeletedForMe(dto.id)) {
+                        messages.deletePendingByClientId(c.clientId);
+                        if (finish != null) c.db.transferDao().deleteByClientId(c.clientId);
+                        return;
+                    }
+                    messages.markSentFromWorker(c.clientId, dto.id, createdAt);
+                    if (dto.recalledAt != null) {
+                        new SyncEventApplier(c.db).applyRecall(dto.id,
+                                SyncEventApplier.parseIsoMillis(dto.recalledAt, createdAt));
+                    }
                     c.db.conversationDao().updateLastMessageIfNewer(c.msg.getConversationId(), dto.id, createdAt);
                     if (finish != null) {
                         c.db.transferDao().updateState(c.clientId, "COMPLETED", 100, null, System.currentTimeMillis());

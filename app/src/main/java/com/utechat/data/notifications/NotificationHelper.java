@@ -771,7 +771,10 @@ public class NotificationHelper {
             @NonNull MessageEntity msg,
             @NonNull String myUserId,
             Map<String, UserEntity> userCache) {
+        // Tin đã gỡ chỉ được dùng nhãn trạng thái, kể cả khi loại gốc là TEXT.
+        if (msg.getRecalledAt() != null) return strings.get(R.string.chat_message_recalled);
         String type = msg.getType() != null ? msg.getType() : "TEXT";
+        if ("STICKER".equals(type)) return strings.get(R.string.chat_type_sticker);
         if ("TEXT".equals(type)) {
             String text = msg.getText();
             if (text != null && !text.trim().isEmpty()) {
