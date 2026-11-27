@@ -7,6 +7,7 @@ import java.sql.Connection;
 import javax.sql.DataSource;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.init.ScriptUtils;
@@ -16,6 +17,57 @@ import org.springframework.jdbc.datasource.init.ScriptUtils;
  * baseline an toàn cho database từng nạp V1/V2 thủ công, và bỏ qua V2 seed khi chạy production.
  */
 class FlywayMigrationTest {
+
+    @Test
+    void v9UpgradesExistingV8AndLocksNewTables() throws Exception {
+        try (var database = new PostgresFixture()) {
+            DataSource ds = database.source;
+            // Nâng từ V8 đang chạy thay vì chỉ kiểm tra database trống.
+            Flyway.configure().dataSource(ds).locations("classpath:db/migration").target("8").load().migrate();
+            JdbcTemplate jdbc = new JdbcTemplate(ds);
+            Flyway.configure().dataSource(ds).locations("classpath:db/migration").load().migrate();
+
+            assertEquals(3, jdbc.queryForObject("""
+                    SELECT count(*) FROM information_schema.columns WHERE table_schema = 'public'
+                      AND ((table_name = 'attachments' AND column_name = 'revoked_at')
+                        OR (table_name = 'messages' AND column_name IN ('recalled_at', 'sticker_id')))
+                    """, Integer.class));
+            // Cả năm bảng mới mặc định từ chối Data API vì có RLS và không có policy.
+            String tables = "('sticker_packs','stickers','user_sticker_packs','message_deletions','message_reactions')";
+            assertEquals(5, jdbc.queryForObject(
+                    "SELECT count(*) FROM pg_tables WHERE schemaname='public' AND rowsecurity AND tablename IN " + tables,
+                    Integer.class));
+            assertEquals(0, jdbc.queryForObject(
+                    "SELECT count(*) FROM pg_policies WHERE schemaname='public' AND tablename IN " + tables,
+                    Integer.class));
+            assertEquals(12, jdbc.queryForObject("SELECT count(*) FROM public.stickers", Integer.class));
+            assertEquals(2, jdbc.queryForObject("SELECT count(*) FROM public.sticker_packs", Integer.class));
+            assertEquals("ute_daily", jdbc.queryForObject(
+                    "SELECT code FROM public.sticker_packs WHERE is_default", String.class));
+
+            // Ghi dữ liệu thật để xác nhận CHECK mở rộng và ràng buộc emoji còn hiệu lực.
+            var user = jdbc.queryForObject(
+                    "INSERT INTO public.users (display_name, password_hash) VALUES ('V9', 'fixture') RETURNING id",
+                    java.util.UUID.class);
+            var conversation = jdbc.queryForObject(
+                    "INSERT INTO public.conversations (type, title) VALUES ('GROUP', 'V9') RETURNING id",
+                    java.util.UUID.class);
+            Long message = jdbc.queryForObject("""
+                    INSERT INTO public.messages (conversation_id, sender_id, client_id, type, sticker_id)
+                    VALUES (?, ?, gen_random_uuid(), 'STICKER', (SELECT id FROM public.stickers LIMIT 1))
+                    RETURNING id
+                    """, Long.class, conversation, user);
+            for (String event : new String[]{"MESSAGE_RECALLED", "MESSAGE_DELETED_FOR_ME", "MESSAGE_REACTION_UPDATED"}) {
+                jdbc.update("""
+                        INSERT INTO public.sync_events (user_id, event_type, entity_type, entity_id, payload_json)
+                        VALUES (?, ?, 'MESSAGE', ?, '{}'::jsonb)
+                        """, user, event, message.toString());
+            }
+            assertThrows(DataIntegrityViolationException.class, () -> jdbc.update("""
+                    INSERT INTO public.message_reactions (message_id, user_id, emoji) VALUES (?, ?, ?)
+                    """, message, user, "🔥"));
+        }
+    }
 
     @Test
     void rewritesTransactionPoolerUrlToSessionPooler() {
