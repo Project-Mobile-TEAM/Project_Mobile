@@ -3,9 +3,9 @@
 **Defined:** 2026-11-10
 **Core Value:** Trải nghiệm nhắn tin và gọi thoại ổn định, tin cậy với kiến trúc chuẩn mực theo đúng tài liệu giảng dạy, hỗ trợ offline-first mượt mà và bám sát 100% thang điểm đánh giá (rubric 100 điểm).
 
-## v1 Requirements (15 yêu cầu cốt lõi bám sát Rubric)
+## v1 Requirements
 
-Mỗi yêu cầu ánh xạ trực tiếp đến các tiêu chí đánh giá trong Rubric môn học (100 điểm) và các phase trong roadmap.
+15 yêu cầu cốt lõi bám sát rubric môn học. Ba yêu cầu bổ sung của Phase 7 thuộc phạm vi V1.
 
 ### UI Standards & Accessibility (Tiêu chí 3 & 5: 15đ + 15đ)
 - [ ] **REQ-ui-standards**: Hỗ trợ giao diện Material 3 DayNight (chế độ sáng/tối), đa ngôn ngữ Anh - Việt và cơ chế giữ nguyên trạng thái khi xoay màn hình (orientation change).
@@ -36,6 +36,11 @@ Mỗi yêu cầu ánh xạ trực tiếp đến các tiêu chí đánh giá tron
 ### Testing & Quality Assurance (Tiêu chí 5: Unit test chạy đạt toàn bộ - 15đ)
 - [ ] **REQ-testing-quality**: Bộ Unit Test toàn diện cho Room DAO, Repository, ViewModel, Crypto, Mappers sử dụng JUnit4 & Mockito đạt tỷ lệ pass 100% trên JVM mà không cần thiết bị thật.
 
+### Thao tác tin nhắn và nhãn dán (Phase 7)
+- [ ] **REQ-message-actions-recall-delete**: Người gửi có thể gỡ tin của mình trong 24 giờ theo quyền hội thoại. Người dùng có thể xóa tin ở phía mình và đồng bộ thao tác trên các thiết bị cùng tài khoản.
+- [ ] **REQ-message-reactions**: Dùng tối đa một trong sáu emoji trên mỗi tin nhắn, đổi hoặc bỏ cảm xúc và xem danh sách người đã thả.
+- [ ] **REQ-message-stickers**: Thêm hoặc gỡ bộ nhãn dán, xem ảnh đã lưu đệm và gửi nhãn dán qua hàng đợi khi ngoại tuyến. Tin đã gửi vẫn xem được sau khi gỡ bộ.
+
 ---
 
 ## v2 Requirements (Hướng phát triển tương lai ngoài phạm vi V1)
@@ -45,7 +50,6 @@ Mỗi yêu cầu ánh xạ trực tiếp đến các tiêu chí đánh giá tron
 - **FEAT-ai-assistant**: Tích hợp bot AI trợ lý thông minh trả lời tự động trong ứng dụng.
 - **FEAT-call-video**: Cuộc gọi video 1-1 và gọi video nhóm qua WebRTC.
 - **FEAT-push-fcm**: Thông báo đẩy tức thời qua Firebase Cloud Messaging (FCM) khi tắt hoàn toàn ứng dụng.
-- **FEAT-msg-reactions**: Thả biểu cảm cảm xúc (like, thả tim, haha) trên từng tin nhắn.
 - **FEAT-msg-e2ee**: Mã hóa đầu cuối (End-to-End Encryption) cho các đoạn chat riêng tư.
 
 ---
@@ -82,14 +86,17 @@ Mỗi yêu cầu ánh xạ trực tiếp đến các tiêu chí đánh giá tron
 | REQ-notifications-sync | Phase 6 (Media & Sáng tạo) | Thành viên 5 | Tiêu chí 3 (15đ) | Pending |
 | REQ-voice-call-webrtc | Phase 6 (Media & Sáng tạo) | Thành viên 5 | Tiêu chí 4: Sáng tạo chính (5đ) | Pending |
 | REQ-message-translation | Phase 6 (Media & Sáng tạo) | Thành viên 5 | Tiêu chí 4: Sáng tạo dự phòng (5đ) | Pending |
-| REQ-testing-quality | Phase 7 (Testing & Release) | Cả nhóm (Lead nghiệm thu) | Tiêu chí 5 (15đ) | Pending |
+| REQ-message-actions-recall-delete | Phase 7 (Message Actions, Reactions & Stickers) | Cả nhóm | Bổ sung phạm vi V1 | Chờ nghiệm thu |
+| REQ-message-reactions | Phase 7 (Message Actions, Reactions & Stickers) | Cả nhóm | Bổ sung phạm vi V1 | Chờ nghiệm thu |
+| REQ-message-stickers | Phase 7 (Message Actions, Reactions & Stickers) | Cả nhóm | Bổ sung phạm vi V1 | Chờ nghiệm thu |
+| REQ-testing-quality | Phase 8 (Testing & Release) | Cả nhóm (Lead nghiệm thu) | Tiêu chí 5 (15đ) | Pending |
 
 **Coverage:**
-- v1 requirements: 15 total
-- Mapped to phases: 15
+- v1 requirements: 18 total
+- Mapped to phases: 18
 - Unmapped: 0 ✓
 - Tỷ lệ đáp ứng rubric: **100/100 điểm**
 
 ---
 *Requirements defined: 2026-11-10*
-*Last updated: 2026-11-10 sau khi cập nhật lộ trình 7 phase, CSDL 13 bảng V1 và đồng bộ API contract*
+*Cập nhật ngày 2026-11-27 cho phạm vi Phase 7 và lịch đóng gói Phase 8.*

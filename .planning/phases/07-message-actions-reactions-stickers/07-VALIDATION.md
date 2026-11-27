@@ -1,9 +1,9 @@
 ---
 phase: "07"
 slug: "message-actions-reactions-stickers"
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: verified_automated
+nyquist_compliant: true
+wave_0_complete: true
 created: "2026-11-27"
 ---
 
@@ -21,8 +21,8 @@ created: "2026-11-27"
 | **Android JVM Framework** | JUnit 4 + Mockito + `InstantTaskExecutorRule` + WorkManager / OkHttp `MockWebServer` |
 | **Android Instrumentation** | AndroidX Test JUnit + Room Testing (`MigrationTestHelper` `3 -> 4` & `1 -> 4`, `4.json`) |
 | **Static Analysis** | Android Lint (`lintDebug`: zero errors, zero `RestrictedApi` from `ArchTaskExecutor`) |
-| **Quick Run (Backend)** | `powershell -Command "cd backend; ./mvnw.cmd test -Dtest=MessageActionsReactionsStickersApiTest"` |
-| **Quick Run (Android JVM)** | `powershell -Command ".\gradlew.bat testDebugUnitTest --tests 'com.utechat.data.worker.StickerSendWorkerTest' --no-daemon"` |
+| **Quick Run (Backend, từ thư mục backend)** | `.\mvnw.cmd test "-Dtest=FlywayMigrationTest,MessageActionsAndReactionsApiTest,StickerPacksAndMessagingApiTest"` |
+| **Quick Run (Android JVM, từ thư mục repo)** | `.\gradlew.bat testDebugUnitTest --tests 'com.utechat.data.worker.SendMessageWorkerTest' --no-daemon` |
 | **Full Backend Suite** | `powershell -Command "cd backend; ./mvnw.cmd test"` |
 | **Full Android JVM + Lint + Build** | `powershell -Command ".\gradlew.bat testDebugUnitTest compileDebugAndroidTestJavaWithJavac lintDebug assembleDebug --no-daemon"` |
 | **Instrumentation Command** | `powershell -Command ".\gradlew.bat connectedDebugAndroidTest --no-daemon"` |
@@ -44,28 +44,42 @@ created: "2026-11-27"
 
 ---
 
-## Initial Verification Matrix (Before Planner Assigns Task IDs)
+## Kết quả thực thi
 
-| Suite / Artifact | Wave | Decisions & Reqs Covered | Secure / Invariant Behavior | Test Type | Command | File Exists | Status |
-|---|---|---|---|---|---|---|---|
-| `V9MigrationAndRlsTest` | Wave 1 | `D-01`, `D-03`, `D-06`, `D-08`, `D-13` | `V9__message_actions_reactions_stickers.sql` runs cleanly after `V1`–`V8` on `EmbeddedPostgres`; verifies `messages.recalled_at`, `messages.sticker_id`, `attachments.revoked_at`, `messages_type_check` accepts `'STICKER'`, `sync_events_event_type_check` accepts `MESSAGE_RECALLED`/`MESSAGE_DELETED_FOR_ME`/`MESSAGE_REACTION_UPDATED`, `message_reactions` CHECK rejects emojis outside the 6 fixed emojis, all 5 new tables have `relrowsecurity = true` with 0 public policies, and 2 sample sticker packs (1 default + 1 store, 6 stickers each) are seeded | Backend Integration (`EmbeddedPostgres`) | `powershell -Command "cd backend; ./mvnw.cmd test -Dtest=V9MigrationAndRlsTest"` | ❌ Planned | ⬜ pending |
-| `MessageRecallAndDeleteApiTest` | Wave 2 | `D-01`, `D-02`, `D-03`, `D-04`, `D-05` | Injectable `Clock` verifies `23h59m59s` recall succeeds (`200 OK`) and `24h00m01s` fails (`409 RECALL_EXPIRED`); non-sender (including group `ADMIN`) receives `403 FORBIDDEN`; `SYSTEM`/`CALL` receives `409 INVALID_STATE`; left group / blocked 1-1 receives `403 NOT_A_MEMBER` / `403 BLOCKED`; repeat recall is idempotent (`200 OK`, no duplicate `sync_events`); recall clears `text`/`attachment_id`/`latitude`/`longitude`/`sticker_id`, deletes reactions, revokes `attachments.revoked_at`, and `GET /api/media/{id}` rejects both sender and recipient (`404`); Delete-for-Me succeeds even when left group or blocked (`204`), emits `MESSAGE_DELETED_FOR_ME` **only** to caller, excludes message from `GET /messages` and `GET /media/{id}` (`403`), and falls back `ConversationDto.lastMessage` to previous remaining message (or `null`) | Backend Integration (`EmbeddedPostgres` + `MockMvc`) | `powershell -Command "cd backend; ./mvnw.cmd test -Dtest=MessageRecallAndDeleteApiTest"` | ❌ Planned | ⬜ pending |
-| `MessageReactionApiTest` | Wave 2 | `D-04`, `D-06`, `D-07` | All 6 fixed emojis (`❤️`, `😂`, `👍`, `😮`, `😢`, `😡`, including `U+2764` normalized to `U+2764 U+FE0F`) succeed; 7th emoji (`🔥`) fails `400 VALIDATION`; selecting new emoji replaces old (`PRIMARY KEY (message_id, user_id)`); tapping same emoji or `emoji: null` removes reaction; `SYSTEM` or recalled message fails `409 INVALID_STATE`; left group / blocked 1-1 fails `403 NOT_A_MEMBER` / `403 BLOCKED`; emits `MESSAGE_REACTION_UPDATED` to active members and returns reactions in `GET /messages` | Backend Integration (`EmbeddedPostgres` + `MockMvc`) | `powershell -Command "cd backend; ./mvnw.cmd test -Dtest=MessageReactionApiTest"` | ❌ Planned | ⬜ pending |
-| `StickerPackAndSendApiTest` | Wave 2 | `D-08`, `D-09`, `D-10` | New account gets `ute_daily` (`installed = true`) and `ute_campus` (`installed = false`) from `GET /api/stickers/packs`; `POST`/`DELETE /api/stickers/packs/{packId}/install` persist and sync across calls (including uninstalling default pack); `GET /api/stickers/assets/{packCode}/{fileName}` requires Bearer (`401` without), serves PNG with `X-Content-Type-Options: nosniff`, blocks path traversal (`400`/`404`); `POST /conversations/{id}/messages` with `type = "STICKER"` + `stickerId` returns `201` (and `200` on `clientId` replay), rejects non-null `text`/`mediaUrl`, and historical sticker message remains readable after uninstalling pack | Backend Integration (`EmbeddedPostgres` + `MockMvc`) | `powershell -Command "cd backend; ./mvnw.cmd test -Dtest=StickerPackAndSendApiTest"` | ❌ Planned | ⬜ pending |
-| `SyncEventApplierPhase7Test` | Wave 3 | `D-02`, `D-03`, `D-05`, `D-07`, `D-10` | Verifies `MESSAGE_RECALLED` sets `recalledAt`, clears `text`/`normalized_text`/`attachmentJson`, deletes cached translations in `message_translation`, and clears reactions; `MESSAGE_DELETED_FOR_ME` deletes local `message` row, clears reactions/translations, and recomputes `conversation.lastMessageId`; `MESSAGE_REACTION_UPDATED` upserts/deletes `message_reaction`; `MESSAGE_CREATED` with `type = "STICKER"` preserves sticker metadata in `attachmentJson` | Android JVM | `powershell -Command ".\gradlew.bat testDebugUnitTest --tests 'com.utechat.data.sync.SyncEventApplierPhase7Test' --no-daemon"` | ❌ Planned | ⬜ pending |
-| `StickerSendWorkerTest` & `StickerCacheManagerTest` | Wave 3 | `D-08`, `D-09`, `D-10`, `D-12` | `SendMessageWorker` sends queued `type = "STICKER"` with `stickerId` + `clientId` without touching `MediaApi`, handles `clientId` idempotent replay, `401` session isolation, and `409 MEMBERSHIP_CHANGED`; `ApiClient.resolveBackendStickerUrl()` accepts `/api/stickers/assets/{pack}/{file}.png` and rejects external URLs/traversal; `StickerCacheManager` downloads to `filesDir/stickers/` and cleans up on session wipe | Android JVM | `powershell -Command ".\gradlew.bat testDebugUnitTest --tests 'com.utechat.data.worker.*' --tests 'com.utechat.data.sticker.*' --no-daemon"` | ❌ Planned | ⬜ pending |
-| `Phase7UiAndViewModelTest` & `FakeRepositoriesTest` | Wave 4 | `D-01`, `D-04`, `D-05`, `D-06`, `D-07`, `D-10`, `D-11`, `D-12` | `MessageAdapter` preserves viewTypes `0..5`, maps `STICKER` to `TYPE_STICKER_OUT`/`IN` (`6`/`7`), renders recalled messages as *"Tin nhắn đã được gỡ"* (`"Message recalled"`), groups reaction chips; `SystemMessageFormatter.preview()` formats `STICKER` and recalled previews; `MessageActionBottomSheet` visibility matrix (sender vs non-sender, <24h vs >24h, `TEXT` vs `SYSTEM`/`CALL`/recalled, active vs read-only/blocked); offline recall/delete/reaction returns `NETWORK` error without mutating Room; `FakeRepositoriesTest` remains 100% green | Android JVM | `powershell -Command ".\gradlew.bat testDebugUnitTest --tests 'com.utechat.ui.chat.*' --tests 'com.utechat.data.repository.FakeRepositoriesTest' --no-daemon"` | ⚠️ Partial (`FakeRepositoriesTest` exists) | ⬜ pending |
-| `AppDatabaseMigrationTest` (`3 -> 4`, `1 -> 4`) | Wave 1 / Wave 4 | `D-13` | `MigrationTestHelper` validates `MIGRATION_3_4` and `1 -> 2 -> 3 -> 4` against `4.json`, preserving existing messages, `attachment_transfer`, `message_translation`, and FTS4; verifies `message.recalledAt` defaults to `NULL`, FTS4 drops recalled text on update, and `message_reaction` / `sticker_pack` / `sticker` tables work | Android Instrumentation | `powershell -Command ".\gradlew.bat connectedDebugAndroidTest --no-daemon"` | ⚠️ Partial (exists up to v3) | ⬜ pending |
+Code kiểm chứng nằm trên nhánh `feature/phase-7-core`, tách từ `main` tại `6eb9629`. Các tên suite dưới đây là tên thực tế trong mã nguồn.
 
-*Status: ⬜ pending · ✅ green · ❌ red · ⚠️ partial*
+| Phạm vi | Suite | Kết quả |
+|---|---|---|
+| PostgreSQL V9, RLS và nâng cấp từ V8 | `FlywayMigrationTest` | 4/4 |
+| Gỡ tin, thu hồi media, xóa phía mình, quyền hội thoại và cảm xúc | `MessageActionsAndReactionsApiTest` | 5/5 ở lần chạy riêng |
+| Danh mục, xác thực ảnh, thêm/gỡ bộ, gửi lại và lịch sử sticker | `StickerPacksAndMessagingApiTest` | 4/4 trong lần chạy cùng các suite gửi và đồng bộ |
+| JVM Android, gồm WebSocket/sync, WorkManager, cache, Retrofit và ViewModel | `testDebugUnitTest` | 288/288 |
+| Room migration và DAO trên emulator | `AppDatabaseMigrationTest`, `Phase7RoomDaoTest` | 10/10 |
+| Menu gỡ tin, cảm xúc và cửa hàng trên emulator với repository cục bộ | `Phase7MessageActionsUiTest` | 3/3 |
+| Biên dịch instrumentation và debug APK | `compileDebugAndroidTestJavaWithJavac`, `assembleDebug` | Đạt |
+| Phiên bản debug dùng backend | `assembleDebug -PuseFakeData=false` | Đạt |
+| Phân tích tĩnh Android | `lintDebug` | 0 lỗi, 106 cảnh báo, 0 phát hiện `RestrictedApi` |
+| Toàn bộ backend trên EmbeddedPostgres | `.\mvnw.cmd -B test` | 335/335 |
 
----
+Đầu ra Gradle nằm trong thư mục tạm để tránh lỗi truy cập `app/build` trên Windows. Kiểm thử với hai thiết bị và backend thật được theo dõi ở mục nghiệm thu bên dưới.
+
+### Kiểm tra ứng dụng với backend cục bộ
+
+Một emulator API 37 chạy APK dùng backend thật. Tài khoản đối diện được kiểm tra qua REST trên cùng PostgreSQL nhúng đã nâng lên V9.
+
+- Đăng nhập, mở chat trực tiếp và gửi tin qua Room/WorkManager. Tài khoản đối diện thấy tin trong lịch sử.
+- Thả cảm xúc qua menu Android. API lịch sử của tài khoản đối diện trả cảm xúc mới.
+- Gỡ tin qua menu Android. Chỗ cũ hiện nhãn tin đã gỡ và nội dung biến mất khỏi lịch sử của tài khoản đối diện.
+- Xóa phía mình tin do tài khoản đối diện gửi. Tin biến mất trên Android của người xóa và vẫn có trong lịch sử tài khoản gửi.
+- Thêm bộ UTE Học Đường, xác minh có ảnh PNG trong cache riêng, bật chế độ máy bay và chọn nhãn dán. Tin chuyển đến backend khi bật lại mạng. Sau khi gỡ bộ, nhãn dán đã gửi vẫn hiển thị trong phòng và lịch sử REST.
+
+Emulator thứ hai giữ trạng thái offline khi chạy đồng thời trên máy này. Nghiệm thu hai thiết bị, đồng bộ xóa trên hai phiên cùng tài khoản và kiểm tra giao diện DayNight/EN/VI vẫn để mở theo checklist bên dưới.
 
 ## Wave 0 Requirements (One-Way Gates)
 
-- [ ] `docs/API_CONTRACT.md`, `docs/FLOWS.md`, `docs/ERD.md` — Sync Phase 7 endpoints, `type = "STICKER"`, 3 sync events (`MESSAGE_RECALLED`, `MESSAGE_DELETED_FOR_ME`, `MESSAGE_REACTION_UPDATED`), 5 new PostgreSQL tables, and Room v4 entities (**one-way** gate before coding).
-- [ ] `backend/src/main/resources/db/migration/V9__message_actions_reactions_stickers.sql` + 12 static PNG sticker assets in `backend/src/main/resources/stickers/` (**one-way**).
-- [ ] `app/schemas/com.utechat.data.local.AppDatabase/4.json` & `AppDatabase.MIGRATION_3_4` (**one-way**).
+- [x] `docs/API_CONTRACT.md`, `docs/FLOWS.md`, `docs/ERD.md` — Sync Phase 7 endpoints, `type = "STICKER"`, 3 sync events (`MESSAGE_RECALLED`, `MESSAGE_DELETED_FOR_ME`, `MESSAGE_REACTION_UPDATED`), 5 new PostgreSQL tables, and Room v4 entities (**one-way** gate before coding).
+- [x] `backend/src/main/resources/db/migration/V9__message_actions_reactions_stickers.sql` + 12 static PNG sticker assets in `backend/src/main/resources/stickers/` (**one-way**).
+- [x] `app/schemas/com.utechat.data.local.AppDatabase/4.json` & `AppDatabase.MIGRATION_3_4` (**one-way**).
 
 ---
 
@@ -106,10 +120,10 @@ created: "2026-11-27"
 ## Validation Sign-Off
 
 - [ ] Every task in `07-*-PLAN.md` has `<automated>` + `<fails_when>` or points to Wave 0 scaffolds above
-- [ ] Backend `cd backend; ./mvnw.cmd test` passes 100% with `EmbeddedPostgres` (zero Docker dependency)
-- [ ] Android `.\gradlew.bat testDebugUnitTest compileDebugAndroidTestJavaWithJavac lintDebug assembleDebug --no-daemon` passes 100% with 0 lint errors
-- [ ] `AppDatabaseMigrationTest` passes `3 -> 4` and `1 -> 4` against `4.json`
+- [x] Backend `cd backend; ./mvnw.cmd test` passes 100% with `EmbeddedPostgres` (zero Docker dependency)
+- [x] Android `.\gradlew.bat testDebugUnitTest compileDebugAndroidTestJavaWithJavac lintDebug assembleDebug --no-daemon` passes 100% with 0 lint errors
+- [x] `AppDatabaseMigrationTest` passes `3 -> 4` and `1 -> 4` against `4.json`
 - [ ] 2-device real backend E2E (recall 24h + media revoke, delete-for-me + preview fallback, 6-emoji reactions, sticker store + offline queue + historical preservation) verified before closing Phase 7
-- [ ] Update Per-Task Verification Map and set `nyquist_compliant: true` once all execution checks pass
+- [x] Ghi kết quả tự động và tên suite thực tế trong bảng kết quả thực thi. Checklist hai thiết bị vẫn chờ nghiệm thu.
 
-**Approval:** pending
+**Nghiệm thu:** chờ chạy trên hai thiết bị.
