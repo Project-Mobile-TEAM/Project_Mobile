@@ -380,25 +380,34 @@ public class ChatRoomFragment extends Fragment {
 
     /** Nối khay với bộ đã cài trong Room và chia sẻ chỗ hiển thị với bàn phím. */
     private void bindStickerTray() {
-        stickerTray = new StickerTrayView(binding.stickerTray, this::sendSticker, this::openStickerStore);
+        stickerTray = new StickerTrayView(
+                binding.stickerTray, this::sendSticker, this::insertEmoji, this::openStickerStore);
         vm.observeInstalledStickerPacks().observe(getViewLifecycleOwner(), stickerTray::setPacks);
         vm.observeInstalledStickers().observe(getViewLifecycleOwner(), stickerTray::setStickers);
-        binding.sticker.setOnClickListener(view -> {
-            if (stickerTray.isOpen()) {
-                stickerTray.setOpen(false);
-                return;
-            }
-            binding.input.clearFocus();
-            WindowInsetsControllerCompat insets = ViewCompat.getWindowInsetsController(view);
-            if (insets != null) insets.hide(WindowInsetsCompat.Type.ime());
-            stickerTray.setOpen(true);
-            stickerCatalogOpened = true;
-            vm.refreshStickers(false);
-        });
+        binding.emojiToggle.setOnClickListener(view -> toggleTrayTab(view, true));
+        binding.sticker.setOnClickListener(view -> toggleTrayTab(view, false));
         binding.input.setOnFocusChangeListener((view, focused) -> {
             if (focused) closeStickerTray();
         });
         binding.input.setOnClickListener(view -> closeStickerTray());
+    }
+
+    private void toggleTrayTab(@NonNull View anchor, boolean emojiMode) {
+        if (stickerTray.isOpen() && stickerTray.isEmojiMode() == emojiMode) {
+            stickerTray.setOpen(false);
+            return;
+        }
+        binding.input.clearFocus();
+        WindowInsetsControllerCompat insets = ViewCompat.getWindowInsetsController(anchor);
+        if (insets != null) insets.hide(WindowInsetsCompat.Type.ime());
+        if (emojiMode) {
+            stickerTray.selectEmojiTab();
+        } else {
+            stickerTray.selectStickerTab();
+            stickerCatalogOpened = true;
+            vm.refreshStickers(false);
+        }
+        stickerTray.setOpen(true);
     }
 
     private void openStickerStore() {
@@ -406,6 +415,24 @@ public class ChatRoomFragment extends Fragment {
         chatSheet = StickerStoreDialog.show(requireContext(), getViewLifecycleOwner(),
                 vm.observeAllStickerPacks(), vm::installStickerPack, vm::uninstallStickerPack);
         vm.refreshStickers();
+    }
+
+    /** Chèn emoji Unicode tại vị trí con trỏ hiện tại và giữ nguyên khay đang mở để chọn tiếp. */
+    private void insertEmoji(@NonNull String emoji) {
+        if (binding == null || readOnly || binding.composer.getVisibility() != View.VISIBLE) return;
+        Editable text = binding.input.getText();
+        if (text == null) {
+            binding.input.setText(emoji);
+            binding.input.setSelection(emoji.length());
+            return;
+        }
+        int start = binding.input.getSelectionStart();
+        int end = binding.input.getSelectionEnd();
+        if (start < 0 || end < 0) {
+            text.append(emoji);
+        } else {
+            text.replace(Math.min(start, end), Math.max(start, end), emoji);
+        }
     }
 
     private void sendSticker(@NonNull StickerEntity sticker) {

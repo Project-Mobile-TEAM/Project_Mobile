@@ -10,4 +10,6 @@
     <string name="sticker_tray_empty">Chưa cài bộ nhãn dán. Mở cửa hàng để thêm bộ.</string>
     <string name="sticker_store_open_cd">Mở cửa hàng nhãn dán</string>
     <string name="sticker_unavailable_offline">Hãy kết nối mạng để tải nhãn dán trước.</string>
+    <string name="emoji_tray_tab">😊 Biểu tượng</string>
+    <string name="emoji_tray_cd">Bảng biểu tượng cảm xúc</string>
 </resources>

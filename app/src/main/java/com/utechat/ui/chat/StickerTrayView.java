@@ -1,12 +1,16 @@
 package com.utechat.ui.chat;
 
 import android.content.Context;
+import android.util.TypedValue;
+import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
+import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.DiffUtil;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.ListAdapter;
@@ -27,54 +31,125 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 
-/** Điều khiển khay nhãn dán bằng dữ liệu từ Room và ảnh đã tải trong bộ nhớ riêng của app. */
+/** Điều khiển khay nhãn dán và bảng chọn biểu tượng cảm xúc Unicode gắn dưới ô nhập. */
 public final class StickerTrayView {
+    private static final String EMOJI_TAB_ID = "__emoji__";
+    private static final List<String> POPULAR_EMOJIS = List.of(
+            "😀", "😃", "😄", "😁", "😆", "😅", "😂",
+            "🤣", "😊", "😇", "🙂", "😉", "😍", "🥰",
+            "😘", "😗", "😋", "😛", "😜", "🤪", "🤨",
+            "🧐", "🤓", "😎", "🥳", "😏", "😒", "😞",
+            "😔", "😟", "😕", "🙁", "😣", "😖", "😫",
+            "😩", "🥺", "😢", "😭", "😤", "😠", "😡",
+            "🤯", "😳", "🥵", "🥶", "😱", "😨", "😰",
+            "🤗", "🤔", "🤭", "🤫", "🤐", "😴", "🥱",
+            "❤️", "🧡", "💛", "💚", "💙", "💜", "💔",
+            "👍", "👎", "👏", "🙌", "🙏", "🤝", "👌",
+            "✌️", "🤞", "💪", "🔥", "✨", "🎉", "💯",
+            "☕", "📚", "💻", "🎓", "⏰", "☀️", "🌙"
+    );
+
     private final ViewStickerTrayBinding binding;
     private final StickerGridAdapter adapter;
     private List<StickerPackEntity> packs = List.of();
     private List<StickerEntity> stickers = List.of();
     @Nullable private String selectedPackId;
+    private boolean userSelectedEmojiTab;
 
     public StickerTrayView(ViewStickerTrayBinding binding, Consumer<StickerEntity> select, Runnable openStore) {
+        this(binding, select, emoji -> { }, openStore);
+    }
+
+    public StickerTrayView(
+            ViewStickerTrayBinding binding,
+            Consumer<StickerEntity> select,
+            Consumer<String> selectEmoji,
+            Runnable openStore) {
         this.binding = binding;
+        Context context = binding.getRoot().getContext();
         this.adapter = new StickerGridAdapter(select);
-        binding.stickerGrid.setLayoutManager(new GridLayoutManager(binding.getRoot().getContext(), 4));
+        binding.stickerGrid.setLayoutManager(new GridLayoutManager(context, 4));
         binding.stickerGrid.setAdapter(adapter);
+        binding.emojiGrid.setLayoutManager(new GridLayoutManager(context, 7));
+        binding.emojiGrid.setAdapter(new EmojiGridAdapter(POPULAR_EMOJIS, selectEmoji));
         binding.stickerStoreOpen.setOnClickListener(view -> openStore.run());
         setOpen(false);
+        rebuildTabs();
         renderGrid();
     }
 
     public boolean isOpen() { return binding.getRoot().getVisibility() == View.VISIBLE; }
 
+    public boolean isEmojiMode() { return EMOJI_TAB_ID.equals(selectedPackId); }
+
     public void setOpen(boolean open) {
         binding.getRoot().setVisibility(open ? View.VISIBLE : View.GONE);
     }
 
+    /** Chuyển thẳng khay sang bảng chọn emoji Unicode. */
+    public void selectEmojiTab() {
+        userSelectedEmojiTab = true;
+        selectedPackId = EMOJI_TAB_ID;
+        rebuildTabs();
+        renderGrid();
+        binding.emojiGrid.scrollToPosition(0);
+    }
+
+    /** Chuyển khay sang bộ nhãn dán đã cài đặt. */
+    public void selectStickerTab() {
+        userSelectedEmojiTab = false;
+        boolean validPack = packs.stream().anyMatch(pack -> pack.getPackId().equals(selectedPackId));
+        if (!validPack) {
+            selectedPackId = packs.isEmpty() ? null : packs.get(0).getPackId();
+        }
+        rebuildTabs();
+        renderGrid();
+        binding.stickerGrid.scrollToPosition(0);
+    }
+
     public void setPacks(@Nullable List<StickerPackEntity> installedPacks) {
         packs = installedPacks == null ? List.of() : List.copyOf(installedPacks);
-        boolean selected = packs.stream().anyMatch(pack -> pack.getPackId().equals(selectedPackId));
-        if (!selected) selectedPackId = packs.isEmpty() ? null : packs.get(0).getPackId();
+        if (userSelectedEmojiTab) {
+            selectedPackId = EMOJI_TAB_ID;
+        } else {
+            boolean selected = packs.stream().anyMatch(pack -> pack.getPackId().equals(selectedPackId));
+            if (!selected) {
+                selectedPackId = packs.isEmpty() ? null : packs.get(0).getPackId();
+            }
+        }
+        rebuildTabs();
+        renderGrid();
+    }
 
+    private void rebuildTabs() {
         binding.stickerTabs.removeAllViews();
+        Context context = binding.getRoot().getContext();
+        String activeId = selectedPackId;
+
+        Chip emojiChip = createTabChip(context, context.getString(R.string.emoji_tray_tab), EMOJI_TAB_ID.equals(activeId));
+        emojiChip.setOnClickListener(view -> selectEmojiTab());
+        binding.stickerTabs.addView(emojiChip);
+
         for (StickerPackEntity pack : packs) {
-            Chip chip = new Chip(binding.getRoot().getContext());
-            chip.setEnsureMinTouchTargetSize(true);
-            chip.setCheckable(true);
-            chip.setText(pack.getName());
-            chip.setChecked(pack.getPackId().equals(selectedPackId));
+            Chip chip = createTabChip(context, pack.getName(), pack.getPackId().equals(activeId));
             chip.setOnClickListener(view -> {
+                userSelectedEmojiTab = false;
                 selectedPackId = pack.getPackId();
-                for (int i = 0; i < binding.stickerTabs.getChildCount(); i++) {
-                    Chip candidate = (Chip) binding.stickerTabs.getChildAt(i);
-                    candidate.setChecked(candidate == chip);
-                }
+                rebuildTabs();
                 renderGrid();
                 binding.stickerGrid.scrollToPosition(0);
             });
             binding.stickerTabs.addView(chip);
         }
-        renderGrid();
+    }
+
+    private Chip createTabChip(Context context, String label, boolean checked) {
+        Chip chip = new Chip(context);
+        chip.setEnsureMinTouchTargetSize(true);
+        chip.setCheckable(true);
+        chip.setText(label);
+        chip.setChecked(checked);
+        return chip;
     }
 
     public void setStickers(@Nullable List<StickerEntity> installedStickers) {
@@ -83,6 +158,13 @@ public final class StickerTrayView {
     }
 
     private void renderGrid() {
+        if (EMOJI_TAB_ID.equals(selectedPackId)) {
+            binding.emojiGrid.setVisibility(View.VISIBLE);
+            binding.stickerGrid.setVisibility(View.GONE);
+            binding.stickerTrayEmpty.setVisibility(View.GONE);
+            return;
+        }
+        binding.emojiGrid.setVisibility(View.GONE);
         List<StickerEntity> selected = new ArrayList<>();
         for (StickerEntity sticker : stickers) {
             if (sticker.getPackId().equals(selectedPackId)) selected.add(sticker);
@@ -157,6 +239,55 @@ public final class StickerTrayView {
         StickerHolder(ItemStickerGridBinding binding) {
             super(binding.getRoot());
             image = binding.getRoot();
+        }
+    }
+
+    /** Lưới biểu tượng cảm xúc Unicode nhẹ dùng ngay trong khay. */
+    private static final class EmojiGridAdapter extends RecyclerView.Adapter<EmojiHolder> {
+        private final List<String> emojis;
+        private final Consumer<String> selectEmoji;
+
+        EmojiGridAdapter(List<String> emojis, Consumer<String> selectEmoji) {
+            this.emojis = emojis;
+            this.selectEmoji = selectEmoji;
+        }
+
+        @NonNull @Override public EmojiHolder onCreateViewHolder(@NonNull ViewGroup parent, int type) {
+            Context context = parent.getContext();
+            TextView cell = new TextView(context);
+            int minTouch = Math.round(48 * context.getResources().getDisplayMetrics().density);
+            cell.setLayoutParams(new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, minTouch));
+            cell.setMinWidth(minTouch);
+            cell.setMinHeight(minTouch);
+            cell.setGravity(Gravity.CENTER);
+            cell.setTextSize(TypedValue.COMPLEX_UNIT_SP, 24);
+            cell.setTextColor(ContextCompat.getColor(context, R.color.ute_text));
+            TypedValue selectable = new TypedValue();
+            if (context.getTheme().resolveAttribute(
+                    android.R.attr.selectableItemBackgroundBorderless, selectable, true)) {
+                cell.setBackgroundResource(selectable.resourceId);
+            }
+            return new EmojiHolder(cell);
+        }
+
+        @Override public void onBindViewHolder(@NonNull EmojiHolder holder, int index) {
+            String emoji = emojis.get(index);
+            holder.text.setText(emoji);
+            holder.text.setContentDescription(emoji);
+            holder.text.setOnClickListener(view -> selectEmoji.accept(emoji));
+        }
+
+        @Override public int getItemCount() {
+            return emojis.size();
+        }
+    }
+
+    private static final class EmojiHolder extends RecyclerView.ViewHolder {
+        final TextView text;
+
+        EmojiHolder(TextView text) {
+            super(text);
+            this.text = text;
         }
     }
 }

@@ -10,4 +10,6 @@
     <string name="sticker_tray_empty">No stickers installed. Open the store to add a pack.</string>
     <string name="sticker_store_open_cd">Open Sticker Store</string>
     <string name="sticker_unavailable_offline">Download this sticker while connected first.</string>
+    <string name="emoji_tray_tab">😊 Emoji</string>
+    <string name="emoji_tray_cd">Emoji picker</string>
 </resources>

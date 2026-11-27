@@ -27,4 +27,10 @@
         android:layout_width="match_parent" android:layout_height="180dp"
         android:clipToPadding="false" android:paddingBottom="8dp"
         android:contentDescription="@string/sticker_tray_title" />
+    <!-- Bảng chọn biểu tượng cảm xúc Unicode chèn trực tiếp vào ô nhập tin nhắn. -->
+    <androidx.recyclerview.widget.RecyclerView android:id="@+id/emoji_grid"
+        android:layout_width="match_parent" android:layout_height="180dp"
+        android:clipToPadding="false" android:paddingBottom="8dp"
+        android:visibility="gone"
+        android:contentDescription="@string/emoji_tray_cd" />
 </LinearLayout>
