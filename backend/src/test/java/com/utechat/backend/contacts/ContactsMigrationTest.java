@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import com.utechat.backend.support.PostgresFixture;
 import java.sql.SQLException;
+import java.util.Set;
 import java.util.UUID;
 import org.flywaydb.core.api.FlywayException;
 import org.junit.jupiter.api.Test;
@@ -26,13 +27,21 @@ class ContactsMigrationTest {
         return db.jdbc.queryForObject("SELECT is_friend FROM contacts WHERE owner_id=? AND contact_user_id=?", Boolean.class, a, b);
     }
 
-    /** Database mới có đủ V1/V3/V4, không seed demo; chạy lại không làm đổi checksum hoặc dữ liệu. */
+    /** Database mới áp dụng đầy đủ migration production, giữ mặc định của V4 và loại bảng demo. */
     @Test void freshDatabaseMigratesWithoutDemoAndUsesRequiredDefault() throws Exception {
         try (var db = new PostgresFixture()) {
             db.migrate();
-            // 13 bảng nghiệp vụ cốt lõi V1 (loại trừ 2 bảng kỹ thuật flyway_schema_history và sync_retention_state của V5, và 3 bảng 2FA/bước bạn bè totp_credentials, backup_codes, friend_challenges của V7, V8), tuyệt đối không có demo_sms_outbox.
-            assertEquals(13, db.jdbc.queryForObject("SELECT count(*) FROM pg_tables WHERE schemaname='public' AND tablename NOT IN ('flyway_schema_history', 'sync_retention_state', 'totp_credentials', 'backup_codes', 'friend_challenges')", Integer.class));
-            assertEquals(3, db.jdbc.queryForObject("SELECT count(*) FROM pg_tables WHERE schemaname='public' AND tablename IN ('totp_credentials', 'backup_codes', 'friend_challenges')", Integer.class));
+            // Kiểm tra tên bảng thay vì tổng số để phát hiện cả bảng thiếu lẫn bảng demo bị nạp nhầm.
+            var tables = db.jdbc.queryForList(
+                    "SELECT tablename FROM pg_tables WHERE schemaname = 'public'", String.class);
+            assertEquals(Set.of(
+                    "users", "user_devices", "otp_challenges", "auth_sessions", "auth_throttles",
+                    "contact_requests", "contacts", "conversations", "conversation_members",
+                    "attachments", "calls", "messages", "sync_events",
+                    "flyway_schema_history", "sync_retention_state",
+                    "totp_credentials", "backup_codes", "friend_challenges",
+                    "sticker_packs", "stickers", "user_sticker_packs", "message_deletions", "message_reactions"
+            ), Set.copyOf(tables));
             assertEquals(0, db.jdbc.queryForObject("SELECT count(*) FROM users", Integer.class));
             var column = db.jdbc.queryForMap("SELECT data_type,is_nullable,column_default FROM information_schema.columns WHERE table_schema='public' AND table_name='contacts' AND column_name='is_friend'");
             assertEquals("boolean", column.get("data_type"));
