@@ -23,13 +23,15 @@ import static org.junit.Assert.*;
  * Kiểm thử nâng cấp lược đồ Room bằng MigrationTestHelper thật (ADR-020):
  * - v1 -> v2 (MIGRATION_1_2) khớp schema 2.json
  * - v2 -> v3 (MIGRATION_2_3) bổ sung 11 cột attachment_transfer, giữ nguyên dữ liệu cũ, message_translation và FTS4
- * - v1 -> v2 -> v3 end-to-end không mất dữ liệu và không cần fallbackToDestructiveMigration.
+ * - v1 -> v2 -> v3 -> v4 và v3 -> v4 giữ nguyên dữ liệu cũ, thêm cache cảm xúc và nhãn dán.
  */
 @RunWith(AndroidJUnit4.class)
 public class AppDatabaseMigrationTest {
     private static final String TEST_DB_V1_V2 = "migration-v1-v2-test.db";
     private static final String TEST_DB_V2_V3 = "migration-v2-v3-test.db";
     private static final String TEST_DB_V1_V3 = "migration-v1-v3-test.db";
+    private static final String TEST_DB_V3_V4 = "migration-v3-v4-test.db";
+    private static final String TEST_DB_V1_V4 = "migration-v1-v4-test.db";
 
     @Rule
     public MigrationTestHelper helper = new MigrationTestHelper(
@@ -111,9 +113,9 @@ public class AppDatabaseMigrationTest {
                     TEST_DB_V2_V3, 3, true, AppDatabase.MIGRATION_2_3);
             migrated.close();
 
-            // Bước 3: Mở AppDatabase v3 đầy đủ qua Room để kiểm tra giá trị mặc định của 11 cột mới và dữ liệu cũ.
+            // Bước 3: Mở bản app hiện tại sau khi đã xác thực riêng migration lên v3.
             AppDatabase dbV3 = Room.databaseBuilder(context, AppDatabase.class, TEST_DB_V2_V3)
-                    .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3)
+                    .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4)
                     .build();
             try {
                 AttachmentTransferEntity transfer = dbV3.transferDao().findByClientIdSync("tx-v2-1");
@@ -179,9 +181,9 @@ public class AppDatabaseMigrationTest {
                     TEST_DB_V1_V3, 3, true, AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3);
             migrated.close();
 
-            // Bước 3: Mở AppDatabase v3 đầy đủ qua Room và kiểm chứng toàn bộ dữ liệu lịch sử.
+            // Bước 3: Mở bản app hiện tại và kiểm chứng toàn bộ dữ liệu lịch sử.
             AppDatabase dbV3 = Room.databaseBuilder(context, AppDatabase.class, TEST_DB_V1_V3)
-                    .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3)
+                    .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4)
                     .build();
             try {
                 assertNotNull(dbV3.userDao().findById("u-alice"));
@@ -213,6 +215,74 @@ public class AppDatabaseMigrationTest {
             }
         } finally {
             context.deleteDatabase(TEST_DB_V1_V3);
+        }
+    }
+    @Test
+    public void migrate3To4PreservesDataAndAddsPhase7Tables() throws IOException {
+        verifyMigrationTo4(TEST_DB_V3_V4, 3, AppDatabase.MIGRATION_3_4);
+    }
+
+    @Test
+    public void migrate1To4EndToEnd() throws IOException {
+        verifyMigrationTo4(TEST_DB_V1_V4, 1,
+                AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4);
+    }
+
+    private void verifyMigrationTo4(String dbName, int fromVersion,
+            androidx.room.migration.Migration... migrations) throws IOException {
+        Context context = ApplicationProvider.getApplicationContext();
+        context.deleteDatabase(dbName);
+        try {
+            // Dữ liệu bắt đầu ở cả v1 và v3 để thử tải trực tiếp lên phiên bản hiện tại.
+            try (SupportSQLiteDatabase original = helper.createDatabase(dbName, fromVersion)) {
+                original.execSQL("INSERT INTO message (localId, serverId, clientId, conversationId, senderId, "
+                        + "type, text, normalized_text, createdAt, status) "
+                        + "VALUES (1, 100, 'legacy-message', 'conv-1', 'u-alice', 'TEXT', 'Chào bạn', 'chao ban', 1000, 'SENT')");
+                original.execSQL("INSERT INTO attachment_transfer (clientId, localUri, state, progress) "
+                        + "VALUES ('legacy-transfer', 'content://legacy/1', 'UPLOADED', 100)");
+                original.execSQL("INSERT INTO message_translation (messageKey, targetLang, translatedText) "
+                        + "VALUES ('legacy-message', 'en', 'Hello')");
+            }
+            try (SupportSQLiteDatabase migrated = helper.runMigrationsAndValidate(dbName, 4, true, migrations)) {
+                // Tin, chỉ mục FTS4, tiến độ tệp và bản dịch cũ vẫn đọc được sau khi nâng cấp.
+                try (Cursor rows = migrated.query("SELECT text, recalledAt FROM message WHERE serverId = 100")) {
+                    assertTrue(rows.moveToFirst());
+                    assertEquals("Chào bạn", rows.getString(0));
+                    assertTrue(rows.isNull(1));
+                }
+                try (Cursor matches = migrated.query("SELECT docid FROM message_fts WHERE message_fts MATCH 'chao'")) {
+                    assertEquals(1, matches.getCount());
+                }
+                try (Cursor rows = migrated.query("SELECT translatedText FROM message_translation WHERE messageKey = 'legacy-message'")) {
+                    assertTrue(rows.moveToFirst());
+                    assertEquals("Hello", rows.getString(0));
+                }
+                try (Cursor rows = migrated.query("SELECT progress, direction FROM attachment_transfer WHERE clientId = 'legacy-transfer'")) {
+                    assertTrue(rows.moveToFirst());
+                    assertEquals(100, rows.getInt(0));
+                    assertEquals("UPLOAD", rows.getString(1));
+                }
+
+                // Ghi thử các bảng mới để kiểm ràng buộc cột và khả năng lưu cache.
+                migrated.execSQL("INSERT INTO message_deletion (serverId) VALUES (99)");
+                migrated.execSQL("INSERT INTO message_reaction (messageServerId, userId, emoji, createdAt) "
+                        + "VALUES (100, 'u-alice', '👍', 1001)");
+                migrated.execSQL("INSERT INTO sticker_pack (packId, code, name, thumbnailUrl, installed, isDefault, sortOrder) "
+                        + "VALUES ('pack-1', 'daily', 'Thường Ngày', '/api/stickers/assets/daily/hi.png', 1, 1, 0)");
+                migrated.execSQL("INSERT INTO sticker (stickerId, packId, code, label, imageUrl, width, height, sortOrder) "
+                        + "VALUES ('sticker-1', 'pack-1', 'hi', 'Chào', '/api/stickers/assets/daily/hi.png', 256, 256, 0)");
+                try (Cursor rows = migrated.query("SELECT emoji FROM message_reaction WHERE messageServerId = 100")) {
+                    assertTrue(rows.moveToFirst());
+                    assertEquals("👍", rows.getString(0));
+                }
+                try (Cursor rows = migrated.query("SELECT s.width, p.installed FROM sticker s JOIN sticker_pack p ON s.packId = p.packId")) {
+                    assertTrue(rows.moveToFirst());
+                    assertEquals(256, rows.getInt(0));
+                    assertEquals(1, rows.getInt(1));
+                }
+            }
+        } finally {
+            context.deleteDatabase(dbName);
         }
     }
 }

@@ -28,7 +28,8 @@ public interface ConversationDao {
             + "lm.attachmentJson AS lastMessageAttachmentJson, "
             + "lm.senderId AS lastMessageSenderId, "
             + "lm.status AS lastMessageStatus, "
-            + "lm.serverId AS lastMessageServerId "
+            + "lm.serverId AS lastMessageServerId, "
+            + "lm.recalledAt AS lastMessageRecalledAt "
             + "FROM conversation c "
             + "JOIN member myMb ON myMb.conversationId = c.id AND myMb.userId = :myUserId "
             + "LEFT JOIN member peerMb ON peerMb.conversationId = c.id AND c.type = 'DIRECT' AND peerMb.userId <> :myUserId "
@@ -129,6 +130,10 @@ public interface ConversationDao {
     /** Cập nhật tiêu đề, ảnh đại diện và thông tin tin nhắn cuối của hội thoại. */
     @Query("UPDATE conversation SET title = :title, avatarUrl = :avatarUrl, lastMessageId = :lastMessageId, lastMessageAt = :lastMessageAt WHERE id = :conversationId")
     void updateTitleAndLastMessage(String conversationId, @Nullable String title, @Nullable String avatarUrl, @Nullable Long lastMessageId, long lastMessageAt);
+
+    /** Cập nhật mốc tin cuối sau khi xóa tin phía mình, kể cả khi cần lùi về tin cũ. */
+    @Query("UPDATE conversation SET lastMessageId = :lastMessageId, lastMessageAt = :lastMessageAt WHERE id = :conversationId")
+    void updateLastMessageMeta(String conversationId, @Nullable Long lastMessageId, long lastMessageAt);
 
     /** Cập nhật mốc tin nhắn cuối chỉ khi tin mới có serverId/thời gian lớn hơn hoặc bằng mốc hiện tại. */
     @Query("UPDATE conversation SET "

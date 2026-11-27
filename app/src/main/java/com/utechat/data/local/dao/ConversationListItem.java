@@ -50,6 +50,10 @@ public class ConversationListItem {
     @Nullable
     public Long lastMessageServerId;
 
+    /** Mốc gỡ để preview hiển thị trạng thái của tin cuối. */
+    @Nullable
+    public Long lastMessageRecalledAt;
+
     /** Trả về tên hội thoại hiển thị: ưu tiên tiêu đề nhóm, nếu trống thì dùng tên đối phương 1-1. */
     @NonNull
     public String getEffectiveTitle() {

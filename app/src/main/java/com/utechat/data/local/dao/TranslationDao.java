@@ -29,6 +29,10 @@ public interface TranslationDao {
     @Query("DELETE FROM message_translation WHERE messageKey = :key AND targetLang = :language")
     void deleteByKey(String key, String language);
 
+    // Tin gỡ hoặc xóa phải loại bỏ bản dịch ở mọi ngôn ngữ.
+    @Query("DELETE FROM message_translation WHERE messageKey = :messageKey")
+    void deleteAllForMessage(String messageKey);
+
     // Dọn các bản dịch mồ côi khi tin nhắn gốc đã bị xóa hoặc cô lập lịch sử nhóm.
     @Query("DELETE FROM message_translation WHERE messageKey NOT IN (SELECT clientId FROM message)")
     void deleteOrphaned();

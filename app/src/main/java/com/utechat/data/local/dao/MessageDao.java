@@ -40,7 +40,7 @@ public interface MessageDao {
     @Query("SELECT * FROM message WHERE conversationId = :conversationId ORDER BY createdAt ASC, localId ASC")
     LiveData<List<MessageEntity>> getMessagesForConversation(String conversationId);
     // Chỉ gọi từ executor của repository; query là đầu ra MessageText.matchQuery().
-    @Query("SELECT m.* FROM message m JOIN message_fts ON m.localId = message_fts.rowid WHERE message_fts MATCH :query AND m.conversationId = :conversationId ORDER BY m.createdAt DESC")
+    @Query("SELECT m.* FROM message m JOIN message_fts ON m.localId = message_fts.rowid WHERE message_fts MATCH :query AND m.conversationId = :conversationId AND m.recalledAt IS NULL ORDER BY m.createdAt DESC")
     List<MessageEntity> search(String conversationId, String query);
 
     /**
@@ -90,6 +90,7 @@ public interface MessageDao {
             + "JOIN message_fts ON m.localId = message_fts.rowid "
             + "LEFT JOIN member mb ON mb.conversationId = m.conversationId AND mb.userId = :myUserId "
             + "WHERE message_fts MATCH :safeQuery "
+            + "AND m.recalledAt IS NULL "
             + "AND m.conversationId = :conversationId "
             + "AND (m.serverId IS NULL OR m.serverId > COALESCE(mb.visibleFromMessageId, 0)) "
             + "ORDER BY m.createdAt DESC, m.localId DESC")
@@ -117,6 +118,7 @@ public interface MessageDao {
             + "LEFT JOIN member peerMb ON peerMb.conversationId = c.id AND c.type = 'DIRECT' AND peerMb.userId <> :myUserId "
             + "LEFT JOIN user_cache peerUser ON peerUser.id = peerMb.userId "
             + "WHERE message_fts MATCH :safeQuery "
+            + "AND m.recalledAt IS NULL "
             + "AND (m.serverId IS NULL OR m.serverId > COALESCE(mb.visibleFromMessageId, 0)) "
             + "ORDER BY m.createdAt DESC, m.localId DESC "
             + "LIMIT :limit OFFSET :offset")
@@ -152,6 +154,10 @@ public interface MessageDao {
     default boolean insertRespectingVisibleFrom(MessageEntity message, String myUserId) {
         if (message == null) return false;
         if (message.getServerId() != null) {
+            // Lịch sử và các sự kiện đến muộn không thể khôi phục tin đã xóa phía bạn.
+            if (isDeletedForMe(message.getServerId())) {
+                return false;
+            }
             Long visibleFrom = findMemberVisibleFrom(message.getConversationId(), myUserId);
             if (visibleFrom != null && message.getServerId() <= visibleFrom) {
                 return false;
@@ -171,12 +177,17 @@ public interface MessageDao {
         merged.setText(message.getText());
         merged.setAttachmentJson(message.getAttachmentJson());
         merged.setCreatedAt(message.getCreatedAt());
+        merged.setRecalledAt(message.getRecalledAt());
         merged.setStatus(message.getStatus());
         merged.setErrorCode(message.getErrorCode());
         merged.setQueuedVisibleFromMessageId(message.getQueuedVisibleFromMessageId());
 
         if (existing != null) {
             merged.setLocalId(existing.getLocalId());
+            // Trang lịch sử cũ hoặc ACK về trễ không thể khôi phục tin đã gỡ.
+            if (existing.getRecalledAt() != null) {
+                merged.setRecalledAt(existing.getRecalledAt());
+            }
             if (merged.getServerId() == null && existing.getServerId() != null) {
                 merged.setServerId(existing.getServerId());
             }
@@ -197,6 +208,11 @@ public interface MessageDao {
             }
         }
 
+        // Bản ghi giữ nguyên vị trí và loại bỏ nội dung cùng metadata đã thu hồi.
+        if (merged.getRecalledAt() != null) {
+            merged.setText(null);
+            merged.setAttachmentJson(null);
+        }
         merged.setNormalizedText(MessageText.normalize(merged.getText()));
         upsert(merged);
         return true;
@@ -226,6 +242,34 @@ public interface MessageDao {
     /** Tra cứu tin nhắn theo serverId. */
     @Query("SELECT * FROM message WHERE serverId = :serverId LIMIT 1")
     MessageEntity findByServerId(long serverId);
+
+    // Xóa nội dung và chỉ mục FTS4 trong cùng lệnh SQL, giữ khóa và vị trí tin.
+    @Query("UPDATE message SET text = NULL, normalized_text = NULL, attachmentJson = NULL, recalledAt = :recalledAt "
+            + "WHERE serverId = :serverId")
+    void markRecalledByServerId(long serverId, long recalledAt);
+
+    // Xóa bản ghi đã lên máy chủ theo serverId để giữ tin cục bộ đang gửi.
+    @Query("DELETE FROM message WHERE serverId = :serverId")
+    void deleteByServerId(long serverId);
+
+    // Lưu dấu xóa riêng với nội dung để chặn lần nhận lại sau khi dòng tin bị xóa.
+    @Query("INSERT OR IGNORE INTO message_deletion (serverId) VALUES (:serverId)")
+    void recordDeletionForMe(long serverId);
+
+    @Query("SELECT EXISTS(SELECT 1 FROM message_deletion WHERE serverId = :serverId)")
+    boolean isDeletedForMe(long serverId);
+
+    // ACK nhận serverId đã xóa có thể vẫn trỏ đến dòng cục bộ chưa biết ID.
+    @Query("DELETE FROM message WHERE clientId = :clientId AND serverId IS NULL")
+    void deletePendingByClientId(String clientId);
+
+    // Chọn preview còn lại theo ranh giới lịch sử của lần tham gia nhóm hiện tại.
+    @Query("SELECT m.* FROM message m "
+            + "LEFT JOIN member mb ON mb.conversationId = m.conversationId AND mb.userId = :myUserId "
+            + "WHERE m.conversationId = :conversationId "
+            + "AND (m.serverId IS NULL OR m.serverId > COALESCE(mb.visibleFromMessageId, 0)) "
+            + "ORDER BY m.createdAt DESC, m.localId DESC LIMIT 1")
+    MessageEntity findLatestVisibleMessageSync(String conversationId, String myUserId);
 
     /** Tìm serverId nhỏ nhất hiện có trong hội thoại để làm cursor beforeId khi tải lịch sử cũ hơn. */
     @Query("SELECT MIN(serverId) FROM message WHERE conversationId = :conversationId AND serverId IS NOT NULL")
