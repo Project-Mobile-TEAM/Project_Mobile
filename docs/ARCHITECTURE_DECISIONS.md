@@ -157,6 +157,12 @@ flowchart LR
 
 ---
 
+### ADR-026 — Gỡ tin, xóa phía bạn, cảm xúc và nhãn dán
+
+**Status:** ACCEPTED
+
+Phase 7 giữ server làm nguồn dữ liệu chính cho gỡ tin, xóa phía bạn và cảm xúc. Client cập nhật Room từ REST và đồng bộ qua `sync_events`. Gửi nhãn dán đã tải dùng hàng đợi WorkManager với `clientId`. Hai bộ mẫu do backend cung cấp, với trạng thái thêm hoặc gỡ lưu theo tài khoản. Xem [hợp đồng API](API_CONTRACT.md#28-thao-tác-tin-nhắn-và-nhãn-dán) và [luồng xử lý](FLOWS.md#12-thao-tác-tin-nhắn-và-nhãn-dán).
+
 ## 3. Hướng phát triển tương lai (Future / V2)
 
 Các tính năng sau đây chỉ được ghi nhận như định hướng nâng cấp trong tương lai cho V2, **hoàn toàn không định nghĩa bảng, cột, endpoint hoặc flow triển khai trong V1**:
@@ -167,7 +173,7 @@ Các tính năng sau đây chỉ được ghi nhận như định hướng nâng
 4. **Cuộc gọi video (Video Call):** Cuộc gọi video 1-1 và gọi video nhóm qua WebRTC.
 5. **Thông báo đẩy khi tắt hẳn app (FCM):** Tích hợp Firebase Cloud Messaging để đánh thức thiết bị khi ứng dụng bị tắt hoàn toàn.
 6. **Mã hoá đầu cuối (End-to-End Encryption - E2EE):** Mã hóa nội dung tin nhắn trực tiếp tại thiết bị đầu cuối với giao thức Signal hoặc tương đương.
-7. **Tính năng xã hội mở rộng:** Gọi thoại/video nhóm đông người, biểu tượng cảm xúc (reactions), thu hồi tin nhắn, kênh phát sóng công khai (channels), đăng nhập mạng xã hội (Google, Facebook), tích hợp SMS thật qua cổng viễn thông.
+7. **Tính năng xã hội mở rộng:** Gọi thoại/video nhóm đông người, nhiều cảm xúc trên cùng tin cho một người, bộ nhãn dán do người dùng tạo, kênh phát sóng công khai (channels), đăng nhập mạng xã hội (Google, Facebook), tích hợp SMS thật qua cổng viễn thông.
 
 ---
 

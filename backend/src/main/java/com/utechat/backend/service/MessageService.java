@@ -53,7 +53,7 @@ public class MessageService {
 
     /** Các loại tin nhắn được phép gửi trực tiếp từ client (Phase 6 mở rộng D-02, D-04). */
     private static final Set<String> ALLOWED_CLIENT_TYPES =
-            Set.of("TEXT", "IMAGE", "AUDIO", "VIDEO", "FILE", "LOCATION");
+            Set.of("TEXT", "IMAGE", "AUDIO", "VIDEO", "FILE", "LOCATION", "STICKER");
 
     private static final Set<String> FIXED_EMOJIS = Set.of("❤️", "😂", "👍", "😮", "😢", "😡");
     private static final Duration RECALL_WINDOW = Duration.ofHours(24);
@@ -141,7 +141,7 @@ public class MessageService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "VALIDATION", "Invalid or unsupported message type");
         }
         String type = req.type();
-        if (req.stickerId() != null) {
+        if (!"STICKER".equals(type) && req.stickerId() != null) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "VALIDATION", "stickerId requires STICKER type");
         }
 
@@ -153,6 +153,7 @@ public class MessageService {
 
         String text = null;
         UUID attachmentId = null;
+        UUID stickerId = null;
         Double latitude = null;
         Double longitude = null;
 
@@ -184,6 +185,11 @@ public class MessageService {
             }
             latitude = req.latitude();
             longitude = req.longitude();
+        } else if ("STICKER".equals(type)) {
+            stickerId = ConversationService.parseRequiredUuid(req.stickerId(), "Invalid stickerId");
+            if (req.text() != null || req.mediaUrl() != null || req.latitude() != null || req.longitude() != null) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "VALIDATION", "STICKER accepts only stickerId");
+            }
         } else {
             // IMAGE, AUDIO, VIDEO, FILE
             if (req.mediaUrl() == null || req.mediaUrl().isBlank()) {
@@ -264,16 +270,22 @@ public class MessageService {
             }
         }
 
+        // Tin xếp hàng có thể gửi sau khi gỡ bộ, nên chỉ kiểm tra mã trong danh mục.
+        if (stickerId != null && !Boolean.TRUE.equals(jdbc.queryForObject(
+                "SELECT EXISTS (SELECT 1 FROM public.stickers WHERE id = ?)", Boolean.class, stickerId))) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "Sticker not found");
+        }
+
         // Giới hạn tốc độ 30 tin / 10 giây / userId.
         rateLimiter.checkAndRecord(actorId);
 
         // Chèn tin nhắn chống trùng đồng thời bằng ON CONFLICT (sender_id, client_id) DO NOTHING.
         List<Long> insertedIds = jdbc.query(
-                "INSERT INTO messages (conversation_id, sender_id, client_id, type, text, attachment_id, latitude, longitude) "
-                        + "VALUES (?, ?, ?, ?, ?, ?, ?, ?) "
+                "INSERT INTO messages (conversation_id, sender_id, client_id, type, text, attachment_id, latitude, longitude, sticker_id) "
+                        + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) "
                         + "ON CONFLICT (sender_id, client_id) DO NOTHING RETURNING id",
                 (rs, i) -> rs.getLong("id"),
-                conversationId, actorId, clientId, type, text, attachmentId, latitude, longitude);
+                conversationId, actorId, clientId, type, text, attachmentId, latitude, longitude, stickerId);
 
         if (insertedIds.isEmpty()) {
             // Một luồng đồng thời vừa chèn cùng clientId; trả lại bản ghi đã có mà không tạo thêm sync_events.
