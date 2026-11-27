@@ -116,6 +116,7 @@ public class ChatRoomViewModel extends ViewModel {
     public final MutableLiveData<List<Long>> matches = new MutableLiveData<>(Collections.emptyList());
     public final MutableLiveData<Boolean> loadingMore = new MutableLiveData<>(false);
     private boolean endReached;
+    @Nullable private String initialHistoryConvId;
     private long readWatermark; // serverId cao nhất đã gửi báo đọc, để không gửi lặp khi cuộn/layout liên tục.
 
     /** Constructor 3 tham số Phase 5 được bảo toàn nguyên vẹn cho ChatViewModelTest. */
@@ -280,6 +281,23 @@ public class ChatRoomViewModel extends ViewModel {
     }
 
     /**
+     * Khi mở phòng mới bootstrap (Room thường chỉ có 1 tin cuối lastMessage nên danh sách quá ngắn để cuộn lên),
+     * tự động tải trang lịch sử đầu tiên từ server một lần cho mỗi hội thoại nếu chưa đủ một trang.
+     */
+    public void ensureInitialHistory(boolean readOnly) {
+        String id = state.get(K_CONV);
+        List<MessageEntity> list = messages.getValue();
+        if (id == null || list == null || readOnly || endReached || Boolean.TRUE.equals(loadingMore.getValue())) return;
+        if (id.equals(initialHistoryConvId)) return;
+        if (list.size() >= window()) {
+            initialHistoryConvId = id;
+            return;
+        }
+        initialHistoryConvId = id;
+        loadOlder(false);
+    }
+
+    /**
      * Cuộn lên đầu: trước hết nới cửa sổ để lộ tin đã có trong máy; hết cache mới gọi server lấy trang cũ hơn.
      * Nhóm đã rời (read-only) không được tải lịch sử server.
      */
@@ -294,7 +312,12 @@ public class ChatRoomViewModel extends ViewModel {
         loadingMore.setValue(true);
         Once.observe(repo.loadOlderMessages(id, oldest, PAGE), r -> {
             loadingMore.setValue(false);
-            if (!r.isSuccess() || r.data == null) return;
+            if (!r.isSuccess() || r.data == null) {
+                if ("NETWORK".equals(r.errorCode) && id.equals(initialHistoryConvId)) {
+                    initialHistoryConvId = null;
+                }
+                return;
+            }
             if (r.data < PAGE) endReached = true;
             if (r.data > 0) state.set(K_WINDOW, window() + r.data);
         });

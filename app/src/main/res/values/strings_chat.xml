@@ -108,7 +108,9 @@
     <string name="chat_sys_member_removed">%1$s removed %2$s from the group</string>
     <string name="chat_sys_member_left">%1$s left the group</string>
     <string name="chat_sys_role_admin">%1$s is now an admin</string>
+    <string name="chat_sys_role_admin_you">You are now an admin</string>
     <string name="chat_sys_role_member">%1$s is no longer an admin</string>
+    <string name="chat_sys_role_member_you">You are no longer an admin</string>
     <string name="chat_sys_unknown">Group updated</string>
 
     <!-- Nhãn tóm tắt tin không phải chữ (D-15). -->

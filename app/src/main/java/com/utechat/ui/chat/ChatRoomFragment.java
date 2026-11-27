@@ -83,6 +83,7 @@ public class ChatRoomFragment extends Fragment {
     private LinearLayoutManager lm;
     private TextWatcher inputWatcher, queryWatcher;
     private boolean readOnly;
+    private boolean membersLoaded;
 
     @Nullable private VoiceRecorderHelper voiceRecorder;
     @Nullable private VoiceBubblePlayer voiceBubblePlayer;
@@ -350,8 +351,10 @@ public class ChatRoomFragment extends Fragment {
         });
         vm.getMembers().observe(getViewLifecycleOwner(), m -> {
             readOnly = ChatRoomViewModel.isReadOnly(m, meId);
+            membersLoaded = m != null;
             renderHeader();
             renderComposer();
+            tryLoadInitialHistory();
         });
         vm.getTyping().observe(getViewLifecycleOwner(), t -> renderHeader());
         vm.openError.observe(getViewLifecycleOwner(), e -> renderComposer());
@@ -936,6 +939,7 @@ public class ChatRoomFragment extends Fragment {
 
     private void submit(List<MessageEntity> list) {
         vm.rehydrateSavedTranslations(list);
+        tryLoadInitialHistory();
         boolean atBottom = adapter.getItemCount() == 0 || lm.findLastVisibleItemPosition() >= adapter.getItemCount() - 2;
         String me = vm.meId();
         boolean newMine = list != null && !list.isEmpty() && me != null
@@ -1065,11 +1069,20 @@ public class ChatRoomFragment extends Fragment {
         }
     }
 
+    private void tryLoadInitialHistory() {
+        if (vm != null && membersLoaded && !readOnly) {
+            vm.ensureInitialHistory(false);
+        }
+    }
+
     private void renderBanner(@Nullable WsConnectionState s) {
         if (binding == null) return;
         binding.ws.wsBanner.setVisibility(s != null && s != WsConnectionState.CONNECTED ? View.VISIBLE : View.GONE);
         binding.ws.wsBannerText.setText(s == WsConnectionState.DISCONNECTED
                 ? R.string.chat_ws_disconnected : R.string.chat_ws_reconnecting);
+        if (s == WsConnectionState.CONNECTED) {
+            tryLoadInitialHistory();
+        }
     }
 
     private void bindSearch() {
@@ -1243,6 +1256,7 @@ public class ChatRoomFragment extends Fragment {
         queryWatcher = null;
         adapter = null;
         lm = null;
+        membersLoaded = false;
         super.onDestroyView();
         binding = null;
     }

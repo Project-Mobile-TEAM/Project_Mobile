@@ -37,8 +37,14 @@ public final class SystemMessageFormatter {
             case "MEMBER_ADDED": return s.get(R.string.chat_sys_member_added, actor, names(s, p, users, meId));
             case "MEMBER_REMOVED": return s.get(R.string.chat_sys_member_removed, actor, target);
             case "MEMBER_LEFT": return s.get(R.string.chat_sys_member_left, target);
-            case "ROLE_CHANGED": return s.get("ADMIN".equals(str(p, "newRole"))
-                    ? R.string.chat_sys_role_admin : R.string.chat_sys_role_member, target);
+            case "ROLE_CHANGED": {
+                String targetId = str(p, "targetUserId");
+                boolean isAdmin = "ADMIN".equals(str(p, "newRole"));
+                if (targetId != null && targetId.equals(meId)) {
+                    return s.get(isAdmin ? R.string.chat_sys_role_admin_you : R.string.chat_sys_role_member_you);
+                }
+                return s.get(isAdmin ? R.string.chat_sys_role_admin : R.string.chat_sys_role_member, target);
+            }
             default: return s.get(R.string.chat_sys_unknown);
         }
     }

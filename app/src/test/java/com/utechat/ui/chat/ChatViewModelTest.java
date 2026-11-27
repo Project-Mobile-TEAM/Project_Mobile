@@ -61,6 +61,33 @@ public class ChatViewModelTest {
         verify(r, times(1)).computeWindowLimitForMessage("c1", 7L, ChatRoomViewModel.PAGE);
     }
 
+    @Test public void ensureInitialHistoryLoadsOlderMessagesOnceForShortBootstrappedRoom() {
+        ChatRepository r = repo();
+        MessageEntity last = msg("peer", "TEXT", "SENT");
+        last.setServerId(135L);
+        when(r.observeVisibleMessages(eq("c1"), anyInt())).thenReturn(new MutableLiveData<>(List.of(last)));
+        when(r.loadOlderMessages("c1", 135L, ChatRoomViewModel.PAGE))
+                .thenReturn(new MutableLiveData<>(ChatResult.error("NETWORK")))
+                .thenReturn(new MutableLiveData<>(ChatResult.ok(34)));
+
+        SavedStateHandle state = new SavedStateHandle(Map.of("conversationId", "c1"));
+        ChatRoomViewModel vm = new ChatRoomViewModel(state, r, mock(ContactsRepository.class));
+        vm.getMessages().observeForever(ignored -> {});
+
+        // Nhóm read-only không được tải lịch sử server.
+        vm.ensureInitialHistory(true);
+        verify(r, never()).loadOlderMessages(anyString(), any(), anyInt());
+
+        // Lần đầu lỗi mạng -> lần gọi kế tiếp (khi WS nối lại) được phép thử lại và kéo đủ 34 tin cũ.
+        vm.ensureInitialHistory(false);
+        vm.ensureInitialHistory(false);
+        // Đã tải xong và chạm đáy (34 < 50): gọi thêm không bắn request trùng.
+        vm.ensureInitialHistory(false);
+
+        verify(r, times(2)).loadOlderMessages("c1", 135L, ChatRoomViewModel.PAGE);
+        assertEquals(Integer.valueOf(ChatRoomViewModel.PAGE + 34), state.get("windowLimit"));
+    }
+
     @Test public void readReceiptOnlyWhenResumedAndForVisibleWatermark() {
         ChatRepository r = repo();
         ChatRoomViewModel vm = new ChatRoomViewModel(new SavedStateHandle(Map.of("conversationId", "c1")), r, mock(ContactsRepository.class));

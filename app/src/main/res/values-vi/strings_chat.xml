@@ -99,7 +99,9 @@
     <string name="chat_sys_member_removed">%1$s đã xóa %2$s khỏi nhóm</string>
     <string name="chat_sys_member_left">%1$s đã rời nhóm</string>
     <string name="chat_sys_role_admin">%1$s đã trở thành quản trị viên</string>
+    <string name="chat_sys_role_admin_you">Bạn đã trở thành quản trị viên</string>
     <string name="chat_sys_role_member">%1$s không còn là quản trị viên</string>
+    <string name="chat_sys_role_member_you">Bạn không còn là quản trị viên</string>
     <string name="chat_sys_unknown">Nhóm đã được cập nhật</string>
 
     <string name="chat_type_image">Hình ảnh</string>

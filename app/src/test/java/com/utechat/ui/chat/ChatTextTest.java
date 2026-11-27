@@ -29,6 +29,18 @@ public class ChatTextTest {
         assertEquals(R.string.chat_sys_member_added + "|" + R.string.chat_you + "|An", out);
     }
 
+    @Test public void roleChangedUsesDedicatedSelfStringForGrammar() {
+        UserEntity bob = new UserEntity(); bob.setId("u-bob"); bob.setDisplayName("Bob");
+        String selfAdmin = "{\"systemEvent\":\"ROLE_CHANGED\",\"systemParams\":\"{\\\"targetUserId\\\":\\\"me\\\",\\\"newRole\\\":\\\"ADMIN\\\"}\"}";
+        String selfMember = "{\"systemEvent\":\"ROLE_CHANGED\",\"systemParams\":\"{\\\"targetUserId\\\":\\\"me\\\",\\\"newRole\\\":\\\"MEMBER\\\"}\"}";
+        String bobAdmin = "{\"systemEvent\":\"ROLE_CHANGED\",\"systemParams\":\"{\\\"targetUserId\\\":\\\"u-bob\\\",\\\"newRole\\\":\\\"ADMIN\\\"}\"}";
+        String bobMember = "{\"systemEvent\":\"ROLE_CHANGED\",\"systemParams\":\"{\\\"targetUserId\\\":\\\"u-bob\\\",\\\"newRole\\\":\\\"MEMBER\\\"}\"}";
+        assertEquals(String.valueOf(R.string.chat_sys_role_admin_you), SystemMessageFormatter.format(S, selfAdmin, Map.of("u-bob", bob), "me"));
+        assertEquals(String.valueOf(R.string.chat_sys_role_member_you), SystemMessageFormatter.format(S, selfMember, Map.of("u-bob", bob), "me"));
+        assertEquals(R.string.chat_sys_role_admin + "|Bob", SystemMessageFormatter.format(S, bobAdmin, Map.of("u-bob", bob), "me"));
+        assertEquals(R.string.chat_sys_role_member + "|Bob", SystemMessageFormatter.format(S, bobMember, Map.of("u-bob", bob), "me"));
+    }
+
     @Test public void malformedSystemJsonFallsBack() {
         assertEquals(String.valueOf(R.string.chat_sys_unknown), SystemMessageFormatter.format(S, "{not json", null, "me"));
     }
