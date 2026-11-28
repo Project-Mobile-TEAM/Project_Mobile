@@ -11,6 +11,7 @@ import com.utechat.R;
 import com.utechat.databinding.FragmentContactsListBinding;
 import com.utechat.data.local.entity.UserEntity;
 import com.utechat.data.remote.model.ContactDtos.User;
+import com.utechat.ui.chat.ChatNavigation;
 import java.util.*;
 
 /** Mục 16: chỉ danh sách bạn bè; giữ ID/title cũ và binding đúng vòng đời View. */
@@ -27,7 +28,8 @@ public class ContactsListFragment extends Fragment {
         // Màn chính chỉ dựng danh sách bạn; trạng thái thuộc graph nên Back/recreate dùng lại ViewModel.
         binding.toolbar.setTitle(R.string.title_contacts);
         binding.tabs.setVisibility(View.GONE);
-        adapter=new ContactsAdapter((action,id,user)->ContactsUi.act(this,vm,action,id,user));
+        adapter=new ContactsAdapter((action,id,user)->ContactsUi.act(this,vm,action,id,user),
+                this::openChat);
         binding.list.setLayoutManager(new LinearLayoutManager(requireContext()));
         binding.list.setAdapter(adapter);
         binding.find.setOnClickListener(v->navigate(R.id.action_contacts_to_search));
@@ -60,6 +62,12 @@ public class ContactsListFragment extends Fragment {
             }
         });
         render();vm.ensureLoaded();
+    }
+    private void openChat(String peerId) {
+        if(!Boolean.TRUE.equals(vm.sessionActive.getValue())) return;
+        var nav=NavHostFragment.findNavController(this);
+        var current=nav.getCurrentDestination();
+        if(current!=null&&current.getId()==R.id.contactsListFragment) ChatNavigation.openDirectChat(nav,peerId);
     }
     private void navigate(int action) {
         if(Boolean.TRUE.equals(vm.sessionActive.getValue())&&!Boolean.TRUE.equals(vm.busy.getValue()))

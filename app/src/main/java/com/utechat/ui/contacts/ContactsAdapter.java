@@ -8,6 +8,7 @@ import com.utechat.R;
 import com.utechat.databinding.ItemContactBinding;
 import com.utechat.data.remote.model.ContactDtos.User;
 import java.util.*;
+import java.util.function.Consumer;
 
 /** Một kiểu thẻ dùng chung ba danh sách; DiffUtil so sánh cả tên và các thao tác được phép. */
 public class ContactsAdapter extends ListAdapter<ContactsAdapter.Row,ContactsAdapter.Holder> {
@@ -20,12 +21,13 @@ public class ContactsAdapter extends ListAdapter<ContactsAdapter.Row,ContactsAda
     }
     public interface Action { void run(String action,String target,User user); }
     private final Action listener;
+    private final Consumer<String> openChat;
     private boolean actionsEnabled=true;
     public void setActionsEnabled(boolean value) {
         if(actionsEnabled==value) return;
         actionsEnabled=value;notifyItemRangeChanged(0,getItemCount(),"enabled");
     }
-    public ContactsAdapter(Action listener) {
+    public ContactsAdapter(Action listener,Consumer<String> openChat) {
         super(new DiffUtil.ItemCallback<>() {
             public boolean areItemsTheSame(@NonNull Row a,@NonNull Row b) { return a.key().equals(b.key()); }
             public boolean areContentsTheSame(@NonNull Row a,@NonNull Row b) {
@@ -33,7 +35,7 @@ public class ContactsAdapter extends ListAdapter<ContactsAdapter.Row,ContactsAda
                         &&Objects.equals(a.user()==null?null:a.user().id,b.user()==null?null:b.user().id)
                         &&Objects.equals(a.user()==null?null:a.user().avatarUrl,b.user()==null?null:b.user().avatarUrl)&&a.actions().equals(b.actions());
             }
-        }); this.listener=listener;
+        }); this.listener=listener;this.openChat=openChat;
     }
     public static int label(String action) {
         switch(action) {
@@ -57,6 +59,10 @@ public class ContactsAdapter extends ListAdapter<ContactsAdapter.Row,ContactsAda
     @Override public void onBindViewHolder(@NonNull Holder h,int position) {
         Row r=getItem(position); h.b.name.setText(r.name()); h.b.detail.setText(r.detail());
         h.b.avatar.setText(r.name()==null||r.name().isBlank()?"?":r.name().substring(0,r.name().offsetByCodePoints(0,1)).toUpperCase(Locale.ROOT));
+        h.b.getRoot().setOnClickListener(v->{
+            int current=h.getAdapterPosition();
+            if(current!=RecyclerView.NO_POSITION) openChat.accept(getItem(current).target());
+        });
         h.b.actions.setEnabled(actionsEnabled);
         h.b.actions.setContentDescription(h.b.getRoot().getContext().getString(R.string.contacts_actions_for,r.name()));
         h.b.actions.setOnClickListener(v->{

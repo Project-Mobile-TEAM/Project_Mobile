@@ -23,3 +23,14 @@
 - [Tóm tắt kiểm thử](08-03-evidence/automated-test-summary.txt).
 
 Không sửa mã nguồn, commit hoặc push.
+
+
+## Kiểm thử lại TC-8.3.03 sau khi sửa — 28/11/2026
+
+- Thay đổi ở Android: `ContactsAdapter` nhận sự kiện bấm hàng và lấy ID từ hàng đang hiển thị. `ContactsListFragment` dùng `ChatNavigation.openDirectChat` để mở chat 1-1. Nút **Thao tác** giữ menu riêng.
+- **Online — PASS.** Cài APK Debug mới dùng backend thật trên Medium Phone API 37.0. Bấm **Thao tác** ở hàng tài khoản thử nghiệm thấy menu **Hủy kết bạn / Chặn**. Đóng menu rồi bấm tên ở cùng hàng, app mở đúng phòng chat, có danh sách tin nhắn và ô soạn. Bấm Quay lại trở về Danh bạ.
+- **Offline — PASS.** Làm mới Danh bạ khi có mạng, tắt Wi-Fi và dữ liệu, buộc dừng rồi mở lại app. Chọn **Tiếp tục ngoại tuyến** rồi vào **Bạn bè**. Danh bạ vẫn hiện tài khoản thử nghiệm. Bấm tên mở đúng phòng chat đã lưu, có vùng tin nhắn và ô soạn. ADB xác nhận `Active default network: none` trước và sau khi mở phòng. Đã bật lại Wi-Fi sau kiểm thử.
+- Gradle `testDebugUnitTest assembleDebug -PuseFakeData=false` báo **BUILD SUCCESSFUL**. Kết quả XML của Android: **288/288 PASS**, 0 failure, error hoặc skipped.
+- Tổng hợp kết quả đợt gốc với lần kiểm thử lại: **7/8 PASS, 1 FAIL**. Chỉ chạy lại TC-8.3.03 trên APK mới. TC-8.3.07 vẫn mang kết quả FAIL từ đợt gốc.
+
+- Xác nhận lần hai trước khi push: build và cài lại APK Debug. Trên Medium Phone API 37.0, menu Thao tác, mở đúng phòng online, Quay lại Danh bạ và mở đúng phòng offline sau khi khởi động lại app đều PASS. Tin nhắn đã lưu hiển thị khi ADB báo `Active default network: none`.
