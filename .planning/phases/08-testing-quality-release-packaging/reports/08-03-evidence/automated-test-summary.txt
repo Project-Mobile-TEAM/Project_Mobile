@@ -1,0 +1,19 @@
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 25.21 s -- in com.utechat.backend.call.CallSignalingAndPolicyApiTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.007 s -- in com.utechat.backend.calls.TurnCredentialsServiceTest
+[INFO] Tests run: 25, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 42.77 s -- in com.utechat.backend.contacts.ContactAcceptApiTest
+[INFO] Tests run: 34, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 47.68 s -- in com.utechat.backend.contacts.ContactBlockApiTest
+[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.017 s -- in com.utechat.backend.contacts.ContactDtosTest
+[INFO] Tests run: 29, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 42.41 s -- in com.utechat.backend.contacts.ContactFriendsApiTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.002 s -- in com.utechat.backend.contacts.ContactInputValidationTest
+[INFO] Tests run: 8, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 9.018 s -- in com.utechat.backend.contacts.ContactJwtPostgresTest
+[INFO] Tests run: 22, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 40.78 s -- in com.utechat.backend.contacts.ContactLookupApiTest
+[INFO] Tests run: 8, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.250 s -- in com.utechat.backend.contacts.ContactPolicyServiceTest
+[INFO] Tests run: 12, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 16.59 s -- in com.utechat.backend.contacts.ContactPostgresFoundationTest
+[INFO] Tests run: 27, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 38.06 s -- in com.utechat.backend.contacts.ContactRequestActionsApiTest
+[INFO] Tests run: 17, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 23.53 s -- in com.utechat.backend.contacts.ContactRequestListApiTest
+[INFO] Tests run: 20, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 27.36 s -- in com.utechat.backend.contacts.ContactSendApiTest
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 8.180 s -- in com.utechat.backend.contacts.ContactsMigrationTest
+[INFO] Tests run: 226, Failures: 0, Errors: 0, Skipped: 0
+[INFO] BUILD SUCCESS
+> Task :app:testDebugUnitTest UP-TO-DATE
+BUILD SUCCESSFUL in 7s
